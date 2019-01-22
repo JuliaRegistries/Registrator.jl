@@ -31,6 +31,12 @@ end
 
 event_queue = Queue(WebhookEvent)
 
+function get_pr_files(event)
+    url = event.payload["pull_request"]["url"]
+    filesurl = joinpath(url, "files")
+    get(filesurl).data |> String |> strip |> JSON.parse
+end
+
 """
 The webhook handler.
 """
@@ -39,9 +45,11 @@ function event_handler(event::WebhookEvent)
     kind, payload, repo = event.kind, event.payload, event.repository
 
     if kind == "pull_request" && payload["action"] == "closed" && payload["pull_request"]["merged"]
-        commit = get_commit(event)
-        info("Creating registration pull request for $commit")
-        enqueue!(event_queue, (event, :register))
+        prfiles = get_pr_files(event)
+        if "Project.toml" in [f["filename"] for f in prfiles]
+            info("Creating registration pull request for $(get_reponame(event)) PR: $(get_prid(event))")
+            enqueue!(event_queue, (event, :register))
+        end
 
     elseif kind == "ping" || kind == "pull_request" && payload["action"] == "closed"
 
