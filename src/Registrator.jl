@@ -24,7 +24,7 @@ function get_registry(registry::String)
             git = `git -C $registry_path`
             run(`$git config remote.origin.url $registry`)
             run(`$git checkout -q -f master`)
-            run(`$git fetch -q -P origin master`)
+            run(`$git fetch -q -p origin master`)
             run(`$git reset -q --hard origin/master`)
         end
     else
