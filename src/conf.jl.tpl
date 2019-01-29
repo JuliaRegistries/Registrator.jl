@@ -7,6 +7,7 @@ const events = ["pull_request", "push", "ping"]
 const GITHUB_USER="user"
 const GITHUB_TOKEN="xxxxxxx"
 const GITHUB_SECRET="xxxxxx"
+const GITHUB_JWT = "xxxx"
 
 const DEV_MODE = true
 

@@ -5,8 +5,6 @@ using UUIDs, LibGit2
 import Base: PkgId
 import Pkg: Pkg, TOML, GitTools
 
-include("conf.jl")
-
 DEFAULT_REGISTRY = "https://github.com/JuliaRegistries/General"
 
 const REGISTRIES = Dict{String,UUID}()

@@ -1,8 +1,12 @@
 module RegServer
 
+using Sockets
 using GitHub
 using DataStructures
 using HTTP
+using Distributed
+
+include("conf.jl")
 
 function get_backtrace(ex)
     v = IOBuffer()
@@ -12,8 +16,8 @@ end
 
 """Start a github webhook listener to process events"""
 function start_github_webhook(http_ip=DEFAULT_HTTP_IP, http_port=DEFAULT_HTTP_PORT)
-    listener = GitHub.EventListener(event_handler; auth=GitHub.authenticate(GITHUB_TOKEN), secret=GITHUB_SECRET, events=events)
-    GitHub.run(listener, host=IPv4(http_ip), port=http_port)
+    listener = GitHub.EventListener(event_handler; auth=GitHub.JWTAuth(GITHUB_JWT), secret=GITHUB_SECRET, events=events)
+    GitHub.run(listener, http_ip, http_port)
 end
 
 function get_commit(event::WebhookEvent)
@@ -29,12 +33,27 @@ function get_commit(event::WebhookEvent)
     commit
 end
 
-event_queue = Queue(WebhookEvent)
+event_queue = Queue{WebhookEvent}()
 
 function get_pr_files(event)
     url = event.payload["pull_request"]["url"]
     filesurl = joinpath(url, "files")
     get(filesurl).data |> String |> strip |> JSON.parse
+end
+
+function is_projectfile_edited(event)
+    prfiles = get_pr_files(event)
+    "Project.toml" in [f["filename"] for f in prfiles]
+end
+
+function is_approved_by_collaborator(event)
+    r = event.payload["review"]
+    if r["state"] == "approved"
+        user = r["user"]["login"]
+        return iscollaborator(event.repository, user)
+    end
+
+    return false
 end
 
 """
@@ -44,23 +63,24 @@ function event_handler(event::WebhookEvent)
     global event_queue
     kind, payload, repo = event.kind, event.payload, event.repository
 
-    if kind == "pull_request" && payload["action"] == "closed" && payload["pull_request"]["merged"]
-        prfiles = get_pr_files(event)
-        if "Project.toml" in [f["filename"] for f in prfiles]
-            info("Creating registration pull request for $(get_reponame(event)) PR: $(get_prid(event))")
-            enqueue!(event_queue, (event, :register))
-        end
+    if kind == "pull_request_review" &&
+       payload["action"] == "submitted" &&
+       is_approved_by_collaborator(event) &&
+       is_projectfile_edited(event)
 
-    elseif kind == "ping" || kind == "pull_request" && payload["action"] == "closed"
+        @info("Creating registration pull request for $(get_reponame(event)) PR: $(get_prid(event))")
+        enqueue!(event_queue, (event, :register))
 
-        info("Received event $kind, nothing to do")
+    elseif kind == "ping"
+
+        @info("Received event $kind, nothing to do")
         return HTTP.Messages.Response(200)
 
     elseif kind in ["pull_request", "push"] &&
        payload["action"] in ["opened", "reopened", "synchronize"]
 
         commit = get_commit(event)
-        info("Enqueueing CI for $commit")
+        @info("Enqueueing CI for $commit")
         enqueue!(event_queue, (event, :ci))
 
         if !DEV_MODE
@@ -90,8 +110,8 @@ function recover(f)
         try
             f()
         catch ex
-            info("Task $f failed")
-            info(get_backtrace(ex))
+            @info("Task $f failed")
+            @info(get_backtrace(ex))
         end
 
         sleep(CYCLE_INTERVAL)
@@ -106,10 +126,11 @@ function handle_ci_events(event)
     commit = get_commit(event)
 
     if !is_pr_open(event)
-        continue
+        @info("PR closed ignoring CI")
+        return
     end
 
-    info("Processing CI event for commit: $commit")
+    @info("Processing CI event for commit: $commit")
 
     # DO CI HERE
 
@@ -136,22 +157,21 @@ function handle_ci_events(event)
         println(text_table)
     end
 
-    info("Done processing event for commit: $commit")
+    @info("Done processing event for commit: $commit")
 end
 
 function handle_ci_events(event)
     commit = get_commit(event)
 
-    info("Processing Register event for commit: $commit")
+    @info("Processing Register event for commit: $commit")
 
     Registrator.register(event.repository["clone_url"], commit; registry=REGISTRY, push=true)
 
-    info("Done processing event for commit: $commit")
+    @info("Done processing event for commit: $commit")
 end
 
 function tester()
     global event_queue
-    cd(work_dir)
 
     while true
         while !isempty(event_queue)
@@ -168,7 +188,7 @@ function tester()
 end
 
 function main()
-    @schedule @recover tester()
+    @async @recover tester()
     @recover start_github_webhook()
 end
 
