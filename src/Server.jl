@@ -7,6 +7,7 @@ using HTTP
 using Distributed
 
 include("conf.jl")
+include("github_auth.jl")
 
 function get_backtrace(ex)
     v = IOBuffer()
@@ -16,11 +17,12 @@ end
 
 """Start a github webhook listener to process events"""
 function start_github_webhook(http_ip=DEFAULT_HTTP_IP, http_port=DEFAULT_HTTP_PORT)
-    listener = GitHub.EventListener(event_handler; auth=GitHub.JWTAuth(GITHUB_JWT), secret=GITHUB_SECRET, events=events)
-    GitHub.run(listener, http_ip, http_port)
+    listener = GitHub.EventListener(event_handler; auth=GitHubAuth.auth, secret=GITHUB_SECRET, events=events)
+    GitHub.run(listener, IPv4(http_ip), http_port)
 end
 
 function get_commit(event::WebhookEvent)
+    @info("getting commit sha for event")
     kind = event.kind
     payload = event.payload
     if kind == "push"
@@ -33,26 +35,38 @@ function get_commit(event::WebhookEvent)
     commit
 end
 
-event_queue = Queue{WebhookEvent}()
-
-function get_pr_files(event)
-    url = event.payload["pull_request"]["url"]
-    filesurl = joinpath(url, "files")
-    get(filesurl).data |> String |> strip |> JSON.parse
-end
+event_queue = Queue{Tuple{WebhookEvent, Symbol}}()
 
 function is_projectfile_edited(event)
-    prfiles = get_pr_files(event)
-    "Project.toml" in [f["filename"] for f in prfiles]
+    @info("Checking for project file in PR")
+    repo = get_reponame(event)
+    prid = get_prid(event)
+    prfiles = pull_request_files(repo, prid)
+    if "Project.toml" in [f.filename for f in prfiles]
+        @info("Project file is edited")
+        return true
+    else
+        @info("Project file is not edited")
+        return false
+    end
 end
 
 function is_approved_by_collaborator(event)
+    @info("Checking for approval by collaborator")
     r = event.payload["review"]
     if r["state"] == "approved"
+        @info("PR is approved")
         user = r["user"]["login"]
-        return iscollaborator(event.repository, user)
+        if iscollaborator(event.repository, user; auth=GitHubAuth.auth)
+            @info("Approval done by collaborator")
+            return true
+        else
+            @info("Approval not done by collaborator")
+            return false
+        end
     end
 
+    @info("PR is not approved")
     return false
 end
 
@@ -76,7 +90,7 @@ function event_handler(event::WebhookEvent)
         @info("Received event $kind, nothing to do")
         return HTTP.Messages.Response(200)
 
-    elseif kind in ["pull_request", "push"] &&
+    elseif DO_CI && kind in ["pull_request", "push"] &&
        payload["action"] in ["opened", "reopened", "synchronize"]
 
         commit = get_commit(event)
@@ -88,7 +102,7 @@ function event_handler(event::WebhookEvent)
                           "context" => GITHUB_USER,
                           "description" => "pending")
             GitHub.create_status(repo, commit;
-                                 auth=GitHub.authenticate(GITHUB_TOKEN),
+                                 auth=GitHubAuth.auth,
                                  params=params)
         end
     end
@@ -97,10 +111,10 @@ function event_handler(event::WebhookEvent)
 end
 
 get_prid(event) = event.payload["pull_request"]["number"]
-get_reponame(event) = get(event.repository.full_name)
+get_reponame(event) = event.repository.full_name
 
 is_pr_open(repo::String, prid::Int) =
-    get(pull_request(Repo(repo), prid; auth=GitHub.authenticate(GITHUB_TOKEN)).state) == "open"
+    get(pull_request(Repo(repo), prid; auth=GitHubAuth.auth).state) == "open"
 
 is_pr_open(event::WebhookEvent) =
     is_pr_open(get_reponame(event), get_prid(event))
@@ -142,7 +156,7 @@ function handle_ci_events(event)
         headers = Dict("private_token" => GITHUB_TOKEN)
         params = Dict("body" => text_table)
         repo = event.repository
-        auth = GitHub.authenticate(GITHUB_TOKEN)
+        auth = GitHubAuth.auth
         GitHub.create_comment(repo, event.payload["pull_request"]["number"],
                               :issue; headers=headers,
                               params=params, auth=auth)
@@ -160,7 +174,7 @@ function handle_ci_events(event)
     @info("Done processing event for commit: $commit")
 end
 
-function handle_ci_events(event)
+function handle_register_events(event)
     commit = get_commit(event)
 
     @info("Processing Register event for commit: $commit")
