@@ -6,8 +6,9 @@ using DataStructures
 using HTTP
 using Distributed
 
+import ..Registrator: register
+
 include("conf.jl")
-include("github_auth.jl")
 
 function get_backtrace(ex)
     v = IOBuffer()
@@ -15,9 +16,14 @@ function get_backtrace(ex)
     return v.data |> copy |> String
 end
 
+function get_jwt_auth()
+    GitHub.JWTAuth(GITHUB_APP_ID, GITHUB_PRIV_PEM)
+end
+
 """Start a github webhook listener to process events"""
 function start_github_webhook(http_ip=DEFAULT_HTTP_IP, http_port=DEFAULT_HTTP_PORT)
-    listener = GitHub.EventListener(event_handler; auth=GitHubAuth.auth, secret=GITHUB_SECRET, events=events)
+    auth = get_jwt_auth()
+    listener = GitHub.EventListener(event_handler; auth=auth, secret=GITHUB_SECRET, events=events)
     GitHub.run(listener, IPv4(http_ip), http_port)
 end
 
@@ -25,12 +31,15 @@ function get_commit(event::WebhookEvent)
     @info("getting commit sha for event")
     kind = event.kind
     payload = event.payload
+    commit = nothing
     if kind == "push"
         commit = payload["after"]
     elseif kind == "pull_request"
         commit = payload["pull_request"]["head"]["sha"]
     elseif kind == "status"
         commit = payload["commit"]["sha"]
+    elseif kind == "pull_request_review"
+        commit = payload["review"]["commit_id"]
     end
     commit
 end
@@ -57,7 +66,9 @@ function is_approved_by_collaborator(event)
     if r["state"] == "approved"
         @info("PR is approved")
         user = r["user"]["login"]
-        if iscollaborator(event.repository, user; auth=GitHubAuth.auth)
+        auth = get_jwt_auth()
+        tok = create_access_token(Installation(event.payload["installation"]), auth)
+        if iscollaborator(event.repository, user; auth=tok)
             @info("Approval done by collaborator")
             return true
         else
@@ -102,7 +113,7 @@ function event_handler(event::WebhookEvent)
                           "context" => GITHUB_USER,
                           "description" => "pending")
             GitHub.create_status(repo, commit;
-                                 auth=GitHubAuth.auth,
+                                 auth=get_jwt_auth(),
                                  params=params)
         end
     end
@@ -114,7 +125,7 @@ get_prid(event) = event.payload["pull_request"]["number"]
 get_reponame(event) = event.repository.full_name
 
 is_pr_open(repo::String, prid::Int) =
-    get(pull_request(Repo(repo), prid; auth=GitHubAuth.auth).state) == "open"
+    get(pull_request(Repo(repo), prid; auth=get_jwt_auth()).state) == "open"
 
 is_pr_open(event::WebhookEvent) =
     is_pr_open(get_reponame(event), get_prid(event))
@@ -153,10 +164,10 @@ function handle_ci_events(event)
     success = false
 
     if !DEV_MODE
-        headers = Dict("private_token" => GITHUB_TOKEN)
+        headers = Dict("private_token" => get_jwt_auth())
         params = Dict("body" => text_table)
         repo = event.repository
-        auth = GitHubAuth.auth
+        auth = get_jwt_auth()
         GitHub.create_comment(repo, event.payload["pull_request"]["number"],
                               :issue; headers=headers,
                               params=params, auth=auth)
@@ -179,7 +190,7 @@ function handle_register_events(event)
 
     @info("Processing Register event for commit: $commit")
 
-    Registrator.register(event.repository["clone_url"], commit; registry=REGISTRY, push=true)
+    register(event.payload["repository"]["clone_url"], commit; registry=REGISTRY, push=true)
 
     @info("Done processing event for commit: $commit")
 end
