@@ -190,7 +190,20 @@ function handle_register_events(event)
 
     @info("Processing Register event for commit: $commit")
 
-    register(event.payload["repository"]["clone_url"], commit; registry=REGISTRY, push=true)
+    name, ver, brn = register(event.payload["repository"]["clone_url"], commit; registry=REGISTRY, push=true)
+    user = event.payload["pull_request"]["user"]["login"]
+    reviewer = event.payload["review"]["user"]["login"]
+
+    params = Dict("title"=>"Register $name: $ver",
+                  "base"=>REGISTRY_BASE_BRANCH,
+                  "head"=>brn,
+                  "maintainer_can_modify"=>true)
+
+    params["body"] = """Register $name: $ver
+cc: @$(user)
+reviewer: @$(reviewer)"""
+
+    create_pull_request(get_reponame(event); auth=GitHub.authenticate(GITHUB_TOKEN), params=params)
 
     @info("Done processing event for commit: $commit")
 end

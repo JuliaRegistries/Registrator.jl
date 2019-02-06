@@ -13,3 +13,4 @@ const DEV_MODE = true
 const DO_CI = false
 
 const REGISTRY="https://github.com/JuliaRegistries/General"
+const REGISTRY_BASE_BRANCH="master"

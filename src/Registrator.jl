@@ -171,7 +171,7 @@ function register(
     # push -f branch to remote
     push && run(`$git push -q -f -u origin $branch`)
 
-    return
+    return pkg.name, pkg.version, branch
 end
 
 include("Server.jl")
