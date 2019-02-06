@@ -23,7 +23,7 @@ end
 """Start a github webhook listener to process events"""
 function start_github_webhook(http_ip=DEFAULT_HTTP_IP, http_port=DEFAULT_HTTP_PORT)
     auth = get_jwt_auth()
-    listener = GitHub.EventListener(event_handler; auth=auth, secret=GITHUB_SECRET, events=events)
+    listener = GitHub.CommentListener(comment_handler, TRIGGER; auth=auth, secret=GITHUB_SECRET)
     GitHub.run(listener, IPv4(http_ip), http_port)
 end
 
@@ -60,31 +60,55 @@ function is_projectfile_edited(event)
     end
 end
 
-function is_approved_by_collaborator(event)
-    @info("Checking for approval by collaborator")
-    r = event.payload["review"]
-    if r["state"] == "approved"
-        @info("PR is approved")
-        user = r["user"]["login"]
-        auth = get_jwt_auth()
-        tok = create_access_token(Installation(event.payload["installation"]), auth)
-        if iscollaborator(event.repository, user; auth=tok)
-            @info("Approval done by collaborator")
-            return true
-        else
-            @info("Approval not done by collaborator")
-            return false
-        end
+function is_comment_by_collaborator(event)
+    @info("Checking whether comment is by collaborator")
+    c = event.payload["comment"]
+    user = c["user"]["login"]
+    auth = get_jwt_auth()
+    tok = create_access_token(Installation(event.payload["installation"]), auth)
+    if iscollaborator(event.repository, user; auth=tok)
+        @info("Comment made by collaborator")
+        return true
+    else
+        @info("Comment not made by collaborator")
+        return false
     end
-
-    @info("PR is not approved")
-    return false
 end
 
-"""
-The webhook handler.
-"""
-function event_handler(event::WebhookEvent)
+function make_comment(event, body)
+    auth = get_jwt_auth()
+    headers = Dict("private_token" => auth)
+    params = Dict("body" => body)
+    repo = event.repository
+    GitHub.create_comment(repo, event.payload["pull_request"]["number"],
+                          :issue; headers=headers,
+                          params=params, auth=auth)
+end
+
+function comment_handler(event::WebhookEvent, phrase)
+    global event_queue
+    kind, payload, repo = event.kind, event.payload, event.repository
+
+    is_comment_by_collaborator(event)
+    is_projectfile_edited(event)
+
+    @info("Creating registration pull request for $(get_reponame(event)) PR: $(get_prid(event))")
+    enqueue!(event_queue, (event, :register))
+
+    if !DEV_MODE
+        params = Dict("state" => "pending",
+                      "context" => GITHUB_USER,
+                      "description" => "pending")
+        GitHub.create_status(repo, commit;
+                             auth=get_jwt_auth(),
+                             params=params)
+    end
+
+    return HTTP.Messages.Response(200)
+end
+
+#=
+function comment_handler(event::WebhookEvent, phrase)
     global event_queue
     kind, payload, repo = event.kind, event.payload, event.repository
 
@@ -120,8 +144,16 @@ function event_handler(event::WebhookEvent)
 
     return HTTP.Messages.Response(200)
 end
+=#
 
-get_prid(event) = event.payload["pull_request"]["number"]
+function get_prid(event)
+    if haskey(event.payload, "pull_request")
+        event.payload["pull_request"]["number"]
+    else
+        event.payload["issue"]["number"]
+    end
+end
+
 get_reponame(event) = event.repository.full_name
 
 is_pr_open(repo::String, prid::Int) =
@@ -185,14 +217,11 @@ function handle_ci_events(event)
     @info("Done processing event for commit: $commit")
 end
 
-function handle_register_events(event)
-    commit = get_commit(event)
-
-    @info("Processing Register event for commit: $commit")
-
-    name, ver, brn = register(event.payload["repository"]["clone_url"], commit; registry=REGISTRY, push=true)
-    user = event.payload["pull_request"]["user"]["login"]
-    reviewer = event.payload["review"]["user"]["login"]
+function make_pull_request(event, name, ver, brn)
+    @info("Creating pull request name=$name, ver=$ver, branch=$brn")
+    creator = event.payload["issue"]["user"]["login"]
+    reviewer = event.payload["sender"]["login"]
+    @info("Pull request creator=$creator, reviewer=$reviewer")
 
     params = Dict("title"=>"Register $name: $ver",
                   "base"=>REGISTRY_BASE_BRANCH,
@@ -200,10 +229,32 @@ function handle_register_events(event)
                   "maintainer_can_modify"=>true)
 
     params["body"] = """Register $name: $ver
-cc: @$(user)
+cc: @$(creator)
 reviewer: @$(reviewer)"""
 
-    create_pull_request(get_reponame(event); auth=GitHub.authenticate(GITHUB_TOKEN), params=params)
+    try
+        create_pull_request(get_reponame(event); auth=GitHub.authenticate(GITHUB_TOKEN), params=params)
+        @info("Pull request created")
+    catch ex
+        if ex.resp.code == 422
+            @info("Pull request already exists, not creating")
+        else
+            rethrow(ex)
+        end
+    end
+end
+
+function get_clone_url(event)
+    event.payload["repository"]["clone_url"]
+end
+
+function handle_register_events(event)
+    commit = get_commit(event)
+
+    @info("Processing Register event for commit: $commit")
+
+    name, ver, brn = register(get_clone_url(event), commit; registry=REGISTRY, push=true)
+    make_pull_request(event, name, ver, brn)
 
     @info("Done processing event for commit: $commit")
 end
