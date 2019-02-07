@@ -76,6 +76,7 @@ function is_comment_by_collaborator(event)
 end
 
 function make_comment(event, body)
+    @info("Posting comment to PR/issue")
     auth = get_jwt_auth()
     headers = Dict("private_token" => auth)
     params = Dict("body" => body)
@@ -89,19 +90,20 @@ function comment_handler(event::WebhookEvent, phrase)
     global event_queue
     kind, payload, repo = event.kind, event.payload, event.repository
 
-    is_comment_by_collaborator(event)
-    is_projectfile_edited(event)
+    if is_comment_by_collaborator(event) && is_projectfile_edited(event)
+        @info("Creating registration pull request for $(get_reponame(event)) PR: $(get_prid(event))")
+        enqueue!(event_queue, (event, :register))
 
-    @info("Creating registration pull request for $(get_reponame(event)) PR: $(get_prid(event))")
-    enqueue!(event_queue, (event, :register))
-
-    if !DEV_MODE
-        params = Dict("state" => "pending",
-                      "context" => GITHUB_USER,
-                      "description" => "pending")
-        GitHub.create_status(repo, commit;
-                             auth=get_jwt_auth(),
-                             params=params)
+        if !DEV_MODE
+            params = Dict("state" => "pending",
+                          "context" => GITHUB_USER,
+                          "description" => "pending")
+            GitHub.create_status(repo, commit;
+                                 auth=get_jwt_auth(),
+                                 params=params)
+        end
+    else
+        @info("Conditions not met, not executing register")
     end
 
     return HTTP.Messages.Response(200)
@@ -217,6 +219,22 @@ function handle_ci_events(event)
     @info("Done processing event for commit: $commit")
 end
 
+function is_pr_exists_exception(ex)
+    msgs = map(strip, split(ex.msg, '\n'))
+    d = Dict()
+    for m in msgs
+        a, b = split(m, ":"; limit=2)
+        d[a] = strip(b)
+    end
+
+    if d["Status Code"] == "422" &&
+       match(r"A pull request already exists", d["Errors"]) != nothing
+        return true
+    end
+
+    return false
+end
+
 function make_pull_request(event, name, ver, brn)
     @info("Creating pull request name=$name, ver=$ver, branch=$brn")
     creator = event.payload["issue"]["user"]["login"]
@@ -232,16 +250,35 @@ function make_pull_request(event, name, ver, brn)
 cc: @$(creator)
 reviewer: @$(reviewer)"""
 
+    pr = nothing
+    repo = get_reponame(event)
     try
-        create_pull_request(get_reponame(event); auth=GitHub.authenticate(GITHUB_TOKEN), params=params)
+        pr = create_pull_request(repo; auth=GitHub.authenticate(GITHUB_TOKEN), params=params)
         @info("Pull request created")
     catch ex
-        if ex.resp.code == 422
+        if is_pr_exists_exception(ex)
             @info("Pull request already exists, not creating")
         else
             rethrow(ex)
         end
     end
+
+    msg = "created"
+
+    if pr == nothing
+        @info("Searching for existing PR")
+        for p in pull_requests(repo; auth=GitHub.authenticate(GITHUB_TOKEN))[1]
+            if p.base == REGISTRY_BASE_BRANCH && p.head = brn
+                @info("PR found")
+                pr = p
+                break
+            end
+        end
+        msg = "updated"
+    end
+
+    cbody = "Registration pull request $msg: [$(repo)/$(pr.number)]($(pr.html_url))"
+    make_comment(event, cbody)
 end
 
 function get_clone_url(event)
