@@ -10,6 +10,124 @@ import ..Registrator: register
 
 include("conf.jl")
 
+function get_sha_from_branch(reponame, brn)
+    try
+        b = branch(reponame, Branch(brn))
+        sha = b.sha != nothing ? b.sha : b.commit.sha
+        return sha, nothing
+    catch ex
+        d = parse_github_exception(ex)
+        if d["Status Code"] == "404" && d["Message"] == "Branch not found"
+            return nothing, "Branch `$brn` not found"
+        else
+            rethrow(ex)
+        end
+    end
+
+    return nothing, nothing
+end
+
+function is_comment_by_collaborator(event)
+    c = event.payload["comment"]
+    user = c["user"]["login"]
+    auth = get_jwt_auth()
+    tok = create_access_token(Installation(event.payload["installation"]), auth)
+    return iscollaborator(event.repository, user; auth=tok)
+end
+
+function is_projectfile_edited(event)
+    @info("Checking for project file in PR")
+    repo = get_reponame(event)
+    prid = get_prid(event)
+    prfiles = pull_request_files(repo, prid)
+    if "Project.toml" in [f.filename for f in prfiles]
+        @info("Project file is edited")
+        return true
+    else
+        @info("Project file is not edited")
+        return false
+    end
+end
+
+mutable struct RegParams
+    evt::WebhookEvent
+    reponame::String
+    cloneurl::String
+    ispr::Bool
+    prid::Union{Nothing, Int}
+    sha::Union{Nothing, String}
+    branch::Union{Nothing, String}
+    comment_by_collaborator::Bool
+    projectfile_found::Bool
+    isvalid::Bool
+    error::Union{Nothing, String}
+    report_error::Bool
+
+    function RegParams(evt::WebhookEvent, phrase::String)
+        reponame = evt.repository.full_name
+        cloneurl = evt.repository.clone_url
+        ispr = true
+        prid = nothing
+        sha = nothing
+        brn = nothing
+        comment_by_collaborator = is_comment_by_collaborator(evt)
+        error = nothing
+        report_error = true
+
+        if comment_by_collaborator
+            if haskey(evt.payload["issue"], "pull_request")
+                prid = parse(Int, evt.payload["issue"]["number"])
+                pr = pull_request(reponame, prid)
+                sha = pr.head.sha
+                prfiles = pull_request_files(repo, prid)
+                projectfile_found = "Project.toml" in [f.filename for f in prfiles]
+
+                if !projectfile_found
+                    error = "Project file not found on this Pull request"
+                end
+            else
+                ispr = false
+                brn = "master"
+                arg_regx = r"\((.*?)\)"
+                m = match(arg_regx, phrase)
+                if length(m.captures) != 0
+                    arg = strip(m.captures[1])
+                    if length(arg) != 0
+                        brn = arg
+                    end
+                end
+
+                sha, error = get_sha_from_branch(reponame, brn)
+
+                if error == nothing && sha != nothing
+                    gcom = gitcommit(reponame, GitCommit(Dict("sha"=>sha)))
+                    t = tree(reponame, Tree(gcom.tree))
+
+                    for tr in t.tree
+                        if tr["path"] == "Project.toml"
+                            projectfile_found = true
+                            break
+                        end
+                    end
+
+                   if !projectfile_found
+                       error = "Project file not found on branch `$brn`"
+                   end
+                end
+            end
+        else
+            error = "Comment not made by collaborator"
+            report_error = false
+        end
+
+        isvalid = comment_by_collaborator && projectfile_found
+
+        return new(evt, reponame, cloneurl, ispr, prid, sha, brn,
+                  comment_by_collaborator, projectfile_found,
+                  isvalid, error, report_error)
+    end
+end
+
 function get_backtrace(ex)
     v = IOBuffer()
     Base.showerror(v, ex, catch_backtrace())
@@ -23,7 +141,7 @@ end
 """Start a github webhook listener to process events"""
 function start_github_webhook(http_ip=DEFAULT_HTTP_IP, http_port=DEFAULT_HTTP_PORT)
     auth = get_jwt_auth()
-    listener = GitHub.CommentListener(comment_handler, TRIGGER; auth=auth, secret=GITHUB_SECRET)
+    listener = GitHub.CommentListener(comment_handler, TRIGGER; check_collab=false, auth=auth, secret=GITHUB_SECRET)
     GitHub.run(listener, IPv4(http_ip), http_port)
 end
 
@@ -44,7 +162,7 @@ function get_commit(event::WebhookEvent)
     commit
 end
 
-event_queue = Queue{Tuple{WebhookEvent, Symbol}}()
+event_queue = Queue{RegParams}()
 
 function is_projectfile_edited(event)
     @info("Checking for project file in PR")
@@ -56,21 +174,6 @@ function is_projectfile_edited(event)
         return true
     else
         @info("Project file is not edited")
-        return false
-    end
-end
-
-function is_comment_by_collaborator(event)
-    @info("Checking whether comment is by collaborator")
-    c = event.payload["comment"]
-    user = c["user"]["login"]
-    auth = get_jwt_auth()
-    tok = create_access_token(Installation(event.payload["installation"]), auth)
-    if iscollaborator(event.repository, user; auth=tok)
-        @info("Comment made by collaborator")
-        return true
-    else
-        @info("Comment not made by collaborator")
         return false
     end
 end
@@ -88,11 +191,16 @@ end
 
 function comment_handler(event::WebhookEvent, phrase)
     global event_queue
-    kind, payload, repo = event.kind, event.payload, event.repository
+    rp = RegParams(event, phrase)
 
-    if is_comment_by_collaborator(event) && is_projectfile_edited(event)
-        @info("Creating registration pull request for $(get_reponame(event)) PR: $(get_prid(event))")
-        enqueue!(event_queue, (event, :register))
+    if rp.isvalid && rp.error == nothing
+        if rp.ispr
+            @info("Creating registration pull request for $(rp.reponame) PR: $(rp.prid)")
+        else
+            @info("Creating registration pull request for $(rp.reponame) branch: `$(rp.branch)`")
+        end
+
+        enqueue!(event_queue, rp)
 
         if !DEV_MODE
             params = Dict("state" => "pending",
@@ -103,7 +211,10 @@ function comment_handler(event::WebhookEvent, phrase)
                                  params=params)
         end
     else
-        @info("Conditions not met, not executing register")
+        @info("Error while processing event: $(rp.error)")
+        if rp.report_error
+            make_comment(event, "Error while trying to register: $(rp.error)")
+        end
     end
 
     return HTTP.Messages.Response(200)
@@ -219,13 +330,18 @@ function handle_ci_events(event)
     @info("Done processing event for commit: $commit")
 end
 
-function is_pr_exists_exception(ex)
+function parse_github_exception(ex::ErrorException)
     msgs = map(strip, split(ex.msg, '\n'))
     d = Dict()
     for m in msgs
         a, b = split(m, ":"; limit=2)
         d[a] = strip(b)
     end
+    return d
+end
+
+function is_pr_exists_exception(ex)
+    d = parse_github_exception(ex)
 
     if d["Status Code"] == "422" &&
        match(r"A pull request already exists", d["Errors"]) != nothing
@@ -268,7 +384,7 @@ reviewer: @$(reviewer)"""
     if pr == nothing
         @info("Searching for existing PR")
         for p in pull_requests(repo; auth=GitHub.authenticate(GITHUB_TOKEN))[1]
-            if p.base == REGISTRY_BASE_BRANCH && p.head = brn
+            if p.base == REGISTRY_BASE_BRANCH && p.head == brn
                 @info("PR found")
                 pr = p
                 break
@@ -285,15 +401,13 @@ function get_clone_url(event)
     event.payload["repository"]["clone_url"]
 end
 
-function handle_register_events(event)
-    commit = get_commit(event)
+function handle_register_events(rp::RegParams)
+    @info("Processing Register event for $(rp.reponame) $(rp.sha)")
 
-    @info("Processing Register event for commit: $commit")
-
-    name, ver, brn = register(get_clone_url(event), commit; registry=REGISTRY, push=true)
+    name, ver, brn = register(rp.cloneurl, rp.sha; registry=REGISTRY, push=true)
     make_pull_request(event, name, ver, brn)
 
-    @info("Done processing event for commit: $commit")
+    @info("Done processing event for $(rp.reponame) $(rp.sha)")
 end
 
 function tester()
@@ -301,12 +415,8 @@ function tester()
 
     while true
         while !isempty(event_queue)
-            event, t = dequeue!(event_queue)
-            if t == :ci
-                handle_ci_events(event)
-            elseif t == :register
-                handle_register_events(event)
-            end
+            rp = dequeue!(event_queue)
+            handle_register_events(rp)
         end
 
         sleep(CYCLE_INTERVAL)
