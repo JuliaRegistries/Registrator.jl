@@ -167,7 +167,7 @@ function get_commit(event::WebhookEvent)
     commit
 end
 
-event_queue = RegParams[]
+event_queue = Queue{RegParams}()
 
 function make_comment(rp, body)
     @debug("Posting comment to PR/issue")
@@ -192,7 +192,7 @@ function comment_handler(event::WebhookEvent, phrase)
             @info("Creating registration pull request for $(rp.reponame) branch: `$(rp.branch)`")
         end
 
-        pushfirst!(event_queue, rp)
+        enqueue!(event_queue, rp)
 
         if !DEV_MODE
             params = Dict("state" => "pending",
@@ -223,7 +223,7 @@ function comment_handler(event::WebhookEvent, phrase)
        is_projectfile_edited(event)
 
         @info("Creating registration pull request for $(get_reponame(event)) PR: $(get_prid(event))")
-        pushfirst!(event_queue, (event, :register))
+        enqueue!(event_queue, (event, :register))
 
     elseif kind == "ping"
 
@@ -235,7 +235,7 @@ function comment_handler(event::WebhookEvent, phrase)
 
         commit = get_commit(event)
         @info("Enqueueing CI for $commit")
-        pushfirst!(event_queue, (event, :ci))
+        enqueue!(event_queue, (event, :ci))
 
         if !DEV_MODE
             params = Dict("state" => "pending",
@@ -411,7 +411,7 @@ function tester()
 
     while true
         while !isempty(event_queue)
-            rp = pop!(event_queue)
+            rp = dequeue!(event_queue)
             handle_register_events(rp)
         end
 
