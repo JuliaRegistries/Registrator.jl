@@ -2,7 +2,6 @@ module RegServer
 
 using Sockets
 using GitHub
-using DataStructures
 using HTTP
 using Distributed
 
@@ -162,7 +161,7 @@ function get_commit(event::WebhookEvent)
     commit
 end
 
-event_queue = Queue{RegParams}()
+event_queue = RegParams[]
 
 function is_projectfile_edited(event)
     @info("Checking for project file in PR")
@@ -200,7 +199,7 @@ function comment_handler(event::WebhookEvent, phrase)
             @info("Creating registration pull request for $(rp.reponame) branch: `$(rp.branch)`")
         end
 
-        enqueue!(event_queue, rp)
+        pushfirst!(event_queue, rp)
 
         if !DEV_MODE
             params = Dict("state" => "pending",
@@ -231,7 +230,7 @@ function comment_handler(event::WebhookEvent, phrase)
        is_projectfile_edited(event)
 
         @info("Creating registration pull request for $(get_reponame(event)) PR: $(get_prid(event))")
-        enqueue!(event_queue, (event, :register))
+        pushfirst!(event_queue, (event, :register))
 
     elseif kind == "ping"
 
@@ -243,7 +242,7 @@ function comment_handler(event::WebhookEvent, phrase)
 
         commit = get_commit(event)
         @info("Enqueueing CI for $commit")
-        enqueue!(event_queue, (event, :ci))
+        pushfirst!(event_queue, (event, :ci))
 
         if !DEV_MODE
             params = Dict("state" => "pending",
@@ -415,7 +414,7 @@ function tester()
 
     while true
         while !isempty(event_queue)
-            rp = dequeue!(event_queue)
+            rp = pop!(event_queue)
             handle_register_events(rp)
         end
 
