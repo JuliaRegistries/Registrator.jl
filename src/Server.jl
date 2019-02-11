@@ -27,6 +27,7 @@ function get_sha_from_branch(reponame, brn)
 end
 
 function is_comment_by_collaborator(event)
+    @debug("Checking if comment is by collaborator")
     c = event.payload["comment"]
     user = c["user"]["login"]
     auth = get_jwt_auth()
@@ -67,12 +68,16 @@ mutable struct RegParams
         report_error = true
 
         if comment_by_collaborator
+            @debug("Comment is by collaborator")
             if haskey(evt.payload["issue"], "pull_request")
+                @debug("Comment is on a pull request")
                 prid = evt.payload["issue"]["number"]
                 pr = pull_request(reponame, prid)
                 sha = pr.head.sha
+                @debug("Getting PR files")
                 prfiles = pull_request_files(repo, prid)
                 projectfile_found = "Project.toml" in [f.filename for f in prfiles]
+                @debug("Project file is $(projectfile_found? "found" : "not found")")
 
                 if !projectfile_found
                     error = "Project file not found on this Pull request"
@@ -85,14 +90,19 @@ mutable struct RegParams
                 if length(m.captures) != 0
                     arg = strip(m.captures[1])
                     if length(arg) != 0
+                        @debug("Found branch arguement in comment: $arg")
                         brn = arg
                     end
                 end
 
+                @debug("Gettig sha from branch")
                 sha, error = get_sha_from_branch(reponame, brn)
+                @debug("Got sha=$sha error=$error")
 
                 if error == nothing && sha != nothing
+                    @debug("Getting gitcommit object for sha")
                     gcom = gitcommit(reponame, GitCommit(Dict("sha"=>sha)))
+                    @debug("Getting tree object for sha")
                     t = tree(reponame, Tree(gcom.tree))
 
                     for tr in t.tree
@@ -102,17 +112,20 @@ mutable struct RegParams
                         end
                     end
 
-                   if !projectfile_found
-                       error = "Project file not found on branch `$brn`"
-                   end
+                    @debug("Project file is $(projectfile_found? "found" : "not found")")
+                    if !projectfile_found
+                        error = "Project file not found on branch `$brn`"
+                    end
                 end
             end
         else
             error = "Comment not made by collaborator"
+            @debug("$error")
             report_error = false
         end
 
         isvalid = comment_by_collaborator && projectfile_found
+        @debug("Event validity: $isvalid")
 
         return new(evt, reponame, cloneurl, ispr, prid, sha, brn,
                   comment_by_collaborator, projectfile_found,
@@ -157,7 +170,7 @@ end
 event_queue = RegParams[]
 
 function make_comment(event, body)
-    @info("Posting comment to PR/issue")
+    @debug("Posting comment to PR/issue")
     auth = get_jwt_auth()
     headers = Dict("private_token" => auth)
     params = Dict("body" => body)
@@ -169,6 +182,8 @@ end
 
 function comment_handler(event::WebhookEvent, phrase)
     global event_queue
+
+    @debug("Received event for $(event.repository.full_name), phrase: $phrase")
     rp = RegParams(event, phrase)
 
     if rp.isvalid && rp.error == nothing
