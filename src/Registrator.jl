@@ -51,6 +51,7 @@ function get_project(remote_url::String, tree_spec::String)
     # TODO?: use raw file downloads for GitHub/GitLab
     mktempdir(mkpath("packages")) do tmp
         # bare clone the package repo
+        @debug("bare clone the package repo")
         repo = LibGit2.clone(remote_url, joinpath(tmp, "repo"), isbare=true)
         tree = try
             LibGit2.GitObject(repo, tree_spec)
@@ -61,6 +62,7 @@ function get_project(remote_url::String, tree_spec::String)
         tree isa LibGit2.GitTree || (tree = LibGit2.peel(LibGit2.GitTree, tree))
 
         # check out the requested tree
+        @debug("check out the requested tree")
         tree_path = abspath(tmp, "tree")
         GC.@preserve tree_path begin
             opts = LibGit2.CheckoutOptions(
@@ -71,11 +73,13 @@ function get_project(remote_url::String, tree_spec::String)
         end
 
         # look for a project file in the tree
+        @debug("look for a project file in the tree")
         project_file = Pkg.Types.projectfile_path(tree_path)
         project_file !== nothing && isfile(project_file) ||
             error("$remote_url: git tree $(repr(tree_spec)) has no project file")
 
         # parse the project file
+        @debug("parse the project file")
         project = Pkg.Types.read_project(project_file)
         project.name === nothing &&
             error("$package_repo $tree_spec: package has no name")
@@ -106,22 +110,26 @@ function register(
     push::Bool = false,
 )
     # get info from package registry
+    @debug("get info from package registry")
     package_repo = GitTools.normalize_url(package_repo)
     pkg, tree_hash = get_project(package_repo, tree_spec)
     branch = "register/$(pkg.name)/v$(pkg.version)"
 
     # get up-to-date clone of registry
+    @debug("get up-to-date clone of registry")
     registry = GitTools.normalize_url(registry)
     registry_repo = get_registry(registry)
     registry_path = LibGit2.path(registry_repo)
 
     # branch registry repo
+    @debug("branch registry repo")
     git = `git -C $registry_path`
     run(`$git checkout -qf master`)
     run(`$git branch -qf $branch`)
     run(`$git checkout -qf $branch`)
 
     # find package in registry
+    @debug("find package in registry")
     registry_file = joinpath(registry_path, "Registry.toml")
     registry_data = TOML.parsefile(registry_file)
     package_data = registry_data["packages"][string(pkg.uuid)]
@@ -130,6 +138,7 @@ function register(
     package_path = joinpath(registry_path, package_data["path"])
 
     # update package data: package file
+    @debug("update package data: package file")
     package_info = filter(((k,v),)->!(v isa Dict), Pkg.Types.destructure(pkg))
     delete!(package_info, "version")
     package_info["repo"] = package_repo
@@ -137,6 +146,7 @@ function register(
     write_toml(package_file, package_info)
 
     # update package data: versions file
+    @debug("update package data: versions file")
     versions_file = joinpath(package_path, "Versions.toml")
     versions_data = TOML.parsefile(versions_file)
     versions = sort!([VersionNumber(v) for v in keys(versions_data)])
@@ -146,18 +156,21 @@ function register(
     write_toml(versions_file, versions_data)
 
     # update package data: deps file
+    @debug("update package data: deps file")
     deps_file = joinpath(package_path, "Deps.toml")
     deps_data = Pkg.Compress.load(deps_file)
     deps_data[pkg.version] = pkg.deps
     Pkg.Compress.save(deps_file, deps_data)
 
     # update package data: compat file
+    @debug("update package data: compat file")
     compat_file = joinpath(package_path, "Compat.toml")
     compat_data = Pkg.Compress.load(compat_file)
     compat_data[pkg.version] = pkg.compat
     Pkg.Compress.save(compat_file, compat_data)
 
     # commit changes
+    @debug("commit changes")
     message = """
     New version: $(pkg.name) v$(pkg.version)
 
@@ -169,6 +182,7 @@ function register(
     run(`$git commit -qm $message`)
 
     # push -f branch to remote
+    @debug("push -f branch to remote")
     push && run(`$git push -q -f -u origin $branch`)
 
     return pkg.name, pkg.version, branch

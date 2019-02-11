@@ -74,10 +74,10 @@ mutable struct RegParams
                 prid = evt.payload["issue"]["number"]
                 pr = pull_request(reponame, prid)
                 sha = pr.head.sha
-                @debug("Getting PR files")
-                prfiles = pull_request_files(repo, prid)
+                @debug("Getting PR files repo=$reponame, prid=$prid")
+                prfiles = pull_request_files(reponame, prid)
                 projectfile_found = "Project.toml" in [f.filename for f in prfiles]
-                @debug("Project file is $(projectfile_found? "found" : "not found")")
+                @debug("Project file is $(projectfile_found ? "found" : "not found")")
 
                 if !projectfile_found
                     error = "Project file not found on this Pull request"
@@ -112,7 +112,7 @@ mutable struct RegParams
                         end
                     end
 
-                    @debug("Project file is $(projectfile_found? "found" : "not found")")
+                    @debug("Project file is $(projectfile_found ? "found" : "not found")")
                     if !projectfile_found
                         error = "Project file not found on branch `$brn`"
                     end
@@ -169,15 +169,14 @@ end
 
 event_queue = RegParams[]
 
-function make_comment(event, body)
+function make_comment(rp, body)
     @debug("Posting comment to PR/issue")
-    auth = get_jwt_auth()
-    headers = Dict("private_token" => auth)
+    headers = Dict("private_token" => GITHUB_TOKEN)
     params = Dict("body" => body)
-    repo = event.repository
-    GitHub.create_comment(repo, event.payload["pull_request"]["number"],
+    repo = rp.evt.repository
+    GitHub.create_comment(repo, rp.evt.payload["issue"]["number"],
                           :issue; headers=headers,
-                          params=params, auth=auth)
+                          params=params, auth=GitHub.authenticate(GITHUB_TOKEN))
 end
 
 function comment_handler(event::WebhookEvent, phrase)
@@ -344,11 +343,11 @@ function is_pr_exists_exception(ex)
     return false
 end
 
-function make_pull_request(event, name, ver, brn)
+function make_pull_request(rp, name, ver, brn)
     @info("Creating pull request name=$name, ver=$ver, branch=$brn")
-    creator = event.payload["issue"]["user"]["login"]
-    reviewer = event.payload["sender"]["login"]
-    @info("Pull request creator=$creator, reviewer=$reviewer")
+    creator = rp.evt.payload["issue"]["user"]["login"]
+    reviewer = rp.evt.payload["sender"]["login"]
+    @debug("Pull request creator=$creator, reviewer=$reviewer")
 
     params = Dict("title"=>"Register $name: $ver",
                   "base"=>REGISTRY_BASE_BRANCH,
@@ -360,13 +359,13 @@ cc: @$(creator)
 reviewer: @$(reviewer)"""
 
     pr = nothing
-    repo = get_reponame(event)
+    repo = join(split(REGISTRY, "/")[end-1:end], "/")
     try
         pr = create_pull_request(repo; auth=GitHub.authenticate(GITHUB_TOKEN), params=params)
-        @info("Pull request created")
+        @debug("Pull request created")
     catch ex
         if is_pr_exists_exception(ex)
-            @info("Pull request already exists, not creating")
+            @debug("Pull request already exists, not creating")
         else
             rethrow(ex)
         end
@@ -375,10 +374,10 @@ reviewer: @$(reviewer)"""
     msg = "created"
 
     if pr == nothing
-        @info("Searching for existing PR")
+        @debug("Searching for existing PR")
         for p in pull_requests(repo; auth=GitHub.authenticate(GITHUB_TOKEN))[1]
-            if p.base == REGISTRY_BASE_BRANCH && p.head == brn
-                @info("PR found")
+            if p.base.ref == REGISTRY_BASE_BRANCH && p.head.ref == brn
+                @debug("PR found")
                 pr = p
                 break
             end
@@ -386,8 +385,12 @@ reviewer: @$(reviewer)"""
         msg = "updated"
     end
 
+    if pr == nothing
+        error("Existing PR not found")
+    end
+
     cbody = "Registration pull request $msg: [$(repo)/$(pr.number)]($(pr.html_url))"
-    make_comment(event, cbody)
+    make_comment(rp, cbody)
 end
 
 function get_clone_url(event)
@@ -398,7 +401,7 @@ function handle_register_events(rp::RegParams)
     @info("Processing Register event for $(rp.reponame) $(rp.sha)")
 
     name, ver, brn = register(rp.cloneurl, rp.sha; registry=REGISTRY, push=true)
-    make_pull_request(event, name, ver, brn)
+    make_pull_request(rp, name, ver, brn)
 
     @info("Done processing event for $(rp.reponame) $(rp.sha)")
 end
