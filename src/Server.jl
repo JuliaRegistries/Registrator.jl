@@ -35,17 +35,10 @@ function is_comment_by_collaborator(event)
 end
 
 function is_projectfile_edited(event)
-    @info("Checking for project file in PR")
     repo = get_reponame(event)
     prid = get_prid(event)
     prfiles = pull_request_files(repo, prid)
-    if "Project.toml" in [f.filename for f in prfiles]
-        @info("Project file is edited")
-        return true
-    else
-        @info("Project file is not edited")
-        return false
-    end
+    "Project.toml" in [f.filename for f in prfiles]
 end
 
 mutable struct RegParams
@@ -62,9 +55,9 @@ mutable struct RegParams
     error::Union{Nothing, String}
     report_error::Bool
 
-    function RegParams(evt::WebhookEvent, phrase::String)
+    function RegParams(evt::WebhookEvent, phrase::RegexMatch)
         reponame = evt.repository.full_name
-        cloneurl = evt.repository.clone_url
+        cloneurl = evt.payload["repository"]["clone_url"]
         ispr = true
         prid = nothing
         sha = nothing
@@ -75,7 +68,7 @@ mutable struct RegParams
 
         if comment_by_collaborator
             if haskey(evt.payload["issue"], "pull_request")
-                prid = parse(Int, evt.payload["issue"]["number"])
+                prid = evt.payload["issue"]["number"]
                 pr = pull_request(reponame, prid)
                 sha = pr.head.sha
                 prfiles = pull_request_files(repo, prid)
@@ -162,20 +155,6 @@ function get_commit(event::WebhookEvent)
 end
 
 event_queue = RegParams[]
-
-function is_projectfile_edited(event)
-    @info("Checking for project file in PR")
-    repo = get_reponame(event)
-    prid = get_prid(event)
-    prfiles = pull_request_files(repo, prid)
-    if "Project.toml" in [f.filename for f in prfiles]
-        @info("Project file is edited")
-        return true
-    else
-        @info("Project file is not edited")
-        return false
-    end
-end
 
 function make_comment(event, body)
     @info("Posting comment to PR/issue")
