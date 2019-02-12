@@ -202,7 +202,7 @@ function comment_handler(event::WebhookEvent, phrase)
             @info("Creating registration pull request for $(rp.reponame) branch: `$(rp.branch)`")
         end
 
-        push!(event_queue, rp)
+        push!(event_queue, ProcessedParams(rp))
 
         if !DEV_MODE
             params = Dict("state" => "pending",
