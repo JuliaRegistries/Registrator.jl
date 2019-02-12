@@ -176,8 +176,7 @@ function start_github_webhook(http_ip=DEFAULT_HTTP_IP, http_port=DEFAULT_HTTP_PO
     GitHub.run(listener, IPv4(http_ip), http_port)
 end
 
-
-const event_queue = Vector{RegParams}()
+const event_queue = Vector{ProcessedParams}()
 
 function make_comment(evt::WebhookEvent, body::String)
     @debug("Posting comment to PR/issue")
