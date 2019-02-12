@@ -101,6 +101,12 @@ function write_toml(file::String, data::Dict)
     end
 end
 
+struct RegBranch
+    name::String
+    version::VersionNumber
+    branch::String
+end
+
 """
 Register the package at `package_repo` / `tree_spect` in `registry`.
 """
@@ -185,7 +191,7 @@ function register(
     @debug("push -f branch to remote")
     push && run(`$git push -q -f -u origin $branch`)
 
-    return pkg.name, pkg.version, branch
+    return RegBranch(pkg.name, pkg.version, branch)
 end
 
 include("Server.jl")
