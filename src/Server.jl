@@ -2,7 +2,6 @@ module RegServer
 
 using Sockets
 using GitHub
-using DataStructures
 using HTTP
 using Distributed
 
@@ -177,7 +176,7 @@ function start_github_webhook(http_ip=DEFAULT_HTTP_IP, http_port=DEFAULT_HTTP_PO
     GitHub.run(listener, IPv4(http_ip), http_port)
 end
 
-event_queue = Queue{ProcessedParams}()
+const event_queue = Vector{ProcessedParams}()
 
 function make_comment(evt::WebhookEvent, body::String)
     @debug("Posting comment to PR/issue")
@@ -202,7 +201,7 @@ function comment_handler(event::WebhookEvent, phrase)
             @info("Creating registration pull request for $(rp.reponame) branch: `$(rp.branch)`")
         end
 
-        enqueue!(event_queue, ProcessedParams(rp))
+        push!(event_queue, ProcessedParams(rp))
 
         if !DEV_MODE
             params = Dict("state" => "pending",
@@ -333,7 +332,7 @@ function tester()
 
     while true
         while !isempty(event_queue)
-            pp = dequeue!(event_queue)
+            pp = popfirst!(event_queue)
             handle_register_events(pp)
         end
 
