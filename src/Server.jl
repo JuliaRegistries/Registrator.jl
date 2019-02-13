@@ -4,7 +4,9 @@ using Sockets
 using GitHub
 using HTTP
 using Distributed
+using Base64
 
+import Pkg: TOML
 import ..Registrator: register, RegBranch
 
 include("conf.jl")
@@ -108,8 +110,30 @@ struct RegParams
     end
 end
 
+function is_pfile_valid(c::String)
+    if length(c) != 0
+        try
+            TOML.parse(c)
+            return true, nothing
+        catch ex
+            if isa(ex, TOML.ParseError)
+                error = "Error parsing project file"
+                @debug(error)
+                return false, error
+            else
+                rethrow(ex)
+            end
+        end
+    else
+        error = "Project file is empty"
+        @debug(error)
+        return false, error
+    end
+end
+
 struct ProcessedParams
     projectfile_found::Bool
+    projectfile_valid::Bool
     sha::Union{Nothing, String}
     cparams::CommonParams
 
@@ -120,21 +144,41 @@ struct ProcessedParams
         end
 
         projectfile_found = false
+        projectfile_valid = false
         sha = nothing
         error = nothing
-        report_error = false
+        report_error = true
 
         if rp.ispr
             pr = pull_request(rp.reponame, rp.prid)
             sha = pr.head.sha
             @debug("Getting PR files repo=$(rp.reponame), prid=$(rp.prid)")
             prfiles = pull_request_files(rp.reponame, rp.prid)
-            projectfile_found = "Project.toml" in [f.filename for f in prfiles]
-            @debug("Project file is $(projectfile_found ? "found" : "not found")")
+
+            for f in prfiles
+                if f.filename == "Project.toml"
+                    @debug("Project file found")
+                    projectfile_found = true
+
+                    ref = split(f.contents_url.query, "=")[2]
+
+                    @debug("Getting project file details")
+                    file_obj = file(rp.reponame, "Project.toml";
+                                    params=Dict("ref"=>ref))
+
+                    @debug("Getting project file contents")
+                    c = HTTP.get(file_obj.download_url).body |> copy |> String
+
+                    @debug("Checking project file validity")
+                    projectfile_valid, error = is_pfile_valid(c)
+
+                    break
+                end
+            end
 
             if !projectfile_found
                 error = "Project file not found on this Pull request"
-                report_error = true
+                @debug(error)
             end
         else
             @debug("Getting sha from branch reponame=$(rp.reponame) branch=$(rp.branch)")
@@ -150,24 +194,33 @@ struct ProcessedParams
                 for tr in t.tree
                     if tr["path"] == "Project.toml"
                         projectfile_found = true
+                        @debug("Project file found")
+
+                        @debug("Getting projectfile blob")
+                        b = blob(rp.reponame, Blob(tr["sha"]);
+                                 auth=GitHub.authenticate(GITHUB_TOKEN))
+
+                        @debug("Decoding base64 projectfile contents")
+                        c = join([String(copy(base64decode(k))) for k in split(b.content)])
+
+                        @debug("Checking project file validity")
+                        projectfile_valid, error = is_pfile_valid(c)
                         break
                     end
                 end
 
-                @debug("Project file is $(projectfile_found ? "found" : "not found")")
                 if !projectfile_found
                     error = "Project file not found on branch `$(rp.branch)`"
-                    report_error = true
+                    @debug(error)
                 end
-            else
-                report_error = true
             end
         end
 
-        isvalid = rp.comment_by_collaborator && projectfile_found
+        isvalid = rp.comment_by_collaborator && projectfile_found && projectfile_valid
         @debug("Event validity: $(isvalid)")
 
-        new(projectfile_found, sha, CommonParams(isvalid, error, report_error))
+        new(projectfile_found, projectfile_valid, sha,
+            CommonParams(isvalid, error, report_error))
     end
 end
 

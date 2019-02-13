@@ -5,6 +5,7 @@ const CYCLE_INTERVAL = 60
 const events = ["pull_request", "push", "ping", "pull_request_review"]
 
 const GITHUB_USER="user"
+const GITHUB_TOKEN="xxxx"
 const GITHUB_SECRET="xxxxxx"
 const GITHUB_APP_ID = "xxxx"
 const GITHUB_PRIV_PEM = "xxxx"
