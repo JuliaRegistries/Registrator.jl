@@ -202,7 +202,7 @@ end
 function raise_issue(event, phrase, bt)
     repo = event.repository.full_name
     num = event.payload["issue"]["number"]
-    title = "Error registering $repo:$num"
+    title = "Error registering $repo#$num"
     body = """
 Repository: $repo
 Issue/PR: [$num]($(event.payload["issue"]["html_url"]))
@@ -214,7 +214,7 @@ $bt
 ```
 """
     params = Dict("title"=>title, "body"=>body)
-    iss = create_issue(REGISTRATOR_REPO; params=params)
+    iss = create_issue(REGISTRATOR_REPO; params=params, auth=GitHub.authenticate(GITHUB_TOKEN))
     make_comment(event, "Unexpected error occured during registration, see issue: [$(REGISTRATOR_REPO)#$(iss.number)]($(iss.html_url))")
 end
 
