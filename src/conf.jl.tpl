@@ -15,3 +15,4 @@ const DO_CI = false
 const REGISTRY="https://github.com/JuliaRegistries/General"
 const REGISTRY_BASE_BRANCH="master"
 const TRIGGER = r"`register\(.*?\)`"
+const REGISTRATOR_REPO = "JuliaComputing/Registrator.jl"

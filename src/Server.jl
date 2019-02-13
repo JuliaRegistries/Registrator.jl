@@ -50,6 +50,7 @@ end
 
 struct RegParams
     evt::WebhookEvent
+    phrase::RegexMatch
     reponame::String
     cloneurl::String
     ispr::Bool
@@ -101,8 +102,8 @@ struct RegParams
         isvalid = comment_by_collaborator
         @debug("Event pre-check validity: $isvalid")
 
-        return new(evt, reponame, cloneurl, ispr, prid, brn,
-                   comment_by_collaborator,
+        return new(evt, phrase, reponame, cloneurl, ispr,
+                   prid, brn, comment_by_collaborator,
                    CommonParams(isvalid, error, report_error))
     end
 end
@@ -198,10 +199,41 @@ function make_comment(evt::WebhookEvent, body::String)
                           params=params, auth=GitHub.authenticate(GITHUB_TOKEN))
 end
 
-function comment_handler(event::WebhookEvent, phrase)
+function raise_issue(event, phrase, bt)
+    repo = event.repository.full_name
+    num = event.payload["issue"]["number"]
+    title = "Error registering $repo:$num"
+    body = """
+Repository: $repo
+Issue/PR: [$num]($(event.payload["issue"]["html_url"]))
+Command: $(phrase.match)
+Stacktrace:
+
+```
+$bt
+```
+"""
+    params = Dict("title"=>title, "body"=>body)
+    iss = create_issue(REGISTRATOR_REPO; params=params)
+    make_comment(event, "Unexpected error occured during registration, see issue: [$(REGISTRATOR_REPO)#$(iss.number)]($(iss.html_url))")
+end
+
+function comment_handler(event::WebhookEvent, phrase::RegexMatch)
     global event_queue
 
     @debug("Received event for $(event.repository.full_name), phrase: $phrase")
+    try
+        handle_comment_event(event, phrase)
+    catch ex
+        bt = get_backtrace(ex)
+        @info("Unexpected error: $bt")
+        raise_issue(event, phrase, bt)
+    end
+
+    return HTTP.Messages.Response(200)
+end
+
+function handle_comment_event(event::WebhookEvent, phrase::RegexMatch)
     rp = RegParams(event, phrase)
 
     if rp.cparams.isvalid && rp.cparams.error == nothing
@@ -227,8 +259,6 @@ function comment_handler(event::WebhookEvent, phrase)
             make_comment(event, "Error while trying to register: $(rp.cparams.error)")
         end
     end
-
-    return HTTP.Messages.Response(200)
 end
 
 function recover(f)
@@ -330,6 +360,17 @@ end
 
 function handle_register_events(rp::RegParams)
     @info("Processing Register event for $(rp.reponame)")
+    try
+        handle_register(rp)
+    catch ex
+        bt = get_backtrace(ex)
+        @info("Unexpected error: $bt")
+        raise_issue(rp.evt, rp.phrase, bt)
+    end
+    @info("Done processing event for $(rp.reponame)")
+end
+
+function handle_register(rp::RegParams)
     pp = ProcessedParams(rp)
 
     if pp.cparams.isvalid && pp.cparams.error == nothing
@@ -341,8 +382,6 @@ function handle_register_events(rp::RegParams)
             make_comment(rp.evt, "Error while trying to register: $(pp.cparams.error)")
         end
     end
-
-    @info("Done processing event for $(rp.reponame) $(repr(pp.sha))")
 end
 
 function tester()
