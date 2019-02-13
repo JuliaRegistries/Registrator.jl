@@ -28,8 +28,15 @@ end
 
 function is_comment_by_collaborator(event)
     @debug("Checking if comment is by collaborator")
-    c = event.payload["comment"]
-    user = c["user"]["login"]
+
+    k = "pull_request"
+    if haskey(event.payload, "comment")
+        k = "comment"
+    elseif haskey(event.payload, "issue")
+        k = "issue"
+    end
+
+    user = event.payload[k]["user"]["login"]
     auth = get_jwt_auth()
     tok = create_access_token(Installation(event.payload["installation"]), auth)
     return iscollaborator(event.repository, user; auth=tok)
@@ -335,7 +342,7 @@ function handle_register_events(rp::RegParams)
         end
     end
 
-    @info("Done processing event for $(rp.reponame) $(pp.sha)")
+    @info("Done processing event for $(rp.reponame) $(repr(pp.sha))")
 end
 
 function tester()
