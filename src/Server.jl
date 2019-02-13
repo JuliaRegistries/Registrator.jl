@@ -327,7 +327,7 @@ function handle_register_events(rp::RegParams)
 
     if pp.cparams.isvalid && pp.cparams.error == nothing
         rbrn = register(rp.cloneurl, pp.sha; registry=REGISTRY, push=true)
-        make_pull_request(pp, rbrn)
+        make_pull_request(pp, rp, rbrn)
     elseif pp.cparams.error != nothing
         @info("Error while processing event: $(pp.cparams.error)")
         if pp.cparams.report_error

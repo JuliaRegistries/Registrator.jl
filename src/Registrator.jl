@@ -138,10 +138,19 @@ function register(
     @debug("find package in registry")
     registry_file = joinpath(registry_path, "Registry.toml")
     registry_data = TOML.parsefile(registry_file)
-    package_data = registry_data["packages"][string(pkg.uuid)]
-    package_data["name"] == pkg.name ||
-        error("changing package names not supported yet")
-    package_path = joinpath(registry_path, package_data["path"])
+
+    uuid = string(pkg.uuid)
+    if haskey(registry_data["packages"], uuid)
+        package_data = registry_data["packages"][uuid]
+        package_data["name"] == pkg.name ||
+            error("changing package names not supported yet")
+        package_path = joinpath(registry_path, package_data["path"])
+    else
+        @debug("Package $(pkg.name):$uuid not found in registry, creating directory")
+        first_letter = uppercase(pkg.name[1])
+        package_path = joinpath(registry_path, "$first_letter", pkg.name)
+        mkpath(package_path)
+    end
 
     # update package data: package file
     @debug("update package data: package file")
@@ -154,7 +163,11 @@ function register(
     # update package data: versions file
     @debug("update package data: versions file")
     versions_file = joinpath(package_path, "Versions.toml")
-    versions_data = TOML.parsefile(versions_file)
+    if isfile(versions_file)
+        versions_data = TOML.parsefile(versions_file)
+    else
+        versions_data = Dict()
+    end
     versions = sort!([VersionNumber(v) for v in keys(versions_data)])
     Base.check_new_version(versions, pkg.version)
     version_info = Dict{String,Any}("git-tree-sha1" => string(tree_hash))
@@ -164,14 +177,22 @@ function register(
     # update package data: deps file
     @debug("update package data: deps file")
     deps_file = joinpath(package_path, "Deps.toml")
-    deps_data = Pkg.Compress.load(deps_file)
+    if isfile(deps_file)
+        deps_data = Pkg.Compress.load(deps_file)
+    else
+        deps_data = Dict()
+    end
     deps_data[pkg.version] = pkg.deps
     Pkg.Compress.save(deps_file, deps_data)
 
     # update package data: compat file
     @debug("update package data: compat file")
     compat_file = joinpath(package_path, "Compat.toml")
-    compat_data = Pkg.Compress.load(compat_file)
+    if isfile(compat_file)
+        compat_data = Pkg.Compress.load(compat_file)
+    else
+        compat_data = Dict()
+    end
     compat_data[pkg.version] = pkg.compat
     Pkg.Compress.save(compat_file, compat_data)
 
