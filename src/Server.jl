@@ -59,7 +59,7 @@ struct RegParams
         brn = nothing
         comment_by_collaborator = false
         error = nothing
-        report_error = true
+        report_error = false
 
         if endswith(reponame, ".jl")
             comment_by_collaborator = is_comment_by_collaborator(evt)
@@ -72,7 +72,7 @@ struct RegParams
                     ispr = false
                     brn = "master"
                     arg_regx = r"\((.*?)\)"
-                    m = match(arg_regx, phrase)
+                    m = match(arg_regx, phrase.match)
                     if length(m.captures) != 0
                         arg = strip(m.captures[1])
                         if length(arg) != 0
@@ -84,11 +84,11 @@ struct RegParams
             else
                 error = "Comment not made by collaborator"
                 @debug("$error")
-                report_error = false
             end
         else
             error = "Package name does not end with '.jl'"
             @debug("$error")
+            report_error = true
         end
 
         isvalid = comment_by_collaborator
@@ -101,9 +101,8 @@ struct RegParams
 end
 
 struct ProcessedParams
-    projectfile_found::Union{Nothing, Bool}
+    projectfile_found::Bool
     sha::Union{Nothing, String}
-    rparams::RegParams
     cparams::CommonParams
 
     function ProcessedParams(rp::RegParams)
@@ -112,7 +111,7 @@ struct ProcessedParams
             return ProcessedParams(nothing, nothing, copy(rp.cparams))
         end
 
-        projectfile_found = nothing
+        projectfile_found = false
         sha = nothing
         error = nothing
         report_error = false
@@ -127,11 +126,12 @@ struct ProcessedParams
 
             if !projectfile_found
                 error = "Project file not found on this Pull request"
+                report_error = true
             end
         else
-            @debug("Gettig sha from branch")
-            sha, error = get_sha_from_branch(rp.reponame, rp.brn)
-            @debug("Got sha=$(sha) error=$(error)")
+            @debug("Getting sha from branch reponame=$(rp.reponame) branch=$(rp.branch)")
+            sha, error = get_sha_from_branch(rp.reponame, rp.branch)
+            @debug("Got sha=$(repr(sha)) error=$(repr(error))")
 
             if error == nothing && sha != nothing
                 @debug("Getting gitcommit object for sha")
@@ -148,15 +148,18 @@ struct ProcessedParams
 
                 @debug("Project file is $(projectfile_found ? "found" : "not found")")
                 if !projectfile_found
-                    error = "Project file not found on branch `$(rp.brn)`"
+                    error = "Project file not found on branch `$(rp.branch)`"
+                    report_error = true
                 end
+            else
+                report_error = true
             end
         end
 
         isvalid = rp.comment_by_collaborator && projectfile_found
         @debug("Event validity: $(isvalid)")
 
-        new(projectfile_found, sha, rp, CommonParams(isvalid, error, report_error))
+        new(projectfile_found, sha, CommonParams(isvalid, error, report_error))
     end
 end
 
@@ -176,7 +179,7 @@ function start_github_webhook(http_ip=DEFAULT_HTTP_IP, http_port=DEFAULT_HTTP_PO
     GitHub.run(listener, IPv4(http_ip), http_port)
 end
 
-const event_queue = Vector{ProcessedParams}()
+const event_queue = Vector{RegParams}()
 
 function make_comment(evt::WebhookEvent, body::String)
     @debug("Posting comment to PR/issue")
@@ -201,7 +204,7 @@ function comment_handler(event::WebhookEvent, phrase)
             @info("Creating registration pull request for $(rp.reponame) branch: `$(rp.branch)`")
         end
 
-        push!(event_queue, ProcessedParams(rp))
+        push!(event_queue, rp)
 
         if !DEV_MODE
             params = Dict("state" => "pending",
@@ -211,7 +214,7 @@ function comment_handler(event::WebhookEvent, phrase)
                                  auth=get_jwt_auth(),
                                  params=params)
         end
-    else
+    elseif rp.cparams.error != nothing
         @info("Error while processing event: $(rp.cparams.error)")
         if rp.cparams.report_error
             make_comment(event, "Error while trying to register: $(rp.cparams.error)")
@@ -259,13 +262,13 @@ function is_pr_exists_exception(ex)
     return false
 end
 
-function make_pull_request(pp::ProcessedParams, rbrn::RegBranch)
+function make_pull_request(pp::ProcessedParams, rp::RegParams, rbrn::RegBranch)
     name = rbrn.name
     ver = rbrn.version
     brn = rbrn.branch
 
     @info("Creating pull request name=$name, ver=$ver, branch=$brn")
-    payload = pp.rparams.evt.payload
+    payload = rp.evt.payload
     creator = payload["issue"]["user"]["login"]
     reviewer = payload["sender"]["login"]
     @debug("Pull request creator=$creator, reviewer=$reviewer")
@@ -311,20 +314,28 @@ reviewer: @$(reviewer)"""
     end
 
     cbody = "Registration pull request $msg: [$(repo)/$(pr.number)]($(pr.html_url))"
-    make_comment(pp.rparams.evt, cbody)
+    make_comment(rp.evt, cbody)
 end
 
 function get_clone_url(event)
     event.payload["repository"]["clone_url"]
 end
 
-function handle_register_events(pp::ProcessedParams)
-    @info("Processing Register event for $(pp.rparams.reponame) $(pp.sha)")
+function handle_register_events(rp::RegParams)
+    @info("Processing Register event for $(rp.reponame)")
+    pp = ProcessedParams(rp)
 
-    rbrn = register(pp.rparams.cloneurl, pp.sha; registry=REGISTRY, push=true)
-    make_pull_request(pp, rbrn)
+    if pp.cparams.isvalid && pp.cparams.error == nothing
+        rbrn = register(rp.cloneurl, pp.sha; registry=REGISTRY, push=true)
+        make_pull_request(pp, rbrn)
+    elseif pp.cparams.error != nothing
+        @info("Error while processing event: $(pp.cparams.error)")
+        if pp.cparams.report_error
+            make_comment(rp.evt, "Error while trying to register: $(pp.cparams.error)")
+        end
+    end
 
-    @info("Done processing event for $(pp.rparams.reponame) $(pp.sha)")
+    @info("Done processing event for $(rp.reponame) $(pp.sha)")
 end
 
 function tester()
@@ -332,8 +343,8 @@ function tester()
 
     while true
         while !isempty(event_queue)
-            pp = popfirst!(event_queue)
-            handle_register_events(pp)
+            rp = popfirst!(event_queue)
+            handle_register_events(rp)
         end
 
         sleep(CYCLE_INTERVAL)
