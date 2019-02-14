@@ -5,6 +5,7 @@ using GitHub
 using HTTP
 using Distributed
 using Base64
+using Pkg
 
 import Pkg: TOML
 import ..Registrator: register, RegBranch
@@ -54,7 +55,6 @@ struct RegParams
     evt::WebhookEvent
     phrase::RegexMatch
     reponame::String
-    cloneurl::String
     ispr::Bool
     prid::Union{Nothing, Int}
     branch::Union{Nothing, String}
@@ -63,12 +63,11 @@ struct RegParams
 
     function RegParams(evt::WebhookEvent, phrase::RegexMatch)
         reponame = evt.repository.full_name
-        cloneurl = evt.payload["repository"]["clone_url"]
         ispr = true
         prid = nothing
         brn = nothing
         comment_by_collaborator = false
-        error = nothing
+        err = nothing
         report_error = false
 
         if endswith(reponame, ".jl")
@@ -92,21 +91,21 @@ struct RegParams
                     end
                 end
             else
-                error = "Comment not made by collaborator"
-                @debug("$error")
+                err = "Comment not made by collaborator"
+                @debug(err)
             end
         else
-            error = "Package name does not end with '.jl'"
-            @debug("$error")
+            err = "Package name does not end with '.jl'"
+            @debug(err)
             report_error = true
         end
 
         isvalid = comment_by_collaborator
         @debug("Event pre-check validity: $isvalid")
 
-        return new(evt, phrase, reponame, cloneurl, ispr,
+        return new(evt, phrase, reponame, ispr,
                    prid, brn, comment_by_collaborator,
-                   CommonParams(isvalid, error, report_error))
+                   CommonParams(isvalid, err, report_error))
     end
 end
 
@@ -114,20 +113,27 @@ function is_pfile_valid(c::String)
     if length(c) != 0
         try
             TOML.parse(c)
+            ib = IOBuffer(c)
+            p = Pkg.Types.read_project(copy(ib))
+            if p.name === nothing || p.uuid === nothing || p.version === nothing
+                err = "Project file is invalid"
+                @debug(err)
+                return false, err
+            end
             return true, nothing
         catch ex
-            if isa(ex, TOML.ParseError)
-                error = "Error parsing project file"
-                @debug(error)
-                return false, error
+            if isa(ex, CompositeException) && isa(ex.exceptions[1], TOML.ParserError)
+                err = "Error parsing project file"
+                @debug(err)
+                return false, err
             else
                 rethrow(ex)
             end
         end
     else
-        error = "Project file is empty"
-        @debug(error)
-        return false, error
+        err = "Project file is empty"
+        @debug(err)
+        return false, err
     end
 end
 
@@ -135,6 +141,7 @@ struct ProcessedParams
     projectfile_found::Bool
     projectfile_valid::Bool
     sha::Union{Nothing, String}
+    cloneurl::Union{Nothing, String}
     cparams::CommonParams
 
     function ProcessedParams(rp::RegParams)
@@ -146,11 +153,13 @@ struct ProcessedParams
         projectfile_found = false
         projectfile_valid = false
         sha = nothing
-        error = nothing
+        cloneurl = nothing
+        err = nothing
         report_error = true
 
         if rp.ispr
             pr = pull_request(rp.reponame, rp.prid)
+            cloneurl = pr.head.repo.html_url.uri * ".git"
             sha = pr.head.sha
             @debug("Getting PR files repo=$(rp.reponame), prid=$(rp.prid)")
             prfiles = pull_request_files(rp.reponame, rp.prid)
@@ -160,7 +169,7 @@ struct ProcessedParams
                     @debug("Project file found")
                     projectfile_found = true
 
-                    ref = split(f.contents_url.query, "=")[2]
+                    ref = split(HTTP.URI(f.contents_url).query, "=")[2]
 
                     @debug("Getting project file details")
                     file_obj = file(rp.reponame, "Project.toml";
@@ -170,22 +179,23 @@ struct ProcessedParams
                     c = HTTP.get(file_obj.download_url).body |> copy |> String
 
                     @debug("Checking project file validity")
-                    projectfile_valid, error = is_pfile_valid(c)
+                    projectfile_valid, err = is_pfile_valid(c)
 
                     break
                 end
             end
 
             if !projectfile_found
-                error = "Project file not found on this Pull request"
-                @debug(error)
+                err = "Project file not found on this Pull request"
+                @debug(err)
             end
         else
+            cloneurl = rp.evt.payload["repository"]["clone_url"]
             @debug("Getting sha from branch reponame=$(rp.reponame) branch=$(rp.branch)")
-            sha, error = get_sha_from_branch(rp.reponame, rp.branch)
-            @debug("Got sha=$(repr(sha)) error=$(repr(error))")
+            sha, err = get_sha_from_branch(rp.reponame, rp.branch)
+            @debug("Got sha=$(repr(sha)) error=$(repr(err))")
 
-            if error == nothing && sha != nothing
+            if err == nothing && sha != nothing
                 @debug("Getting gitcommit object for sha")
                 gcom = gitcommit(rp.reponame, GitCommit(Dict("sha"=>sha)))
                 @debug("Getting tree object for sha")
@@ -204,14 +214,14 @@ struct ProcessedParams
                         c = join([String(copy(base64decode(k))) for k in split(b.content)])
 
                         @debug("Checking project file validity")
-                        projectfile_valid, error = is_pfile_valid(c)
+                        projectfile_valid, err = is_pfile_valid(c)
                         break
                     end
                 end
 
                 if !projectfile_found
-                    error = "Project file not found on branch `$(rp.branch)`"
-                    @debug(error)
+                    err = "Project file not found on branch `$(rp.branch)`"
+                    @debug(err)
                 end
             end
         end
@@ -219,8 +229,8 @@ struct ProcessedParams
         isvalid = rp.comment_by_collaborator && projectfile_found && projectfile_valid
         @debug("Event validity: $(isvalid)")
 
-        new(projectfile_found, projectfile_valid, sha,
-            CommonParams(isvalid, error, report_error))
+        new(projectfile_found, projectfile_valid, sha, cloneurl,
+            CommonParams(isvalid, err, report_error))
     end
 end
 
@@ -256,10 +266,11 @@ function raise_issue(event, phrase, bt)
     repo = event.repository.full_name
     num = event.payload["issue"]["number"]
     title = "Error registering $repo#$num"
+    input_phrase = "`[" * phrase.match[2:end-1] * "]`"
     body = """
 Repository: $repo
 Issue/PR: [$num]($(event.payload["issue"]["html_url"]))
-Command: $(phrase.match)
+Command: $(input_phrase)
 Stacktrace:
 
 ```
@@ -280,7 +291,7 @@ function comment_handler(event::WebhookEvent, phrase::RegexMatch)
     catch ex
         bt = get_backtrace(ex)
         @info("Unexpected error: $bt")
-        raise_issue(event, phrase, bt)
+        REPORT_ISSUE && raise_issue(event, phrase, bt)
     end
 
     return HTTP.Messages.Response(200)
@@ -407,10 +418,6 @@ reviewer: @$(reviewer)"""
     make_comment(rp.evt, cbody)
 end
 
-function get_clone_url(event)
-    event.payload["repository"]["clone_url"]
-end
-
 function handle_register_events(rp::RegParams)
     @info("Processing Register event for $(rp.reponame)")
     try
@@ -418,7 +425,7 @@ function handle_register_events(rp::RegParams)
     catch ex
         bt = get_backtrace(ex)
         @info("Unexpected error: $bt")
-        raise_issue(rp.evt, rp.phrase, bt)
+        REPORT_ISSUE && raise_issue(rp.evt, rp.phrase, bt)
     end
     @info("Done processing event for $(rp.reponame)")
 end
@@ -427,7 +434,7 @@ function handle_register(rp::RegParams)
     pp = ProcessedParams(rp)
 
     if pp.cparams.isvalid && pp.cparams.error == nothing
-        rbrn = register(rp.cloneurl, pp.sha; registry=REGISTRY, push=true)
+        rbrn = register(pp.cloneurl, pp.sha; registry=REGISTRY, push=true)
         make_pull_request(pp, rp, rbrn)
     elseif pp.cparams.error != nothing
         @info("Error while processing event: $(pp.cparams.error)")

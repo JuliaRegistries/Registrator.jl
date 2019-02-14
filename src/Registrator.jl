@@ -82,11 +82,11 @@ function get_project(remote_url::String, tree_spec::String)
         @debug("parse the project file")
         project = Pkg.Types.read_project(project_file)
         project.name === nothing &&
-            error("$package_repo $tree_spec: package has no name")
+            error("$remote_url $(repr(tree_spec)): package has no name")
         project.uuid === nothing &&
-            error("$package_repo $tree_spec: package has no UUID")
+            error("$remote_url $(repr(tree_spec)): package has no UUID")
         project.version === nothing &&
-            error("$package_repo $tree_spec: package has no version")
+            error("$remote_url $(repr(tree_spec)): package has no version")
 
         return project, string(LibGit2.GitHash(tree))
     end
