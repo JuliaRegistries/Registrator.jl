@@ -31,15 +31,7 @@ end
 
 function is_comment_by_collaborator(event)
     @debug("Checking if comment is by collaborator")
-
-    k = "pull_request"
-    if haskey(event.payload, "comment")
-        k = "comment"
-    elseif haskey(event.payload, "issue")
-        k = "issue"
-    end
-
-    user = event.payload[k]["user"]["login"]
+    user = get_user_login(event.payload)
     auth = get_jwt_auth()
     tok = create_access_token(Installation(event.payload["installation"]), auth)
     return iscollaborator(event.repository, user; auth=tok)
@@ -49,6 +41,20 @@ struct CommonParams
     isvalid::Bool
     error::Union{Nothing, String}
     report_error::Bool
+end
+
+function is_pull_request(payload)
+    haskey(payload, "pull_request") || haskey(payload, "issue") && haskey(payload["issue"], "pull_request")
+end
+
+function get_prid(payload)
+    if haskey(payload, "pull_request")
+        return payload["pull_request"]["number"]
+    elseif haskey(payload, "issue") && haskey(payload["issue"], "pull_request")
+        return payload["issue"]["number"]
+    else
+        error("Don't know how to get pull request number")
+    end
 end
 
 struct RegParams
@@ -74,9 +80,9 @@ struct RegParams
             comment_by_collaborator = is_comment_by_collaborator(evt)
             if comment_by_collaborator
                 @debug("Comment is by collaborator")
-                if haskey(evt.payload["issue"], "pull_request")
+                if is_pull_request(evt.payload)
                     @debug("Comment is on a pull request")
-                    prid = evt.payload["issue"]["number"]
+                    prid = get_prid(evt.payload)
                 else
                     ispr = false
                     brn = "master"
@@ -257,19 +263,29 @@ function make_comment(evt::WebhookEvent, body::String)
     headers = Dict("private_token" => GITHUB_TOKEN)
     params = Dict("body" => body)
     repo = evt.repository
-    GitHub.create_comment(repo, evt.payload["issue"]["number"],
+    GitHub.create_comment(repo, get_prid(evt.payload),
                           :issue; headers=headers,
                           params=params, auth=GitHub.authenticate(GITHUB_TOKEN))
 end
 
+function get_html_url(payload)
+    if haskey(payload, "pull_request")
+        return payload["pull_request"]["html_url"]
+    elseif haskey(payload, "issue")
+        return payload["issue"]["html_url"]
+    else
+        error("Don't know how to get html_url")
+    end
+end
+
 function raise_issue(event, phrase, bt)
     repo = event.repository.full_name
-    num = event.payload["issue"]["number"]
+    num = get_prid(event.payload)
     title = "Error registering $repo#$num"
     input_phrase = "`[" * phrase.match[2:end-1] * "]`"
     body = """
 Repository: $repo
-Issue/PR: [$num]($(event.payload["issue"]["html_url"]))
+Issue/PR: [$num]($(get_html_url(event.payload)))
 Command: $(input_phrase)
 Stacktrace:
 
@@ -363,6 +379,18 @@ function is_pr_exists_exception(ex)
     return false
 end
 
+function get_user_login(payload)
+    if haskey(payload, "comment")
+        return payload["comment"]["user"]["login"]
+    elseif haskey(payload, "issue")
+        return payload["issue"]["user"]["login"]
+    elseif haskey(payload, "pull_request")
+        return payload["pull_request"]["user"]["login"]
+    else
+        error("Don't know how to get user login")
+    end
+end
+
 function make_pull_request(pp::ProcessedParams, rp::RegParams, rbrn::RegBranch)
     name = rbrn.name
     ver = rbrn.version
@@ -370,7 +398,7 @@ function make_pull_request(pp::ProcessedParams, rp::RegParams, rbrn::RegBranch)
 
     @info("Creating pull request name=$name, ver=$ver, branch=$brn")
     payload = rp.evt.payload
-    creator = payload["issue"]["user"]["login"]
+    creator = get_user_login(payload)
     reviewer = payload["sender"]["login"]
     @debug("Pull request creator=$creator, reviewer=$reviewer")
 
