@@ -1,6 +1,6 @@
 module Registrator
 
-using UUIDs, LibGit2
+using UUIDs, LibGit2, DataStructures
 
 import Base: PkgId
 import Pkg: Pkg, TOML, GitTools
@@ -184,7 +184,13 @@ function register(
 
     version_info = Dict{String,Any}("git-tree-sha1" => string(tree_hash))
     versions_data[string(pkg.version)] = version_info
-    write_toml(versions_file, versions_data)
+
+    vnlist = sort([(VersionNumber(k), v) for (k, v) in versions_data])
+    vslist = [("$k", v) for (k, v) in vnlist]
+
+    open(versions_file, "w") do io
+        TOML.print(io, OrderedDict(vslist))
+    end
 
     # update package data: deps file
     @debug("update package data: deps file")
