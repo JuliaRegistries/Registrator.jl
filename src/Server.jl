@@ -115,17 +115,11 @@ struct RegParams
     end
 end
 
-function is_pfile_valid(c::String)
+function is_pfile_parseable(c::String)
+    @debug("Checking whether Project.toml is non-empty and parseable")
     if length(c) != 0
         try
             TOML.parse(c)
-            ib = IOBuffer(c)
-            p = Pkg.Types.read_project(copy(ib))
-            if p.name === nothing || p.uuid === nothing || p.version === nothing
-                err = "Project file is invalid"
-                @debug(err)
-                return false, err
-            end
             return true, nothing
         catch ex
             if isa(ex, CompositeException) && isa(ex.exceptions[1], TOML.ParserError)
@@ -141,6 +135,26 @@ function is_pfile_valid(c::String)
         @debug(err)
         return false, err
     end
+end
+
+function is_pfile_nuv(c)
+    @debug("Checking whether Project.toml contains name, uuid and version")
+    ib = IOBuffer(c)
+    p = Pkg.Types.read_project(copy(ib))
+    if p.name === nothing || p.uuid === nothing || p.version === nothing
+        err = "Project file should contain name, uuid and version"
+        @debug(err)
+        return false, err
+    end
+    return true, nothing
+end
+
+function is_pfile_valid(c::String)
+    for f in [is_pfile_parseable, is_pfile_nuv]
+        v, err = f(c)
+        v || return v, err
+    end
+    return true, nothing
 end
 
 struct ProcessedParams
@@ -463,7 +477,11 @@ function handle_register(rp::RegParams)
 
     if pp.cparams.isvalid && pp.cparams.error == nothing
         rbrn = register(pp.cloneurl, pp.sha; registry=REGISTRY, push=true)
-        make_pull_request(pp, rp, rbrn)
+        if rbrn.error !== nothing
+            make_comment(rp.evt, "Error while trying to register: $(rbrn.error)")
+        else
+            make_pull_request(pp, rp, rbrn)
+        end
     elseif pp.cparams.error != nothing
         @info("Error while processing event: $(pp.cparams.error)")
         if pp.cparams.report_error

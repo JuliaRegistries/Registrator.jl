@@ -105,6 +105,8 @@ struct RegBranch
     name::String
     version::VersionNumber
     branch::String
+
+    error::Union{Nothing, String}
 end
 
 """
@@ -169,7 +171,17 @@ function register(
         versions_data = Dict()
     end
     versions = sort!([VersionNumber(v) for v in keys(versions_data)])
-    Base.check_new_version(versions, pkg.version)
+
+    try
+        Base.check_new_version(versions, pkg.version)
+    catch ex
+        if isa(ex, ErrorException)
+            return RegBranch(pkg.name, pkg.version, branch, ex.msg)
+        else
+            rethrow(ex)
+        end
+    end
+
     version_info = Dict{String,Any}("git-tree-sha1" => string(tree_hash))
     versions_data[string(pkg.version)] = version_info
     write_toml(versions_file, versions_data)
@@ -212,7 +224,7 @@ function register(
     @debug("push -f branch to remote")
     push && run(`$git push -q -f -u origin $branch`)
 
-    return RegBranch(pkg.name, pkg.version, branch)
+    return RegBranch(pkg.name, pkg.version, branch, nothing)
 end
 
 include("Server.jl")
