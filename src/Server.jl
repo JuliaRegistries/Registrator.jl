@@ -306,12 +306,12 @@ function get_html_url(payload)
 end
 
 function raise_issue(event, phrase, bt)
-    REPORT_ISSUE || return
-    repo = event.repository.full_name
-    num = get_prid(event.payload)
-    title = "Error registering $repo#$num"
-    input_phrase = "`[" * phrase.match[2:end-1] * "]`"
-    body = """
+    if REPORT_ISSUE
+        repo = event.repository.full_name
+        num = get_prid(event.payload)
+        title = "Error registering $repo#$num"
+        input_phrase = "`[" * phrase.match[2:end-1] * "]`"
+        body = """
 Repository: $repo
 Issue/PR: [$num]($(get_html_url(event.payload)))
 Command: $(input_phrase)
@@ -321,11 +321,16 @@ Stacktrace:
 $bt
 ```
 """
-    params = Dict("title"=>title, "body"=>body)
-    iss = create_issue(REGISTRATOR_REPO; params=params, auth=GitHub.authenticate(GITHUB_TOKEN))
-    msg = "Unexpected error occured during registration, see issue: [$(REGISTRATOR_REPO)#$(iss.number)]($(iss.html_url))"
-    @debug(msg)
-    make_comment(event, msg)
+        params = Dict("title"=>title, "body"=>body)
+        iss = create_issue(REGISTRATOR_REPO; params=params, auth=GitHub.authenticate(GITHUB_TOKEN))
+        msg = "Unexpected error occured during registration, see issue: [$(REGISTRATOR_REPO)#$(iss.number)]($(iss.html_url))"
+        @debug(msg)
+        make_comment(event, msg)
+    else
+        msg = "An unexpected error occured during registration."
+        @debug(msg)
+        make_comment(event, msg)
+    end
 end
 
 function comment_handler(event::WebhookEvent, phrase::RegexMatch)

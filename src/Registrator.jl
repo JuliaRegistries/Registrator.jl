@@ -219,28 +219,47 @@ function register(
         if haskey(registry_data["packages"], u)
             name_in_reg = registry_data["packages"][u]["name"]
             if name_in_reg != k
-                err = "Error in [deps]: UUID $u refers to package '$name_in_reg' in registry but deps file has '$k'"
+                err = "Error in `[deps]`: UUID $u refers to package '$name_in_reg' in registry but deps file has '$k'"
                 break
             end
         elseif haskey(BUILTIN_PKGS, k)
             if BUILTIN_PKGS[k] != u
-                err = "Error in [deps]: UUID $u for package $k should be $(BUILTIN_PKGS[k])"
+                err = "Error in `[deps]`: UUID $u for package $k should be $(BUILTIN_PKGS[k])"
                 break
             end
         else
-            err = "Error in [deps]: Package '$k' with UUID: $u not found in registry or stdlib"
+            err = "Error in `[deps]`: Package '$k' with UUID: $u not found in registry or stdlib"
             break
         end
     end
 
-    if err !== nothing
-        return RegBranch(pkg.name, pkg.version, branch, err)
-    end
+    err !== nothing && return RegBranch(pkg.name, pkg.version, branch, err)
 
     deps_data[pkg.version] = pkg.deps
     Pkg.Compress.save(deps_file, deps_data)
 
     # update package data: compat file
+    @debug("check compat section")
+    err = nothing
+    for (p, v) in pkg.compat
+        try
+            ver = VersionNumber(v)
+            if p == "julia" && ver < v"0.7"
+                err = "Julia version < 0.7 not allowed in `[compat]`"
+                @debug(err)
+            end
+        catch ex
+            if isa(ex, ArgumentError)
+                err = "Error in `[compat]`: $(ex.msg)"
+                @debug(err)
+            else
+                rethrow(ex)
+            end
+        end
+    end
+
+    err !== nothing && return RegBranch(pkg.name, pkg.version, branch, err)
+
     @debug("update package data: compat file")
     compat_file = joinpath(package_path, "Compat.toml")
     if isfile(compat_file)
