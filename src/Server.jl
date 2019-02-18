@@ -140,12 +140,24 @@ end
 function is_pfile_nuv(c)
     @debug("Checking whether Project.toml contains name, uuid and version")
     ib = IOBuffer(c)
-    p = Pkg.Types.read_project(copy(ib))
-    if p.name === nothing || p.uuid === nothing || p.version === nothing
-        err = "Project file should contain name, uuid and version"
-        @debug(err)
-        return false, err
+
+    try
+        p = Pkg.Types.read_project(copy(ib))
+        if p.name === nothing || p.uuid === nothing || p.version === nothing
+            err = "Project file should contain name, uuid and version"
+            @debug(err)
+            return false, err
+        end
+    catch ex
+        if isa(ex, ArgumentError)
+            err = "Error reading Project.toml: $(ex.msg)"
+            @debug(err)
+            return false, err
+        else
+            rethrow(ex)
+        end
     end
+
     return true, nothing
 end
 
@@ -273,6 +285,7 @@ end
 const event_queue = Vector{RegParams}()
 
 function make_comment(evt::WebhookEvent, body::String)
+    REPLY_COMMENT && return
     @debug("Posting comment to PR/issue")
     headers = Dict("private_token" => GITHUB_TOKEN)
     params = Dict("body" => body)
@@ -309,7 +322,9 @@ $bt
 """
     params = Dict("title"=>title, "body"=>body)
     iss = create_issue(REGISTRATOR_REPO; params=params, auth=GitHub.authenticate(GITHUB_TOKEN))
-    make_comment(event, "Unexpected error occured during registration, see issue: [$(REGISTRATOR_REPO)#$(iss.number)]($(iss.html_url))")
+    msg = "Unexpected error occured during registration, see issue: [$(REGISTRATOR_REPO)#$(iss.number)]($(iss.html_url))"
+    @debug(msg)
+    make_comment(event, msg)
 end
 
 function comment_handler(event::WebhookEvent, phrase::RegexMatch)
@@ -350,7 +365,9 @@ function handle_comment_event(event::WebhookEvent, phrase::RegexMatch)
     elseif rp.cparams.error != nothing
         @info("Error while processing event: $(rp.cparams.error)")
         if rp.cparams.report_error
-            make_comment(event, "Error while trying to register: $(rp.cparams.error)")
+            msg = "Error while trying to register: $(rp.cparams.error)"
+            @debug(msg)
+            make_comment(event, msg)
         end
     end
 end
@@ -457,6 +474,7 @@ reviewer: @$(reviewer)"""
     end
 
     cbody = "Registration pull request $msg: [$(repo)/$(pr.number)]($(pr.html_url))"
+    @debug(cbody)
     make_comment(rp.evt, cbody)
 end
 
@@ -478,14 +496,18 @@ function handle_register(rp::RegParams)
     if pp.cparams.isvalid && pp.cparams.error == nothing
         rbrn = register(pp.cloneurl, pp.sha; registry=REGISTRY, push=true)
         if rbrn.error !== nothing
-            make_comment(rp.evt, "Error while trying to register: $(rbrn.error)")
+            msg = "Error while trying to register: $(rbrn.error)"
+            @debug(msg)
+            make_comment(rp.evt, msg)
         else
             make_pull_request(pp, rp, rbrn)
         end
     elseif pp.cparams.error != nothing
         @info("Error while processing event: $(pp.cparams.error)")
         if pp.cparams.report_error
-            make_comment(rp.evt, "Error while trying to register: $(pp.cparams.error)")
+            msg = "Error while trying to register: $(pp.cparams.error)"
+            @debug(msg)
+            make_comment(rp.evt, msg)
         end
     end
 end

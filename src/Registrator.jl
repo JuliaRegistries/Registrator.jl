@@ -9,6 +9,8 @@ DEFAULT_REGISTRY = "https://github.com/JuliaRegistries/General"
 
 const REGISTRIES = Dict{String,UUID}()
 
+include("builtin_pkgs.jl")
+
 """
 Return a `GitRepo` object for an up-to-date copy of `registry`.
 """
@@ -186,7 +188,7 @@ function register(
     versions_data[string(pkg.version)] = version_info
 
     vnlist = sort([(VersionNumber(k), v) for (k, v) in versions_data])
-    vslist = [("$k", v) for (k, v) in vnlist]
+    vslist = [(string(k), v) for (k, v) in vnlist]
 
     open(versions_file, "w") do io
         TOML.print(io, OrderedDict(vslist))
@@ -200,6 +202,32 @@ function register(
     else
         deps_data = Dict()
     end
+
+    @debug("Verifying package name and uuid in deps")
+    err = nothing
+    for (k, v) in pkg.deps
+        u = string(v)
+        if haskey(registry_data["packages"], u)
+            name_in_reg = registry_data["packages"][u]["name"]
+            if name_in_reg != k
+                err = "Error in [deps]: UUID $u refers to package '$name_in_reg' in registry but deps file has '$k'"
+                break
+            end
+        elseif haskey(BUILTIN_PKGS, k)
+            if BUILTIN_PKGS[k] != u
+                err = "Error in [deps]: UUID $u for package $k should be $(BUILTIN_PKGS[k])"
+                break
+            end
+        else
+            err = "Error in [deps]: Package '$k' with UUID: $u not found in registry or stdlib"
+            break
+        end
+    end
+
+    if err !== nothing
+        return RegBranch(pkg.name, pkg.version, branch, err)
+    end
+
     deps_data[pkg.version] = pkg.deps
     Pkg.Compress.save(deps_file, deps_data)
 
