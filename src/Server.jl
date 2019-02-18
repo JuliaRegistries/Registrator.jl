@@ -285,7 +285,7 @@ end
 const event_queue = Vector{RegParams}()
 
 function make_comment(evt::WebhookEvent, body::String)
-    REPLY_COMMENT && return
+    REPLY_COMMENT || return
     @debug("Posting comment to PR/issue")
     headers = Dict("private_token" => GITHUB_TOKEN)
     params = Dict("body" => body)
@@ -306,6 +306,7 @@ function get_html_url(payload)
 end
 
 function raise_issue(event, phrase, bt)
+    REPORT_ISSUE || return
     repo = event.repository.full_name
     num = get_prid(event.payload)
     title = "Error registering $repo#$num"
@@ -336,7 +337,7 @@ function comment_handler(event::WebhookEvent, phrase::RegexMatch)
     catch ex
         bt = get_backtrace(ex)
         @info("Unexpected error: $bt")
-        REPORT_ISSUE && raise_issue(event, phrase, bt)
+        raise_issue(event, phrase, bt)
     end
 
     return HTTP.Messages.Response(200)
@@ -485,7 +486,7 @@ function handle_register_events(rp::RegParams)
     catch ex
         bt = get_backtrace(ex)
         @info("Unexpected error: $bt")
-        REPORT_ISSUE && raise_issue(rp.evt, rp.phrase, bt)
+        raise_issue(rp.evt, rp.phrase, bt)
     end
     @info("Done processing event for $(rp.reponame)")
 end

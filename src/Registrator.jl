@@ -150,7 +150,16 @@ function register(
             error("changing package names not supported yet")
         package_path = joinpath(registry_path, package_data["path"])
     else
-        @debug("Package $(pkg.name):$uuid not found in registry, creating directory")
+        @debug("Package with UUID: $uuid not found in registry, checking if UUID was changed")
+        for (k, v) in registry_data["packages"]
+            if v["name"] == pkg.name
+                err = "Changing UUIDs is not allowed"
+                @debug(err)
+                return RegBranch(pkg.name, pkg.version, branch, err)
+            end
+        end
+
+        @debug("Creating directory for new package $(pkg.name)")
         first_letter = uppercase(pkg.name[1])
         package_path = joinpath(registry_path, "$first_letter", pkg.name)
         mkpath(package_path)
