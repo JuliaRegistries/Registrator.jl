@@ -18,3 +18,7 @@ const REGISTRY_BASE_BRANCH="master"
 const TRIGGER = r"`register\(.*?\)`"
 const REGISTRATOR_REPO = "JuliaComputing/Registrator.jl"
 const REPORT_ISSUE = false
+
+const SLACK_ALERT = false
+const SLACK_TOKEN = "xxxx"
+const SLACK_CHANNEL = "xxxx"

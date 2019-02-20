@@ -11,6 +11,7 @@ import Pkg: TOML
 import ..Registrator: register, RegBranch
 
 include("conf.jl")
+include("slack.jl")
 
 function get_sha_from_branch(reponame, brn)
     try
@@ -47,6 +48,10 @@ function is_pull_request(payload)
     haskey(payload, "pull_request") || haskey(payload, "issue") && haskey(payload["issue"], "pull_request")
 end
 
+function is_commit_comment(payload)
+    haskey(payload, "comment") && !haskey(payload, "issue")
+end
+
 function get_prid(payload)
     if haskey(payload, "pull_request")
         return payload["pull_request"]["number"]
@@ -57,11 +62,20 @@ function get_prid(payload)
     end
 end
 
+function get_comment_commit_id(event)
+    event.payload["comment"]["commit_id"]
+end
+
+function get_clone_url(event)
+    event.payload["repository"]["clone_url"]
+end
+
 struct RegParams
     evt::WebhookEvent
     phrase::RegexMatch
     reponame::String
     ispr::Bool
+    iscc::Bool
     prid::Union{Nothing, Int}
     branch::Union{Nothing, String}
     comment_by_collaborator::Bool
@@ -69,7 +83,8 @@ struct RegParams
 
     function RegParams(evt::WebhookEvent, phrase::RegexMatch)
         reponame = evt.repository.full_name
-        ispr = true
+        ispr = false
+        iscc = false
         prid = nothing
         brn = nothing
         comment_by_collaborator = false
@@ -82,9 +97,13 @@ struct RegParams
                 @debug("Comment is by collaborator")
                 if is_pull_request(evt.payload)
                     @debug("Comment is on a pull request")
+                    ispr = true
                     prid = get_prid(evt.payload)
+                elseif is_commit_comment(evt.payload)
+                    @debug("Comment is on a commit")
+                    iscc = true
                 else
-                    ispr = false
+                    @debug("Comment is on an issue")
                     brn = "master"
                     arg_regx = r"\((.*?)\)"
                     m = match(arg_regx, phrase.match)
@@ -109,7 +128,7 @@ struct RegParams
         isvalid = comment_by_collaborator
         @debug("Event pre-check validity: $isvalid")
 
-        return new(evt, phrase, reponame, ispr,
+        return new(evt, phrase, reponame, ispr, iscc,
                    prid, brn, comment_by_collaborator,
                    CommonParams(isvalid, err, report_error))
     end
@@ -169,6 +188,36 @@ function is_pfile_valid(c::String)
     return true, nothing
 end
 
+function verify_projectfile_from_sha(reponame, sha)
+    projectfile_found = false
+    projectfile_valid = false
+    err = nothing
+    @debug("Getting gitcommit object for sha")
+    gcom = gitcommit(reponame, GitCommit(Dict("sha"=>sha)))
+    @debug("Getting tree object for sha")
+    t = tree(reponame, Tree(gcom.tree))
+
+    for tr in t.tree
+        if tr["path"] == "Project.toml"
+            projectfile_found = true
+            @debug("Project file found")
+
+            @debug("Getting projectfile blob")
+            b = blob(reponame, Blob(tr["sha"]);
+                     auth=GitHub.authenticate(GITHUB_TOKEN))
+
+            @debug("Decoding base64 projectfile contents")
+            c = join([String(copy(base64decode(k))) for k in split(b.content)])
+
+            @debug("Checking project file validity")
+            projectfile_valid, err = is_pfile_valid(c)
+            break
+        end
+    end
+
+    return projectfile_found, projectfile_valid, err
+end
+
 struct ProcessedParams
     projectfile_found::Bool
     projectfile_valid::Bool
@@ -221,35 +270,18 @@ struct ProcessedParams
                 err = "Project file not found on this Pull request"
                 @debug(err)
             end
+        elseif rp.iscc
+            cloneurl = get_clone_url(rp.evt)
+            sha = get_comment_commit_id(rp.evt)
+            projectfile_found, projectfile_valid, err = verify_projectfile_from_sha(rp.reponame, sha)
         else
-            cloneurl = rp.evt.payload["repository"]["clone_url"]
+            cloneurl = get_clone_url(rp.evt)
             @debug("Getting sha from branch reponame=$(rp.reponame) branch=$(rp.branch)")
             sha, err = get_sha_from_branch(rp.reponame, rp.branch)
             @debug("Got sha=$(repr(sha)) error=$(repr(err))")
 
             if err == nothing && sha != nothing
-                @debug("Getting gitcommit object for sha")
-                gcom = gitcommit(rp.reponame, GitCommit(Dict("sha"=>sha)))
-                @debug("Getting tree object for sha")
-                t = tree(rp.reponame, Tree(gcom.tree))
-
-                for tr in t.tree
-                    if tr["path"] == "Project.toml"
-                        projectfile_found = true
-                        @debug("Project file found")
-
-                        @debug("Getting projectfile blob")
-                        b = blob(rp.reponame, Blob(tr["sha"]);
-                                 auth=GitHub.authenticate(GITHUB_TOKEN))
-
-                        @debug("Decoding base64 projectfile contents")
-                        c = join([String(copy(base64decode(k))) for k in split(b.content)])
-
-                        @debug("Checking project file validity")
-                        projectfile_valid, err = is_pfile_valid(c)
-                        break
-                    end
-                end
+                projectfile_found, projectfile_valid, err = verify_projectfile_from_sha(rp.reponame, sha)
 
                 if !projectfile_found
                     err = "Project file not found on branch `$(rp.branch)`"
@@ -290,30 +322,41 @@ function make_comment(evt::WebhookEvent, body::String)
     headers = Dict("private_token" => GITHUB_TOKEN)
     params = Dict("body" => body)
     repo = evt.repository
-    GitHub.create_comment(repo, get_prid(evt.payload),
-                          :issue; headers=headers,
-                          params=params, auth=GitHub.authenticate(GITHUB_TOKEN))
+    if is_commit_comment(evt.payload)
+        GitHub.create_comment(repo, get_comment_commit_id(evt),
+                              :commit; headers=headers,
+                              params=params, auth=GitHub.authenticate(GITHUB_TOKEN))
+    else
+        GitHub.create_comment(repo, get_prid(evt.payload),
+                              :issue; headers=headers,
+                              params=params, auth=GitHub.authenticate(GITHUB_TOKEN))
+    end
 end
 
 function get_html_url(payload)
     if haskey(payload, "pull_request")
         return payload["pull_request"]["html_url"]
     elseif haskey(payload, "issue")
-        return payload["issue"]["html_url"]
+        if haskey(payload, "comment")
+            return payload["comment"]["html_url"]
+        else
+            return payload["issue"]["html_url"]
+        end
+    elseif haskey(payload, "comment")
+        return payload["comment"]["html_url"]
     else
         error("Don't know how to get html_url")
     end
 end
 
 function raise_issue(event, phrase, bt)
-    if REPORT_ISSUE
-        repo = event.repository.full_name
-        num = get_prid(event.payload)
-        title = "Error registering $repo#$num"
-        input_phrase = "`[" * phrase.match[2:end-1] * "]`"
-        body = """
+    repo = event.repository.full_name
+    lab = is_commit_comment(event.payload) ? get_comment_commit_id(event) : get_prid(event.payload)
+    title = "Error registering $repo#$lab"
+    input_phrase = "`[" * phrase.match[2:end-1] * "]`"
+    body = """
 Repository: $repo
-Issue/PR: [$num]($(get_html_url(event.payload)))
+Issue/PR: [$lab]($(get_html_url(event.payload)))
 Command: $(input_phrase)
 Stacktrace:
 
@@ -321,6 +364,12 @@ Stacktrace:
 $bt
 ```
 """
+
+    if SLACK_ALERT
+        post_on_slack_channel(body)
+    end
+
+    if REPORT_ISSUE
         params = Dict("title"=>title, "body"=>body)
         iss = create_issue(REGISTRATOR_REPO; params=params, auth=GitHub.authenticate(GITHUB_TOKEN))
         msg = "Unexpected error occured during registration, see issue: [$(REGISTRATOR_REPO)#$(iss.number)]($(iss.html_url))"
@@ -354,6 +403,8 @@ function handle_comment_event(event::WebhookEvent, phrase::RegexMatch)
     if rp.cparams.isvalid && rp.cparams.error == nothing
         if rp.ispr
             @info("Creating registration pull request for $(rp.reponame) PR: $(rp.prid)")
+        elseif rp.iscc
+            @info("Creating registration pull request for $(rp.reponame) sha: `$(get_comment_commit_id(rp.evt))`")
         else
             @info("Creating registration pull request for $(rp.reponame) branch: `$(rp.branch)`")
         end
