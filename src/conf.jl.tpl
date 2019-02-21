@@ -12,12 +12,12 @@ const GITHUB_PRIV_PEM = "xxxx"
 
 const DEV_MODE = true
 const DO_CI = false
-
 const REGISTRY="https://github.com/JuliaRegistries/General"
 const REGISTRY_BASE_BRANCH="master"
 const TRIGGER = r"`register\(.*?\)`"
 const REGISTRATOR_REPO = "JuliaComputing/Registrator.jl"
 const REPORT_ISSUE = false
+const REPLY_COMMENT = false
 
 const SLACK_ALERT = false
 const SLACK_TOKEN = "xxxx"
