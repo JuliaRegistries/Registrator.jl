@@ -10,13 +10,7 @@ using Pkg
 import Pkg: TOML
 import ..Registrator: register, RegBranch
 
-if !haskey(ENV, "REGISTRATOR_CONF")
-    error("Environment variable 'REGISTRATOR_CONF' not defined")
-elseif !isfile(ENV["REGISTRATOR_CONF"])
-    error("Config file $(ENV["REGISTRATOR_CONF"]) not found")
-end
-
-include(ENV["REGISTRATOR_CONF"])
+include("conf.jl")
 include("slack.jl")
 
 function get_sha_from_branch(reponame, brn)
