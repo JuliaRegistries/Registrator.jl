@@ -12,7 +12,7 @@ import ..Registrator: register, RegBranch
 
 if !haskey(ENV, "REGISTRATOR_CONF")
     error("Environment variable 'REGISTRATOR_CONF' not defined")
-else !isfile(ENV["REGISTRATOR_CONF"])
+elseif !isfile(ENV["REGISTRATOR_CONF"])
     error("Config file $(ENV["REGISTRATOR_CONF"]) not found")
 end
 
