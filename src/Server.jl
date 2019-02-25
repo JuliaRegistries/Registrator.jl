@@ -6,68 +6,15 @@ using HTTP
 using Distributed
 using Base64
 using Pkg
+using Logging
 
 import Pkg: TOML
-import ..Registrator: register, RegBranch
-
-include("conf.jl")
-include("slack.jl")
-
-function get_sha_from_branch(reponame, brn)
-    try
-        b = branch(reponame, Branch(brn))
-        sha = b.sha != nothing ? b.sha : b.commit.sha
-        return sha, nothing
-    catch ex
-        d = parse_github_exception(ex)
-        if d["Status Code"] == "404" && d["Message"] == "Branch not found"
-            return nothing, "Branch `$brn` not found"
-        else
-            rethrow(ex)
-        end
-    end
-
-    return nothing, nothing
-end
-
-function is_comment_by_collaborator(event)
-    @debug("Checking if comment is by collaborator")
-    user = get_user_login(event.payload)
-    auth = get_jwt_auth()
-    tok = create_access_token(Installation(event.payload["installation"]), auth)
-    return iscollaborator(event.repository, user; auth=tok)
-end
+import ..Registrator: register, RegBranch, post_on_slack_channel
 
 struct CommonParams
     isvalid::Bool
     error::Union{Nothing, String}
     report_error::Bool
-end
-
-function is_pull_request(payload)
-    haskey(payload, "pull_request") || haskey(payload, "issue") && haskey(payload["issue"], "pull_request")
-end
-
-function is_commit_comment(payload)
-    haskey(payload, "comment") && !haskey(payload, "issue")
-end
-
-function get_prid(payload)
-    if haskey(payload, "pull_request")
-        return payload["pull_request"]["number"]
-    elseif haskey(payload, "issue") && haskey(payload["issue"], "pull_request")
-        return payload["issue"]["number"]
-    else
-        error("Don't know how to get pull request number")
-    end
-end
-
-function get_comment_commit_id(event)
-    event.payload["comment"]["commit_id"]
-end
-
-function get_clone_url(event)
-    event.payload["repository"]["clone_url"]
 end
 
 struct RegParams
@@ -132,90 +79,6 @@ struct RegParams
                    prid, brn, comment_by_collaborator,
                    CommonParams(isvalid, err, report_error))
     end
-end
-
-function is_pfile_parseable(c::String)
-    @debug("Checking whether Project.toml is non-empty and parseable")
-    if length(c) != 0
-        try
-            TOML.parse(c)
-            return true, nothing
-        catch ex
-            if isa(ex, CompositeException) && isa(ex.exceptions[1], TOML.ParserError)
-                err = "Error parsing project file"
-                @debug(err)
-                return false, err
-            else
-                rethrow(ex)
-            end
-        end
-    else
-        err = "Project file is empty"
-        @debug(err)
-        return false, err
-    end
-end
-
-function is_pfile_nuv(c)
-    @debug("Checking whether Project.toml contains name, uuid and version")
-    ib = IOBuffer(c)
-
-    try
-        p = Pkg.Types.read_project(copy(ib))
-        if p.name === nothing || p.uuid === nothing || p.version === nothing
-            err = "Project file should contain name, uuid and version"
-            @debug(err)
-            return false, err
-        end
-    catch ex
-        if isa(ex, ArgumentError)
-            err = "Error reading Project.toml: $(ex.msg)"
-            @debug(err)
-            return false, err
-        else
-            rethrow(ex)
-        end
-    end
-
-    return true, nothing
-end
-
-function is_pfile_valid(c::String)
-    for f in [is_pfile_parseable, is_pfile_nuv]
-        v, err = f(c)
-        v || return v, err
-    end
-    return true, nothing
-end
-
-function verify_projectfile_from_sha(reponame, sha)
-    projectfile_found = false
-    projectfile_valid = false
-    err = nothing
-    @debug("Getting gitcommit object for sha")
-    gcom = gitcommit(reponame, GitCommit(Dict("sha"=>sha)))
-    @debug("Getting tree object for sha")
-    t = tree(reponame, Tree(gcom.tree))
-
-    for tr in t.tree
-        if tr["path"] == "Project.toml"
-            projectfile_found = true
-            @debug("Project file found")
-
-            @debug("Getting projectfile blob")
-            b = blob(reponame, Blob(tr["sha"]);
-                     auth=GitHub.authenticate(GITHUB_TOKEN))
-
-            @debug("Decoding base64 projectfile contents")
-            c = join([String(copy(base64decode(k))) for k in split(b.content)])
-
-            @debug("Checking project file validity")
-            projectfile_valid, err = is_pfile_valid(c)
-            break
-        end
-    end
-
-    return projectfile_found, projectfile_valid, err
 end
 
 struct ProcessedParams
@@ -298,6 +161,146 @@ struct ProcessedParams
     end
 end
 
+const event_queue = Channel{RegParams}(1024)
+const config = Dict{String,Any}()
+const httpsock = Ref{Sockets.TCPServer}()
+
+function get_sha_from_branch(reponame, brn)
+    try
+        b = branch(reponame, Branch(brn))
+        sha = b.sha != nothing ? b.sha : b.commit.sha
+        return sha, nothing
+    catch ex
+        d = parse_github_exception(ex)
+        if d["Status Code"] == "404" && d["Message"] == "Branch not found"
+            return nothing, "Branch `$brn` not found"
+        else
+            rethrow(ex)
+        end
+    end
+
+    return nothing, nothing
+end
+
+function is_comment_by_collaborator(event)
+    @debug("Checking if comment is by collaborator")
+    user = get_user_login(event.payload)
+    auth = get_jwt_auth()
+    tok = create_access_token(Installation(event.payload["installation"]), auth)
+    return iscollaborator(event.repository, user; auth=tok)
+end
+
+function is_pull_request(payload)
+    haskey(payload, "pull_request") || haskey(payload, "issue") && haskey(payload["issue"], "pull_request")
+end
+
+function is_commit_comment(payload)
+    haskey(payload, "comment") && !haskey(payload, "issue")
+end
+
+function get_prid(payload)
+    if haskey(payload, "pull_request")
+        return payload["pull_request"]["number"]
+    elseif haskey(payload, "issue") && haskey(payload["issue"], "pull_request")
+        return payload["issue"]["number"]
+    else
+        error("Don't know how to get pull request number")
+    end
+end
+
+function get_comment_commit_id(event)
+    event.payload["comment"]["commit_id"]
+end
+
+function get_clone_url(event)
+    event.payload["repository"]["clone_url"]
+end
+
+
+function is_pfile_parseable(c::String)
+    @debug("Checking whether Project.toml is non-empty and parseable")
+    if length(c) != 0
+        try
+            TOML.parse(c)
+            return true, nothing
+        catch ex
+            if isa(ex, CompositeException) && isa(ex.exceptions[1], TOML.ParserError)
+                err = "Error parsing project file"
+                @debug(err)
+                return false, err
+            else
+                rethrow(ex)
+            end
+        end
+    else
+        err = "Project file is empty"
+        @debug(err)
+        return false, err
+    end
+end
+
+function is_pfile_nuv(c)
+    @debug("Checking whether Project.toml contains name, uuid and version")
+    ib = IOBuffer(c)
+
+    try
+        p = Pkg.Types.read_project(copy(ib))
+        if p.name === nothing || p.uuid === nothing || p.version === nothing
+            err = "Project file should contain name, uuid and version"
+            @debug(err)
+            return false, err
+        end
+    catch ex
+        if isa(ex, ArgumentError)
+            err = "Error reading Project.toml: $(ex.msg)"
+            @debug(err)
+            return false, err
+        else
+            rethrow(ex)
+        end
+    end
+
+    return true, nothing
+end
+
+function is_pfile_valid(c::String)
+    for f in [is_pfile_parseable, is_pfile_nuv]
+        v, err = f(c)
+        v || return v, err
+    end
+    return true, nothing
+end
+
+function verify_projectfile_from_sha(reponame, sha)
+    projectfile_found = false
+    projectfile_valid = false
+    err = nothing
+    @debug("Getting gitcommit object for sha")
+    gcom = gitcommit(reponame, GitCommit(Dict("sha"=>sha)))
+    @debug("Getting tree object for sha")
+    t = tree(reponame, Tree(gcom.tree))
+
+    for tr in t.tree
+        if tr["path"] == "Project.toml"
+            projectfile_found = true
+            @debug("Project file found")
+
+            @debug("Getting projectfile blob")
+            b = blob(reponame, Blob(tr["sha"]);
+                     auth=GitHub.authenticate(config["GITHUB_TOKEN"]))
+
+            @debug("Decoding base64 projectfile contents")
+            c = join([String(copy(base64decode(k))) for k in split(b.content)])
+
+            @debug("Checking project file validity")
+            projectfile_valid, err = is_pfile_valid(c)
+            break
+        end
+    end
+
+    return projectfile_found, projectfile_valid, err
+end
+
 function get_backtrace(ex)
     v = IOBuffer()
     Base.showerror(v, ex, catch_backtrace())
@@ -305,31 +308,23 @@ function get_backtrace(ex)
 end
 
 function get_jwt_auth()
-    GitHub.JWTAuth(GITHUB_APP_ID, GITHUB_PRIV_PEM)
+    GitHub.JWTAuth(config["GITHUB_APP_ID"], config["GITHUB_PRIV_PEM"])
 end
-
-function start_github_webhook(http_ip=DEFAULT_HTTP_IP, http_port=DEFAULT_HTTP_PORT)
-    auth = get_jwt_auth()
-    listener = GitHub.CommentListener(comment_handler, TRIGGER; check_collab=false, auth=auth, secret=GITHUB_SECRET)
-    GitHub.run(listener, IPv4(http_ip), http_port)
-end
-
-const event_queue = Vector{RegParams}()
 
 function make_comment(evt::WebhookEvent, body::String)
-    REPLY_COMMENT || return
+    config["REPLY_COMMENT"] || return
     @debug("Posting comment to PR/issue")
-    headers = Dict("private_token" => GITHUB_TOKEN)
+    headers = Dict("private_token" => config["GITHUB_TOKEN"])
     params = Dict("body" => body)
     repo = evt.repository
     if is_commit_comment(evt.payload)
         GitHub.create_comment(repo, get_comment_commit_id(evt),
                               :commit; headers=headers,
-                              params=params, auth=GitHub.authenticate(GITHUB_TOKEN))
+                              params=params, auth=GitHub.authenticate(config["GITHUB_TOKEN"]))
     else
         GitHub.create_comment(repo, get_prid(evt.payload),
                               :issue; headers=headers,
-                              params=params, auth=GitHub.authenticate(GITHUB_TOKEN))
+                              params=params, auth=GitHub.authenticate(config["GITHUB_TOKEN"]))
     end
 end
 
@@ -365,14 +360,15 @@ $bt
 ```
 """
 
-    if SLACK_ALERT
-        post_on_slack_channel(body)
+    if config["SLACK_ALERT"]
+        post_on_slack_channel(body, config["SLACK_TOKEN"], config["SLACK_CHANNEL"])
     end
 
-    if REPORT_ISSUE
+    if config["REPORT_ISSUE"]
         params = Dict("title"=>title, "body"=>body)
-        iss = create_issue(REGISTRATOR_REPO; params=params, auth=GitHub.authenticate(GITHUB_TOKEN))
-        msg = "Unexpected error occured during registration, see issue: [$(REGISTRATOR_REPO)#$(iss.number)]($(iss.html_url))"
+        regrepo = config["REGISTRATOR_REPO"]
+        iss = create_issue(regrepo; params=params, auth=GitHub.authenticate(config["GITHUB_TOKEN"]))
+        msg = "Unexpected error occured during registration, see issue: [$(regrepo)#$(iss.number)]($(iss.html_url))"
         @debug(msg)
         make_comment(event, msg)
     else
@@ -411,9 +407,9 @@ function handle_comment_event(event::WebhookEvent, phrase::RegexMatch)
 
         push!(event_queue, rp)
 
-        if !DEV_MODE
+        if !config["DEV_MODE"]
             params = Dict("state" => "pending",
-                          "context" => GITHUB_USER,
+                          "context" => config["GITHUB_USER"],
                           "description" => "pending")
             GitHub.create_status(repo, commit;
                                  auth=get_jwt_auth(),
@@ -427,23 +423,6 @@ function handle_comment_event(event::WebhookEvent, phrase::RegexMatch)
             make_comment(event, msg)
         end
     end
-end
-
-function recover(f)
-    while true
-        try
-            f()
-        catch ex
-            @info("Task $f failed")
-            @info(get_backtrace(ex))
-        end
-
-        sleep(CYCLE_INTERVAL)
-    end
-end
-
-macro recover(e)
-    :(recover(() -> $(esc(e)) ))
 end
 
 function parse_github_exception(ex::ErrorException)
@@ -491,7 +470,7 @@ function make_pull_request(pp::ProcessedParams, rp::RegParams, rbrn::RegBranch)
     @debug("Pull request creator=$creator, reviewer=$reviewer")
 
     params = Dict("title"=>"Register $name: $ver",
-                  "base"=>REGISTRY_BASE_BRANCH,
+                  "base"=>config["REGISTRY_BASE_BRANCH"],
                   "head"=>brn,
                   "maintainer_can_modify"=>true)
 
@@ -500,9 +479,9 @@ cc: @$(creator)
 reviewer: @$(reviewer)"""
 
     pr = nothing
-    repo = join(split(REGISTRY, "/")[end-1:end], "/")
+    repo = join(split(config["REGISTRY"], "/")[end-1:end], "/")
     try
-        pr = create_pull_request(repo; auth=GitHub.authenticate(GITHUB_TOKEN), params=params)
+        pr = create_pull_request(repo; auth=GitHub.authenticate(config["GITHUB_TOKEN"]), params=params)
         @debug("Pull request created")
     catch ex
         if is_pr_exists_exception(ex)
@@ -516,8 +495,8 @@ reviewer: @$(reviewer)"""
 
     if pr == nothing
         @debug("Searching for existing PR")
-        for p in pull_requests(repo; auth=GitHub.authenticate(GITHUB_TOKEN))[1]
-            if p.base.ref == REGISTRY_BASE_BRANCH && p.head.ref == brn
+        for p in pull_requests(repo; auth=GitHub.authenticate(config["GITHUB_TOKEN"]))[1]
+            if p.base.ref == config["REGISTRY_BASE_BRANCH"] && p.head.ref == brn
                 @debug("PR found")
                 pr = p
                 break
@@ -551,7 +530,7 @@ function handle_register(rp::RegParams)
     pp = ProcessedParams(rp)
 
     if pp.cparams.isvalid && pp.cparams.error == nothing
-        rbrn = register(pp.cloneurl, pp.sha; registry=REGISTRY, push=true)
+        rbrn = register(pp.cloneurl, pp.sha; registry=config["REGISTRY"], push=true)
         if rbrn.error !== nothing
             msg = "Error while trying to register: $(rbrn.error)"
             @debug(msg)
@@ -569,22 +548,92 @@ function handle_register(rp::RegParams)
     end
 end
 
-function tester()
-    global event_queue
+function get_log_level()
+    log_level_str = lowercase(config["LOG_LEVEL"])
 
-    while true
-        while !isempty(event_queue)
-            rp = popfirst!(event_queue)
-            handle_register_events(rp)
+    (log_level_str == "debug") ? Logging.Debug :
+    (log_level_str == "info")  ? Logging.Info  :
+    (log_level_str == "warn")  ? Logging.Warn  : Logging.Error
+end
+
+function status_monitor()
+    while isopen(event_queue)
+        sleep(5)
+        flush(stdout); flush(stderr);
+        # stop server if stop is requested
+        if isfile(config["SERVER_STOP_FILE"])
+            @warn("Server stop requested.")
+            flush(stdout); flush(stderr)
+
+            # stop accepting new requests
+            close(httpsock[])
+
+            # wait for queued requests to be processed and close queue
+            while isready(event_queue)
+                yield()
+            end
+            close(event_queue)
+            rm(config["SERVER_STOP_FILE"]; force=true)
         end
-
-        sleep(CYCLE_INTERVAL)
     end
 end
 
+function recover(name, keep_running, do_action, handle_exception; backoff=0, backoffmax=120, backoffincrement=1)
+    while keep_running()
+        try
+            do_action()
+            backoff = 0
+        catch ex
+            exception_action = handle_exception(ex)
+            if exception_action == :exit
+                @warn("Stopping", name)
+                return
+            else # exception_action == :continue
+                bt = get_backtrace(ex)
+                @error("Recovering from unknown exception", name, ex, bt, backoff)
+                sleep(backoff)
+                backoff = min(backoffmax, backoff+backoffincrement)
+            end
+        end
+    end
+end
+
+function request_processor()
+    do_action() = handle_register_events(take!(event_queue))
+    handle_exception(ex) = (isa(ex, InvalidStateException) && (ex.state == :closed)) ? :exit : :continue
+    keep_running() = isopen(event_queue)
+    recover("request_processor", keep_running, do_action, handle_exception)
+end
+
+function github_webhook(http_ip=config["DEFAULT_HTTP_IP"], http_port=config["DEFAULT_HTTP_PORT"])
+    auth = get_jwt_auth()
+    trigger = Regex("`$(config["TRIGGER"])(.*?)`")
+    listener = GitHub.CommentListener(comment_handler, trigger; check_collab=false, auth=auth, secret=config["GITHUB_SECRET"])
+    httpsock[] = Sockets.listen(IPv4(http_ip), http_port)
+
+    do_action() = GitHub.run(listener, httpsock[], IPv4(http_ip), http_port)
+    handle_exception(ex) = (isa(ex, Base.IOError) && (ex.code == -103)) ? :exit : :continue
+    keep_running() = isopen(httpsock[])
+    @info("GitHub webhook starting...", trigger, http_ip, http_port)
+    recover("github_webhook", keep_running, do_action, handle_exception)
+end
+
 function main()
-    @async @recover tester()
-    @recover start_github_webhook()
+    if isempty(ARGS)
+        println("Usage: julia -e 'using Registrator; Registrator.RegServer.main()' <configuration>")
+        return
+    end
+
+    merge!(config, Pkg.TOML.parsefile(ARGS[1]))
+    global_logger(SimpleLogger(stdout, get_log_level()))
+
+    @info("Starting server...")
+    t1 = @async request_processor()
+    t2 = @async status_monitor()
+    github_webhook()
+    wait(t1)
+    wait(t2)
+    @warn("Server stopped.")
 end
 
 end    # module
