@@ -1,6 +1,6 @@
 # Registrator
 
-<img src="https://juliaregistrator.github.io/julia_id.jpg" alt="logo" style="width:200px;"/>
+<img src="https://juliaregistrator.github.io/julia_id.jpg" alt="logo" width="200" />
 
 Click [here](https://github.com/apps/registratortest/installations/new) to install.
 
