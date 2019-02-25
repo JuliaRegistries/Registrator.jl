@@ -1,0 +1,24 @@
+DEFAULT_HTTP_PORT = 8001
+DEFAULT_HTTP_IP = "0.0.0.0"
+
+GITHUB_USER=""
+GITHUB_TOKEN=""
+GITHUB_SECRET=""
+GITHUB_APP_ID = 12345
+GITHUB_PRIV_PEM = "private-key.pem"
+
+DEV_MODE = true
+LOG_LEVEL = "debug"
+
+REGISTRY="https://github.com/your_github_id/QuxRegistry"
+REGISTRY_BASE_BRANCH="master"
+TRIGGER = "quxregister"
+REGISTRATOR_REPO = "JuliaComputing/Registrator.jl"
+REPORT_ISSUE = false
+REPLY_COMMENT = true
+
+SLACK_ALERT = false
+SLACK_TOKEN = "xxxx"
+SLACK_CHANNEL = "xxxx"
+
+SERVER_STOP_FILE="/tmp/stopregistrator"
