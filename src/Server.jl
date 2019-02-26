@@ -413,7 +413,7 @@ function handle_comment_event(event::WebhookEvent, phrase::RegexMatch)
                           "context" => config["github"]["user"],
                           "description" => "pending")
             GitHub.create_status(repo, commit;
-                                 auth=get_jwt_auth(),
+                                 auth=GitHub.authenticate(config["github"]["token"]),
                                  params=params)
         end
     elseif rp.cparams.error != nothing
