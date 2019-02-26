@@ -1,0 +1,28 @@
+[server]
+http_port = 8001
+http_ip = "0.0.0.0"
+stop_file = "/tmp/stopregistrator"
+log_level = "debug"
+
+[github]
+user = ""
+token = ""
+secret = ""
+app_id = 12345
+priv_pem = "private-key.pem"
+
+[targets.qux]
+repo = "https://github.com/your_github_id/QuxRegistry"
+base_branch = "master"
+
+[registrator]
+trigger = "quxregister"
+report_issue = false
+issue_repo = "JuliaComputing/Registrator.jl"
+reply_comment = true
+set_status = true
+
+[slack]
+alert = false
+token = "xxxx"
+channel = "xxxx"
