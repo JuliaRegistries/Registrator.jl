@@ -1,24 +1,28 @@
-DEFAULT_HTTP_PORT = 8001
-DEFAULT_HTTP_IP = "0.0.0.0"
+[server]
+http_port = 8001
+http_ip = "0.0.0.0"
+stop_file = "/tmp/stopregistrator"
+log_level = "debug"
 
-GITHUB_USER=""
-GITHUB_TOKEN=""
-GITHUB_SECRET=""
-GITHUB_APP_ID = 12345
-GITHUB_PRIV_PEM = "private-key.pem"
+[github]
+user = ""
+token = ""
+secret = ""
+app_id = 12345
+priv_pem = "private-key.pem"
 
-DEV_MODE = true
-LOG_LEVEL = "debug"
+[targets.qux]
+repo = "https://github.com/your_github_id/QuxRegistry"
+base_branch = "master"
 
-REGISTRY="https://github.com/your_github_id/QuxRegistry"
-REGISTRY_BASE_BRANCH="master"
-TRIGGER = "quxregister"
-REGISTRATOR_REPO = "JuliaComputing/Registrator.jl"
-REPORT_ISSUE = false
-REPLY_COMMENT = true
+[registrator]
+trigger = "quxregister"
+report_issue = false
+issue_repo = "JuliaComputing/Registrator.jl"
+reply_comment = true
+set_status = true
 
-SLACK_ALERT = false
-SLACK_TOKEN = "xxxx"
-SLACK_CHANNEL = "xxxx"
-
-SERVER_STOP_FILE="/tmp/stopregistrator"
+[slack]
+alert = false
+token = "xxxx"
+channel = "xxxx"

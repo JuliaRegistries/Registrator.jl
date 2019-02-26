@@ -287,7 +287,7 @@ function verify_projectfile_from_sha(reponame, sha)
 
             @debug("Getting projectfile blob")
             b = blob(reponame, Blob(tr["sha"]);
-                     auth=GitHub.authenticate(config["GITHUB_TOKEN"]))
+                     auth=GitHub.authenticate(config["github"]["token"]))
 
             @debug("Decoding base64 projectfile contents")
             c = join([String(copy(base64decode(k))) for k in split(b.content)])
@@ -308,23 +308,23 @@ function get_backtrace(ex)
 end
 
 function get_jwt_auth()
-    GitHub.JWTAuth(config["GITHUB_APP_ID"], config["GITHUB_PRIV_PEM"])
+    GitHub.JWTAuth(config["github"]["app_id"], config["github"]["priv_pem"])
 end
 
 function make_comment(evt::WebhookEvent, body::String)
-    config["REPLY_COMMENT"] || return
+    config["registrator"]["reply_comment"] || return
     @debug("Posting comment to PR/issue")
-    headers = Dict("private_token" => config["GITHUB_TOKEN"])
+    headers = Dict("private_token" => config["github"]["token"])
     params = Dict("body" => body)
     repo = evt.repository
     if is_commit_comment(evt.payload)
         GitHub.create_comment(repo, get_comment_commit_id(evt),
                               :commit; headers=headers,
-                              params=params, auth=GitHub.authenticate(config["GITHUB_TOKEN"]))
+                              params=params, auth=GitHub.authenticate(config["github"]["token"]))
     else
         GitHub.create_comment(repo, get_prid(evt.payload),
                               :issue; headers=headers,
-                              params=params, auth=GitHub.authenticate(config["GITHUB_TOKEN"]))
+                              params=params, auth=GitHub.authenticate(config["github"]["token"]))
     end
 end
 
@@ -360,14 +360,15 @@ $bt
 ```
 """
 
-    if config["SLACK_ALERT"]
-        post_on_slack_channel(body, config["SLACK_TOKEN"], config["SLACK_CHANNEL"])
+    slack_config = get(config, "slack", nothing)
+    if (slack_config !== nothing) && get(slack_config, "alert", false)
+        post_on_slack_channel(body, slack_config["token"], slack_config["channel"])
     end
 
-    if config["REPORT_ISSUE"]
+    if config["registrator"]["report_issue"]
         params = Dict("title"=>title, "body"=>body)
-        regrepo = config["REGISTRATOR_REPO"]
-        iss = create_issue(regrepo; params=params, auth=GitHub.authenticate(config["GITHUB_TOKEN"]))
+        regrepo = config["registrator"]["issue_repo"]
+        iss = create_issue(regrepo; params=params, auth=GitHub.authenticate(config["github"]["token"]))
         msg = "Unexpected error occured during registration, see issue: [$(regrepo)#$(iss.number)]($(iss.html_url))"
         @debug(msg)
         make_comment(event, msg)
@@ -407,9 +408,9 @@ function handle_comment_event(event::WebhookEvent, phrase::RegexMatch)
 
         push!(event_queue, rp)
 
-        if !config["DEV_MODE"]
+        if config["registrator"]["set_status"]
             params = Dict("state" => "pending",
-                          "context" => config["GITHUB_USER"],
+                          "context" => config["github"]["user"],
                           "description" => "pending")
             GitHub.create_status(repo, commit;
                                  auth=get_jwt_auth(),
@@ -458,7 +459,7 @@ function get_user_login(payload)
     end
 end
 
-function make_pull_request(pp::ProcessedParams, rp::RegParams, rbrn::RegBranch)
+function make_pull_request(pp::ProcessedParams, rp::RegParams, rbrn::RegBranch, target_registry::Dict{String,Any})
     name = rbrn.name
     ver = rbrn.version
     brn = rbrn.branch
@@ -470,7 +471,7 @@ function make_pull_request(pp::ProcessedParams, rp::RegParams, rbrn::RegBranch)
     @debug("Pull request creator=$creator, reviewer=$reviewer")
 
     params = Dict("title"=>"Register $name: $ver",
-                  "base"=>config["REGISTRY_BASE_BRANCH"],
+                  "base"=>target_registry["base_branch"],
                   "head"=>brn,
                   "maintainer_can_modify"=>true)
 
@@ -479,9 +480,9 @@ cc: @$(creator)
 reviewer: @$(reviewer)"""
 
     pr = nothing
-    repo = join(split(config["REGISTRY"], "/")[end-1:end], "/")
+    repo = join(split(target_registry["repo"], "/")[end-1:end], "/")
     try
-        pr = create_pull_request(repo; auth=GitHub.authenticate(config["GITHUB_TOKEN"]), params=params)
+        pr = create_pull_request(repo; auth=GitHub.authenticate(config["github"]["token"]), params=params)
         @debug("Pull request created")
     catch ex
         if is_pr_exists_exception(ex)
@@ -495,8 +496,8 @@ reviewer: @$(reviewer)"""
 
     if pr == nothing
         @debug("Searching for existing PR")
-        for p in pull_requests(repo; auth=GitHub.authenticate(config["GITHUB_TOKEN"]))[1]
-            if p.base.ref == config["REGISTRY_BASE_BRANCH"] && p.head.ref == brn
+        for p in pull_requests(repo; auth=GitHub.authenticate(config["github"]["token"]))[1]
+            if p.base.ref == target_registry["base_branch"] && p.head.ref == brn
                 @debug("PR found")
                 pr = p
                 break
@@ -515,28 +516,30 @@ reviewer: @$(reviewer)"""
 end
 
 function handle_register_events(rp::RegParams)
-    @info("Processing Register event for $(rp.reponame)")
-    try
-        handle_register(rp)
-    catch ex
-        bt = get_backtrace(ex)
-        @info("Unexpected error: $bt")
-        raise_issue(rp.evt, rp.phrase, bt)
+    for (target_registry_name,target_registry) in config["targets"]
+        @info("Processing register event", reponame=rp.reponame, target_registry_name)
+        try
+            handle_register(rp, target_registry)
+        catch ex
+            bt = get_backtrace(ex)
+            @info("Unexpected error: $bt")
+            raise_issue(rp.evt, rp.phrase, bt)
+        end
+        @info("Done processing register event", reponame=rp.reponame, target_registry_name)
     end
-    @info("Done processing event for $(rp.reponame)")
 end
 
-function handle_register(rp::RegParams)
+function handle_register(rp::RegParams, target_registry::Dict{String,Any})
     pp = ProcessedParams(rp)
 
     if pp.cparams.isvalid && pp.cparams.error == nothing
-        rbrn = register(pp.cloneurl, pp.sha; registry=config["REGISTRY"], push=true)
+        rbrn = register(pp.cloneurl, pp.sha; registry=target_registry["repo"], push=true)
         if rbrn.error !== nothing
             msg = "Error while trying to register: $(rbrn.error)"
             @debug(msg)
             make_comment(rp.evt, msg)
         else
-            make_pull_request(pp, rp, rbrn)
+            make_pull_request(pp, rp, rbrn, target_registry)
         end
     elseif pp.cparams.error != nothing
         @info("Error while processing event: $(pp.cparams.error)")
@@ -549,7 +552,7 @@ function handle_register(rp::RegParams)
 end
 
 function get_log_level()
-    log_level_str = lowercase(config["LOG_LEVEL"])
+    log_level_str = lowercase(config["server"]["log_level"])
 
     (log_level_str == "debug") ? Logging.Debug :
     (log_level_str == "info")  ? Logging.Info  :
@@ -557,11 +560,12 @@ function get_log_level()
 end
 
 function status_monitor()
+    stop_file = config["server"]["stop_file"]
     while isopen(event_queue)
         sleep(5)
         flush(stdout); flush(stderr);
         # stop server if stop is requested
-        if isfile(config["SERVER_STOP_FILE"])
+        if isfile(stop_file)
             @warn("Server stop requested.")
             flush(stdout); flush(stderr)
 
@@ -573,7 +577,7 @@ function status_monitor()
                 yield()
             end
             close(event_queue)
-            rm(config["SERVER_STOP_FILE"]; force=true)
+            rm(stop_file; force=true)
         end
     end
 end
@@ -605,10 +609,10 @@ function request_processor()
     recover("request_processor", keep_running, do_action, handle_exception)
 end
 
-function github_webhook(http_ip=config["DEFAULT_HTTP_IP"], http_port=config["DEFAULT_HTTP_PORT"])
+function github_webhook(http_ip=config["server"]["http_ip"], http_port=config["server"]["http_port"])
     auth = get_jwt_auth()
-    trigger = Regex("`$(config["TRIGGER"])(.*?)`")
-    listener = GitHub.CommentListener(comment_handler, trigger; check_collab=false, auth=auth, secret=config["GITHUB_SECRET"])
+    trigger = Regex("`$(config["registrator"]["trigger"])(.*?)`")
+    listener = GitHub.CommentListener(comment_handler, trigger; check_collab=false, auth=auth, secret=config["github"]["secret"])
     httpsock[] = Sockets.listen(IPv4(http_ip), http_port)
 
     do_action() = GitHub.run(listener, httpsock[], IPv4(http_ip), http_port)
