@@ -26,6 +26,7 @@ struct RegParams
     prid::Union{Nothing, Int}
     branch::Union{Nothing, String}
     comment_by_collaborator::Bool
+    target::Union{Nothing,String}
     cparams::CommonParams
 
     function RegParams(evt::WebhookEvent, phrase::RegexMatch)
@@ -38,36 +39,37 @@ struct RegParams
         err = nothing
         report_error = false
 
-        if endswith(reponame, ".jl")
-            comment_by_collaborator = is_comment_by_collaborator(evt)
-            if comment_by_collaborator
-                @debug("Comment is by collaborator")
-                if is_pull_request(evt.payload)
-                    @debug("Comment is on a pull request")
-                    ispr = true
-                    prid = get_prid(evt.payload)
-                elseif is_commit_comment(evt.payload)
-                    @debug("Comment is on a commit")
-                    iscc = true
-                else
-                    @debug("Comment is on an issue")
-                    brn = "master"
-                    arg_regx = r"\((.*?)\)"
-                    m = match(arg_regx, phrase.match)
-                    if length(m.captures) != 0
-                        arg = strip(m.captures[1])
-                        if length(arg) != 0
-                            @debug("Found branch arguement in comment: $arg")
-                            brn = arg
-                        end
+        action_name, action_args, action_kwargs = parse_submission_string(phrase.captures[1])
+        target = get(action_kwargs, :target, nothing)
+
+        if action_name == "register"
+            if endswith(reponame, ".jl")
+                comment_by_collaborator = is_comment_by_collaborator(evt)
+                if comment_by_collaborator
+                    @debug("Comment is by collaborator")
+                    if is_pull_request(evt.payload)
+                        @debug("Comment is on a pull request")
+                        ispr = true
+                        prid = get_prid(evt.payload)
+                    elseif is_commit_comment(evt.payload)
+                        @debug("Comment is on a commit")
+                        iscc = true
+                    else
+                        @debug("Comment is on an issue")
+                        brn = get(action_kwargs, :branch, "master")
+                        @debug("Will use branch", brn)
                     end
+                else
+                    err = "Comment not made by collaborator"
+                    @debug(err)
                 end
             else
-                err = "Comment not made by collaborator"
+                err = "Package name does not end with '.jl'"
                 @debug(err)
+                report_error = true
             end
         else
-            err = "Package name does not end with '.jl'"
+            err = "Action not recognized: $action_name"
             @debug(err)
             report_error = true
         end
@@ -76,7 +78,7 @@ struct RegParams
         @debug("Event pre-check validity: $isvalid")
 
         return new(evt, phrase, reponame, ispr, iscc,
-                   prid, brn, comment_by_collaborator,
+                   prid, brn, comment_by_collaborator, target,
                    CommonParams(isvalid, err, report_error))
     end
 end
@@ -159,6 +161,33 @@ struct ProcessedParams
         new(projectfile_found, projectfile_valid, sha, cloneurl,
             CommonParams(isvalid, err, report_error))
     end
+end
+
+# `x` can only be Expr, Symbol, QuoteNode, T<:Number, or T<:AbstractString
+phrase_argument(x::Union{Expr, Symbol, QuoteNode}) = string(x)
+phrase_argument(x::Union{AbstractString, Number})  = repr(x)
+
+function parse_submission_string(fncall)
+    argind = findfirst(isequal('('), fncall)
+    name = fncall[1:(argind - 1)]
+    parsed_args = Meta.parse(replace(fncall[argind:end], ";" => ","))
+    args, kwargs = Vector{String}(), Dict{Symbol,String}()
+    if isa(parsed_args, Expr) && parsed_args.head == :tuple
+        started_kwargs = false
+        for x in parsed_args.args
+            if isa(x, Expr) && (x.head == :kw || x.head == :(=)) && isa(x.args[1], Symbol)
+                @assert !haskey(kwargs, x.args[1]) "kwargs must all be unique"
+                kwargs[x.args[1]] = phrase_argument(x.args[2])
+                started_kwargs = true
+            else
+                @assert !started_kwargs "kwargs must come after other args"
+                push!(args, phrase_argument(x))
+            end
+        end
+    else
+        push!(args, phrase_argument(parsed_args))
+    end
+    return name, args, kwargs
 end
 
 const event_queue = Channel{RegParams}(1024)
@@ -516,7 +545,8 @@ reviewer: @$(reviewer)"""
 end
 
 function handle_register_events(rp::RegParams)
-    for (target_registry_name,target_registry) in config["targets"]
+    targets = (rp.target === nothing) ? config["targets"] : filter(x->(x[1]==rp.target), config["targets"])
+    for (target_registry_name,target_registry) in targets
         @info("Processing register event", reponame=rp.reponame, target_registry_name)
         try
             handle_register(rp, target_registry)
@@ -611,7 +641,7 @@ end
 
 function github_webhook(http_ip=config["server"]["http_ip"], http_port=config["server"]["http_port"])
     auth = get_jwt_auth()
-    trigger = Regex("`$(config["registrator"]["trigger"])(.*?)`")
+    trigger = Regex("@$(config["registrator"]["trigger"]) `(.*?)`")
     listener = GitHub.CommentListener(comment_handler, trigger; check_collab=false, auth=auth, secret=config["github"]["secret"])
     httpsock[] = Sockets.listen(IPv4(http_ip), http_port)
 
