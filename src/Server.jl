@@ -82,9 +82,11 @@ struct RegParams
 end
 
 struct ProcessedParams
+    projectfile_contents::Union{Nothing, String}
     projectfile_found::Bool
     projectfile_valid::Bool
     sha::Union{Nothing, String}
+    tree_sha::Union{Nothing, String}
     cloneurl::Union{Nothing, String}
     cparams::CommonParams
 
@@ -94,69 +96,76 @@ struct ProcessedParams
             return ProcessedParams(nothing, nothing, copy(rp.cparams))
         end
 
+        projectfile_contents = nothing
         projectfile_found = false
         projectfile_valid = false
         sha = nothing
+        tree_sha = nothing
         cloneurl = nothing
         err = nothing
         report_error = true
+
+        is_private = rp.evt.payload["repository"]["private"]
+        if is_private
+            auth = get_access_token(rp.evt)
+        else
+            auth = GitHub.AnonymousAuth()
+        end
 
         if rp.ispr
             pr = pull_request(rp.reponame, rp.prid)
             cloneurl = pr.head.repo.html_url.uri * ".git"
             sha = pr.head.sha
-            @debug("Getting PR files repo=$(rp.reponame), prid=$(rp.prid)")
-            prfiles = pull_request_files(rp.reponame, rp.prid)
+            # @debug("Getting PR files repo=$(rp.reponame), prid=$(rp.prid)")
+            # prfiles = pull_request_files(rp.reponame, rp.prid; auth=auth)
 
-            for f in prfiles
-                if f.filename == "Project.toml"
-                    @debug("Project file found")
-                    projectfile_found = true
+            # for f in prfiles
+            #     if f.filename == "Project.toml"
+            #         @debug("Project file found")
+            #         projectfile_found = true
 
-                    ref = split(HTTP.URI(f.contents_url).query, "=")[2]
+            #         ref = split(HTTP.URI(f.contents_url).query, "=")[2]
 
-                    @debug("Getting project file details")
-                    file_obj = file(rp.reponame, "Project.toml";
-                                    params=Dict("ref"=>ref))
+            #         @debug("Getting project file details")
+            #         file_obj = file(rp.reponame, "Project.toml";
+            #                         params=Dict("ref"=>ref), auth=auth)
 
-                    @debug("Getting project file contents")
-                    c = HTTP.get(file_obj.download_url).body |> copy |> String
+            #         @debug("Getting project file contents")
+            #         projectfile_contents = HTTP.get(file_obj.download_url).body |> copy |> String
 
-                    @debug("Checking project file validity")
-                    projectfile_valid, err = is_pfile_valid(c)
+            #         @debug("Checking project file validity")
+            #         projectfile_valid, err = is_pfile_valid(projectfile_contents)
 
-                    break
-                end
-            end
+            #         break
+            #     end
+            # end
 
-            if !projectfile_found
-                err = "Project file not found on this Pull request"
-                @debug(err)
-            end
+            # if !projectfile_found
+            #     err = "Project file not found on this Pull request"
+            #     @debug(err)
+            # end
         elseif rp.iscc
             cloneurl = get_clone_url(rp.evt)
             sha = get_comment_commit_id(rp.evt)
-            projectfile_found, projectfile_valid, err = verify_projectfile_from_sha(rp.reponame, sha)
         else
             cloneurl = get_clone_url(rp.evt)
             @debug("Getting sha from branch reponame=$(rp.reponame) branch=$(rp.branch)")
-            sha, err = get_sha_from_branch(rp.reponame, rp.branch)
+            sha, err = get_sha_from_branch(rp.reponame, rp.branch; auth=auth)
             @debug("Got sha=$(repr(sha)) error=$(repr(err))")
+        end
 
-            if err == nothing && sha != nothing
-                projectfile_found, projectfile_valid, err = verify_projectfile_from_sha(rp.reponame, sha)
-
-                if !projectfile_found
-                    err = "Project file not found on branch `$(rp.branch)`"
-                    @debug(err)
-                end
+        if err == nothing && sha != nothing
+            projectfile_contents, tree_sha, projectfile_found, projectfile_valid, err = verify_projectfile_from_sha(rp.reponame, sha; auth = auth)
+            if !projectfile_found
+                err = "Project file not found on branch `$(rp.branch)`"
+                @debug(err)
             end
         end
 
         isvalid = rp.comment_by_collaborator && projectfile_found && projectfile_valid
         @debug("Event validity: $(isvalid)")
 
-        new(projectfile_found, projectfile_valid, sha, cloneurl,
+        new(projectfile_contents, projectfile_found, projectfile_valid, sha, tree_sha, cloneurl,
             CommonParams(isvalid, err, report_error))
     end
 end
@@ -165,9 +174,13 @@ const event_queue = Channel{RegParams}(1024)
 const config = Dict{String,Any}()
 const httpsock = Ref{Sockets.TCPServer}()
 
-function get_sha_from_branch(reponame, brn)
+function get_access_token(event)
+    create_access_token(Installation(event.payload["installation"]), get_jwt_auth())
+end
+
+function get_sha_from_branch(reponame, brn; auth = GitHub.AnonymousAuth())
     try
-        b = branch(reponame, Branch(brn))
+        b = branch(reponame, Branch(brn); auth=auth)
         sha = b.sha != nothing ? b.sha : b.commit.sha
         return sha, nothing
     catch ex
@@ -185,9 +198,7 @@ end
 function is_comment_by_collaborator(event)
     @debug("Checking if comment is by collaborator")
     user = get_user_login(event.payload)
-    auth = get_jwt_auth()
-    tok = create_access_token(Installation(event.payload["installation"]), auth)
-    return iscollaborator(event.repository, user; auth=tok)
+    return iscollaborator(event.repository, user; auth=get_access_token(event))
 end
 
 function is_pull_request(payload)
@@ -201,7 +212,7 @@ end
 function get_prid(payload)
     if haskey(payload, "pull_request")
         return payload["pull_request"]["number"]
-    elseif haskey(payload, "issue") && haskey(payload["issue"], "pull_request")
+    elseif haskey(payload, "issue")
         return payload["issue"]["number"]
     else
         error("Don't know how to get pull request number")
@@ -271,14 +282,15 @@ function is_pfile_valid(c::String)
     return true, nothing
 end
 
-function verify_projectfile_from_sha(reponame, sha)
+function verify_projectfile_from_sha(reponame, sha; auth=GitHub.AnonymousAuth())
+    projectfile_contents = nothing
     projectfile_found = false
     projectfile_valid = false
     err = nothing
     @debug("Getting gitcommit object for sha")
-    gcom = gitcommit(reponame, GitCommit(Dict("sha"=>sha)))
+    gcom = gitcommit(reponame, GitCommit(Dict("sha"=>sha)); auth=auth)
     @debug("Getting tree object for sha")
-    t = tree(reponame, Tree(gcom.tree))
+    t = tree(reponame, Tree(gcom.tree); auth=auth)
 
     for tr in t.tree
         if tr["path"] == "Project.toml"
@@ -286,19 +298,23 @@ function verify_projectfile_from_sha(reponame, sha)
             @debug("Project file found")
 
             @debug("Getting projectfile blob")
-            b = blob(reponame, Blob(tr["sha"]);
-                     auth=GitHub.authenticate(config["github"]["token"]))
+            if isa(auth, GitHub.AnonymousAuth)
+                a = GitHub.authenticate(config["github"]["token"])
+            else
+                a = auth
+            end
+            b = blob(reponame, Blob(tr["sha"]); auth=a)
 
             @debug("Decoding base64 projectfile contents")
-            c = join([String(copy(base64decode(k))) for k in split(b.content)])
+            projectfile_contents = join([String(copy(base64decode(k))) for k in split(b.content)])
 
             @debug("Checking project file validity")
-            projectfile_valid, err = is_pfile_valid(c)
+            projectfile_valid, err = is_pfile_valid(projectfile_contents)
             break
         end
     end
 
-    return projectfile_found, projectfile_valid, err
+    return projectfile_contents, t.sha, projectfile_found, projectfile_valid, err
 end
 
 function get_backtrace(ex)
@@ -317,14 +333,15 @@ function make_comment(evt::WebhookEvent, body::String)
     headers = Dict("private_token" => config["github"]["token"])
     params = Dict("body" => body)
     repo = evt.repository
+    auth = get_access_token(evt)
     if is_commit_comment(evt.payload)
         GitHub.create_comment(repo, get_comment_commit_id(evt),
                               :commit; headers=headers,
-                              params=params, auth=GitHub.authenticate(config["github"]["token"]))
+                              params=params, auth=auth)
     else
         GitHub.create_comment(repo, get_prid(evt.payload),
                               :issue; headers=headers,
-                              params=params, auth=GitHub.authenticate(config["github"]["token"]))
+                              params=params, auth=auth)
     end
 end
 
@@ -394,6 +411,26 @@ function comment_handler(event::WebhookEvent, phrase::RegexMatch)
     return HTTP.Messages.Response(200)
 end
 
+function set_status(rp, state, desc)
+     config["registrator"]["set_status"] || return
+     repo = rp.reponame
+     kind = rp.evt.kind
+     payload = rp.evt.payload
+     if kind == "pull_request"
+         commit = payload["pull_request"]["head"]["sha"]
+         params = Dict("state" => state,
+                       "context" => config["github"]["user"],
+                       "description" => desc)
+         GitHub.create_status(repo, commit;
+                              auth=get_access_token(event),
+                              params=params)
+     end
+end
+
+set_pending_status(rp) = set_status(rp, "pending", "Processing request...")
+set_error_status(rp) = set_status(rp, "error", "Failed to register")
+set_success_status(rp) = set_status(rp, "success", "Done")
+
 function handle_comment_event(event::WebhookEvent, phrase::RegexMatch)
     rp = RegParams(event, phrase)
 
@@ -407,15 +444,7 @@ function handle_comment_event(event::WebhookEvent, phrase::RegexMatch)
         end
 
         push!(event_queue, rp)
-
-        if config["registrator"]["set_status"]
-            params = Dict("state" => "pending",
-                          "context" => config["github"]["user"],
-                          "description" => "pending")
-            GitHub.create_status(repo, commit;
-                                 auth=GitHub.authenticate(config["github"]["token"]),
-                                 params=params)
-        end
+        set_pending_status(rp)
     elseif rp.cparams.error != nothing
         @info("Error while processing event: $(rp.cparams.error)")
         if rp.cparams.report_error
@@ -423,6 +452,7 @@ function handle_comment_event(event::WebhookEvent, phrase::RegexMatch)
             @debug(msg)
             make_comment(event, msg)
         end
+        set_error_status(rp)
     end
 end
 
@@ -533,13 +563,16 @@ function handle_register(rp::RegParams, target_registry::Dict{String,Any})
     pp = ProcessedParams(rp)
 
     if pp.cparams.isvalid && pp.cparams.error == nothing
-        rbrn = register(pp.cloneurl, pp.sha; registry=target_registry["repo"], push=true)
+        rbrn = register(pp.cloneurl, Pkg.Types.read_project(copy(IOBuffer(pp.projectfile_contents))),
+                        pp.tree_sha; registry=target_registry["repo"], push=true)
         if rbrn.error !== nothing
             msg = "Error while trying to register: $(rbrn.error)"
             @debug(msg)
             make_comment(rp.evt, msg)
+            set_error_status(rp)
         else
             make_pull_request(pp, rp, rbrn, target_registry)
+            set_success_status(rp)
         end
     elseif pp.cparams.error != nothing
         @info("Error while processing event: $(pp.cparams.error)")
@@ -548,6 +581,7 @@ function handle_register(rp::RegParams, target_registry::Dict{String,Any})
             @debug(msg)
             make_comment(rp.evt, msg)
         end
+        set_error_status(rp)
     end
 end
 

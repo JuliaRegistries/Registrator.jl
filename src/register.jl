@@ -36,50 +36,50 @@ end
 Given a remote repo URL and a git tree spec, get a `Project` object
 for the project file in that tree and a hash string for the tree.
 """
-function get_project(remote_url::String, tree_spec::String)
-    # TODO?: use raw file downloads for GitHub/GitLab
-    mktempdir(mkpath("packages")) do tmp
-        # bare clone the package repo
-        @debug("bare clone the package repo")
-        repo = LibGit2.clone(remote_url, joinpath(tmp, "repo"), isbare=true)
-        tree = try
-            LibGit2.GitObject(repo, tree_spec)
-        catch err
-            err isa LibGit2.GitError && err.code == LibGit2.Error.ENOTFOUND || rethrow(err)
-            error("$remote_url: git object $(repr(tree_spec)) could not be found")
-        end
-        tree isa LibGit2.GitTree || (tree = LibGit2.peel(LibGit2.GitTree, tree))
-
-        # check out the requested tree
-        @debug("check out the requested tree")
-        tree_path = abspath(tmp, "tree")
-        GC.@preserve tree_path begin
-            opts = LibGit2.CheckoutOptions(
-                checkout_strategy = LibGit2.Consts.CHECKOUT_FORCE,
-                target_directory = Base.unsafe_convert(Cstring, tree_path)
-            )
-            LibGit2.checkout_tree(repo, tree, options=opts)
-        end
-
-        # look for a project file in the tree
-        @debug("look for a project file in the tree")
-        project_file = Pkg.Types.projectfile_path(tree_path)
-        project_file !== nothing && isfile(project_file) ||
-            error("$remote_url: git tree $(repr(tree_spec)) has no project file")
-
-        # parse the project file
-        @debug("parse the project file")
-        project = Pkg.Types.read_project(project_file)
-        project.name === nothing &&
-            error("$remote_url $(repr(tree_spec)): package has no name")
-        project.uuid === nothing &&
-            error("$remote_url $(repr(tree_spec)): package has no UUID")
-        project.version === nothing &&
-            error("$remote_url $(repr(tree_spec)): package has no version")
-
-        return project, string(LibGit2.GitHash(tree))
-    end
-end
+# function get_project(remote_url::String, tree_spec::String)
+#     # TODO?: use raw file downloads for GitHub/GitLab
+#     mktempdir(mkpath("packages")) do tmp
+#         # bare clone the package repo
+#         @debug("bare clone the package repo")
+#         repo = LibGit2.clone(remote_url, joinpath(tmp, "repo"), isbare=true)
+#         tree = try
+#             LibGit2.GitObject(repo, tree_spec)
+#         catch err
+#             err isa LibGit2.GitError && err.code == LibGit2.Error.ENOTFOUND || rethrow(err)
+#             error("$remote_url: git object $(repr(tree_spec)) could not be found")
+#         end
+#         tree isa LibGit2.GitTree || (tree = LibGit2.peel(LibGit2.GitTree, tree))
+#
+#         # check out the requested tree
+#         @debug("check out the requested tree")
+#         tree_path = abspath(tmp, "tree")
+#         GC.@preserve tree_path begin
+#             opts = LibGit2.CheckoutOptions(
+#                 checkout_strategy = LibGit2.Consts.CHECKOUT_FORCE,
+#                 target_directory = Base.unsafe_convert(Cstring, tree_path)
+#             )
+#             LibGit2.checkout_tree(repo, tree, options=opts)
+#         end
+#
+#         # look for a project file in the tree
+#         @debug("look for a project file in the tree")
+#         project_file = Pkg.Types.projectfile_path(tree_path)
+#         project_file !== nothing && isfile(project_file) ||
+#             error("$remote_url: git tree $(repr(tree_spec)) has no project file")
+#
+#         # parse the project file
+#         @debug("parse the project file")
+#         project = Pkg.Types.read_project(project_file)
+#         project.name === nothing &&
+#             error("$remote_url $(repr(tree_spec)): package has no name")
+#         project.uuid === nothing &&
+#             error("$remote_url $(repr(tree_spec)): package has no UUID")
+#         project.version === nothing &&
+#             error("$remote_url $(repr(tree_spec)): package has no version")
+#
+#         return project, string(LibGit2.GitHash(tree))
+#     end
+# end
 
 """
 Write TOML data (with sorted keys).
@@ -102,14 +102,14 @@ end
 Register the package at `package_repo` / `tree_spect` in `registry`.
 """
 function register(
-    package_repo::String, tree_spec::String;
+    package_repo::String, pkg::Pkg.Types.Project, tree_hash::String;
     registry::String = DEFAULT_REGISTRY,
     push::Bool = false,
 )
     # get info from package registry
     @debug("get info from package registry")
     package_repo = GitTools.normalize_url(package_repo)
-    pkg, tree_hash = get_project(package_repo, tree_spec)
+    #pkg, tree_hash = get_project(package_repo, tree_spec)
     branch = "register/$(pkg.name)/v$(pkg.version)"
 
     # get up-to-date clone of registry
