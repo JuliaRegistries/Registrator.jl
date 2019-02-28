@@ -113,7 +113,7 @@ struct ProcessedParams
         end
 
         if rp.ispr
-            pr = pull_request(rp.reponame, rp.prid)
+            pr = pull_request(rp.reponame, rp.prid; auth=auth)
             cloneurl = pr.head.repo.html_url.uri * ".git"
             sha = pr.head.sha
             # @debug("Getting PR files repo=$(rp.reponame), prid=$(rp.prid)")
@@ -422,7 +422,7 @@ function set_status(rp, state, desc)
                        "context" => config["github"]["user"],
                        "description" => desc)
          GitHub.create_status(repo, commit;
-                              auth=get_access_token(event),
+                              auth=get_access_token(rp.evt),
                               params=params)
      end
 end
