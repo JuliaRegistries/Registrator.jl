@@ -22,10 +22,17 @@ On GitHub click on a commit that you wish to register. In the comment section be
 
 #### Permissions and subscribed events for the app
 
-You will need read-only permission for: Repository contents, Issues, Pull Requests, Repository Metadata
+You will need read-only permission for: Repository contents, Repository Metadata
+
+You will need read & write permission for: Issues, Pull Requests, Commit Statuses
 
 You will need to subscribe to the following events: Issue comment and commit comment
 
 #### How to run
 
 See the `image` directory on how to build the docker image.
+
+#### For private packages and registries
+
+* Same [install](https://github.com/apps/registratortest/installations/new) step as above.
+* Add @JuliaRegistrator as a collaborator to your private Registry
