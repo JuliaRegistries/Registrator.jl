@@ -231,8 +231,8 @@ function register(
         @debug("check compat section")
         for (p, v) in pkg.compat
             try
-                ver = VersionNumber(v)
-                if p == "julia" && ver < v"0.7"
+                ver = Pkg.Types.semver_spec(v)
+                if p == "julia" && any(map(x->!isempty(intersect(Pkg.Types.VersionRange("0-0.6"),x)), ver.ranges))
                     err = "Julia version < 0.7 not allowed in `[compat]`"
                     @debug(err)
                 end
@@ -255,7 +255,7 @@ function register(
         else
             compat_data = Dict()
         end
-        compat_data[pkg.version] = pkg.compat
+        compat_data[pkg.version] = Dict{String,Any}(n=>Pkg.Types.semver_spec(v) for (n,v) in pkg.compat)
         Pkg.Compress.save(compat_file, compat_data)
 
         # commit changes
