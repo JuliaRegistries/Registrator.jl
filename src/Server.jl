@@ -116,34 +116,6 @@ struct ProcessedParams
             pr = pull_request(rp.reponame, rp.prid; auth=auth)
             cloneurl = pr.head.repo.html_url.uri * ".git"
             sha = pr.head.sha
-            # @debug("Getting PR files repo=$(rp.reponame), prid=$(rp.prid)")
-            # prfiles = pull_request_files(rp.reponame, rp.prid; auth=auth)
-
-            # for f in prfiles
-            #     if f.filename == "Project.toml"
-            #         @debug("Project file found")
-            #         projectfile_found = true
-
-            #         ref = split(HTTP.URI(f.contents_url).query, "=")[2]
-
-            #         @debug("Getting project file details")
-            #         file_obj = file(rp.reponame, "Project.toml";
-            #                         params=Dict("ref"=>ref), auth=auth)
-
-            #         @debug("Getting project file contents")
-            #         projectfile_contents = HTTP.get(file_obj.download_url).body |> copy |> String
-
-            #         @debug("Checking project file validity")
-            #         projectfile_valid, err = is_pfile_valid(projectfile_contents)
-
-            #         break
-            #     end
-            # end
-
-            # if !projectfile_found
-            #     err = "Project file not found on this Pull request"
-            #     @debug(err)
-            # end
         elseif rp.iscc
             cloneurl = get_clone_url(rp.evt)
             sha = get_comment_commit_id(rp.evt)
