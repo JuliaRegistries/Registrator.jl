@@ -136,8 +136,11 @@ function register(
         uuid = string(pkg.uuid)
         if haskey(registry_data["packages"], uuid)
             package_data = registry_data["packages"][uuid]
-            package_data["name"] == pkg.name ||
-                error("changing package names not supported yet")
+            if (package_data["name"] != pkg.name)
+                err = "Changing package names not supported yet"
+                @debug(err)
+                return RegBranch(pkg.name, pkg.version, branch, err)
+            end
             package_path = joinpath(registry_path, package_data["path"])
         else
             @debug("Package with UUID: $uuid not found in registry, checking if UUID was changed")
@@ -166,14 +169,10 @@ function register(
         # update package data: versions file
         @debug("update package data: versions file")
         versions_file = joinpath(package_path, "Versions.toml")
-        if isfile(versions_file)
-            versions_data = TOML.parsefile(versions_file)
-        else
-            versions_data = Dict()
-        end
-        versions = sort!([VersionNumber(v) for v in keys(versions_data)])
+        versions_data = isfile(versions_file) ? TOML.parsefile(versions_file) : Dict()
 
         try
+            versions = sort!([VersionNumber(v) for v in keys(versions_data)])
             Base.check_new_version(versions, pkg.version)
         catch ex
             if isa(ex, ErrorException)
