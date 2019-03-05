@@ -114,13 +114,16 @@ function tag_package(rname, ver::VersionNumber, mcs, auth)
                "tagger" => tagger))
 end
 
-function handle_approval(rp::RegParams)
+function get_from_db(rp::RegParams)
     db = SQlite.DB(SQLITE_DB_FILE)
-    rpu = get_html_url(rp.evt.payload)
-    d = SQLite.query(db, """
+    SQLite.query(db, """
 SELECT * FROM github_requests WHERE registry_pr_url='$rpu' ORDER BY DATETIME(time) DESC LIMIT 1
 """)
+end
 
+function handle_approval(rp::RegParams)
+    d = get_from_db(rp)
+    rpu = get_html_url(rp.evt.payload)
     reg_name = rp.reponame
     reg_prid = rp.prid
     reponame = d[:package_repo_name, 1]
@@ -591,22 +594,15 @@ function make_pull_request(pp::ProcessedParams, rp::RegParams, rbrn::RegBranch, 
     msg = "created"
 
     if pr == nothing
-        @debug("Searching for existing PR")
-        for p in pull_requests(repo; auth=GitHub.authenticate(config["github"]["token"]))[1]
-            if p.base.ref == target_registry["base_branch"] && p.head.ref == brn
-                @debug("PR found")
-                pr = p
-                break
-            end
-        end
-        msg = "updated"
+        d = get_from_db(rp)
+        prid = d[:trigger_id, 1]
+        html_url = d[:pkg_trigger_url, 1]
+    else
+        prid = pr.number
+        html_url = pr.html_url
     end
 
-    if pr == nothing
-        error("Existing PR not found")
-    end
-
-    cbody = "Registration pull request $msg: [$(repo)/$(pr.number)]($(pr.html_url))"
+    cbody = "Registration pull request $msg: [$(repo)/$(prid)]($(html_url))"
     @debug(cbody)
     make_comment(rp.evt, cbody)
     return pr
