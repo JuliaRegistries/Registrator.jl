@@ -1,3 +1,5 @@
+showsafe(x) = (x === nothing) ? "nothing" : x
+
 """
 Return a `GitRepo` object for an up-to-date copy of `registry`.
 """
@@ -277,7 +279,7 @@ function register(
         return RegBranch(pkg.name, pkg.version, branch, nothing)
     finally
         if clean_registry
-            @debug("cleaning up possibly inconsistent registry", registry_path, err)
+            @debug("cleaning up possibly inconsistent registry", registry_path=showsafe(registry_path), err=showsafe(err))
             rm(registry_path; recursive=true, force=true)
         end
     end
