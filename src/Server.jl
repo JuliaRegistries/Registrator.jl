@@ -7,6 +7,7 @@ using Distributed
 using Base64
 using Pkg
 using Logging
+using SQLite
 
 import Pkg: TOML
 import ..Registrator: register, RegBranch, post_on_slack_channel
@@ -21,8 +22,7 @@ struct RegParams
     evt::WebhookEvent
     phrase::RegexMatch
     reponame::String
-    ispr::Bool
-    iscc::Bool
+    request_type::Symbol
     prid::Union{Nothing, Int}
     branch::Union{Nothing, String}
     comment_by_collaborator::Bool
@@ -31,8 +31,7 @@ struct RegParams
 
     function RegParams(evt::WebhookEvent, phrase::RegexMatch)
         reponame = evt.repository.full_name
-        ispr = false
-        iscc = false
+        request_type = :pull_request
         prid = nothing
         brn = nothing
         comment_by_collaborator = false
@@ -49,24 +48,44 @@ struct RegParams
                     @debug("Comment is by collaborator")
                     if is_pull_request(evt.payload)
                         @debug("Comment is on a pull request")
-                        ispr = true
                         prid = get_prid(evt.payload)
                     elseif is_commit_comment(evt.payload)
                         @debug("Comment is on a commit")
-                        iscc = true
+                        request_type = :commit_comment
                     else
                         @debug("Comment is on an issue")
                         brn = get(action_kwargs, :branch, "master")
                         @debug("Will use branch", brn)
+                        request_type = :issue
+                    end
+                else
+                    err = "Comment not made by collaborator"
+                    @debug(err)
+                end
+                @debug("Comment is on a pull request")
+            else
+                err = "Package name does not end with '.jl'"
+                @debug(err)
+                report_error = true
+            end
+        elseif action_name == "approved"
+            request_type = :approval
+            registry_repos = [join(split(r["repo"], "/")[end-1:end], "/") \
+                              for (n, r) in config["targets"]]
+            if reponame in registry_repos
+                @debug("Recieved approval comment")
+                comment_by_collaborator = is_comment_by_collaborator(evt)
+                if comment_by_collaborator
+                    @debug("Comment is by collaborator")
+                    if is_pull_request(evt.payload)
+                        prid = get_prid(evt.payload)
                     end
                 else
                     err = "Comment not made by collaborator"
                     @debug(err)
                 end
             else
-                err = "Package name does not end with '.jl'"
-                @debug(err)
-                report_error = true
+                @debug("Approval comment not made on a valid registry")
             end
         else
             err = "Action not recognized: $action_name"
@@ -77,10 +96,50 @@ struct RegParams
         isvalid = comment_by_collaborator
         @debug("Event pre-check validity: $isvalid")
 
-        return new(evt, phrase, reponame, ispr, iscc,
+        return new(evt, phrase, reponame, request_type,
                    prid, brn, comment_by_collaborator, target,
                    CommonParams(isvalid, err, report_error))
     end
+end
+
+function tag_package(rname, ver::VersionNumber, mcs, auth)
+    tagger = Dict("name" => config["github"]["user"],
+                  "email" => config["github"]["email"],
+                  "date" => Dates.format(now(), dateformat"YYYY-MM-DDTHH:MM:SSZ"))
+    create_tag(rname; auth=auth,
+               params=Dict("tag" => "v$ver",
+               "message" => "Release: v$ver",
+               "object" => mcs,
+               "type" => "commit",
+               "tagger" => tagger))
+end
+
+function handle_approval(rp::RegParams)
+    db = SQlite.DB(SQLITE_DB_FILE)
+    rpu = get_html_url(rp.evt.payload)
+    d = SQLite.query(db, """
+SELECT * FROM github_requests WHERE registry_pr_url='$rpu' ORDER BY DATETIME(time) DESC LIMIT 1
+""")
+
+    reg_name = rp.reponame
+    reg_prid = rp.prid
+    reponame = d[:package_repo_name, 1]
+    ver = VersionNumber(d[:version, 1])
+    tree_sha = d[:tree_sha, 1]
+    trigger_id = d[:trigger_id, 1]
+
+    if request_type == :pull_request
+        merge_pull_request(reponame, parse(Int, trigger_id); auth=auth,
+                           params=Dict("merge_method" => "squash"))
+    end
+
+    tag_package(reponame, ver, tree_sha, auth)
+
+    if request_type == :issue
+        close_issue(reponame, parse(Int, trigger_id); auth=auth)
+    end
+
+    merge_pull_request(reg_name, reg_prid; auth=auth)
 end
 
 struct ProcessedParams
@@ -114,11 +173,13 @@ struct ProcessedParams
             auth = GitHub.AnonymousAuth()
         end
 
-        if rp.ispr
+        if rp.request_type == :approval
+            handle_approval(rp)
+        elseif rp.request_type == :pull_request
             pr = pull_request(rp.reponame, rp.prid; auth=auth)
             cloneurl = pr.head.repo.html_url.uri * ".git"
             sha = pr.head.sha
-        elseif rp.iscc
+        elseif rp.request_type == :commit_comment
             cloneurl = get_clone_url(rp.evt)
             sha = get_comment_commit_id(rp.evt)
         else
@@ -436,9 +497,9 @@ function handle_comment_event(event::WebhookEvent, phrase::RegexMatch)
     rp = RegParams(event, phrase)
 
     if rp.cparams.isvalid && rp.cparams.error == nothing
-        if rp.ispr
+        if rp.request_type == :pull_request
             @info("Creating registration pull request for $(rp.reponame) PR: $(rp.prid)")
-        elseif rp.iscc
+        elseif rp.request_type == :commit_comment
             @info("Creating registration pull request for $(rp.reponame) sha: `$(get_comment_commit_id(rp.evt))`")
         else
             @info("Creating registration pull request for $(rp.reponame) branch: `$(rp.branch)`")
@@ -505,10 +566,14 @@ function make_pull_request(pp::ProcessedParams, rp::RegParams, rbrn::RegBranch, 
                   "base"=>target_registry["base_branch"],
                   "head"=>brn,
                   "maintainer_can_modify"=>true)
-
-    params["body"] = """Register $name: $ver
-cc: @$(creator)
-reviewer: @$(reviewer)"""
+    ref = get_html_url(rp.evt.payload)
+    params["body"] = """
+| $name       |     $ver     |
+|-------------|--------------|
+| Proposed by | @$(creator)  |
+| Reviewed by | @$(reviewer) |
+| Reference   | [$ref]($ref) |
+"""
 
     pr = nothing
     repo = join(split(target_registry["repo"], "/")[end-1:end], "/")
@@ -544,6 +609,7 @@ reviewer: @$(reviewer)"""
     cbody = "Registration pull request $msg: [$(repo)/$(pr.number)]($(pr.html_url))"
     @debug(cbody)
     make_comment(rp.evt, cbody)
+    return pr
 end
 
 function handle_register_events(rp::RegParams)
@@ -561,6 +627,56 @@ function handle_register_events(rp::RegParams)
     end
 end
 
+function save_to_db(pp::ProcessedParams, rp::RegParams, reg_pr::PullRequest, rbrn::RegBranch)
+    db = SQlite.DB(SQLITE_DB_FILE)
+    request_type = string(rp.request_type)
+    trigger_phrase = string(rp.phrase)
+    pkg_trigger_url = get_html_url(rp.evt.payload)
+    target_registry = join(split(reg_pr.html_url, "/")[1:end-2], "/")
+    registry_pr_url = reg_pr.html_url
+    pkg_repo_name = rp.reponame
+    trigger_id = split(HTTP.URI(pkg_trigger_url).path, "/")[5]
+    creator = get_user_login(rp.evt.payload)
+    reviewer = rp.evt.payload["sender"]["login"]
+    sha = pp.sha
+    tree_sha = pp.tree_sha
+    cloneurl = pp.cloneurl
+    branch = rp.branch == nothing ? "" : rp.branch
+    SQLite.execute!(db, """
+INSERT INTO github_requests (request_type,
+                             trigger_phrase,
+                             pkg_trigger_url,
+                             target_registry,
+                             registry_pr_url,
+                             pkg_repo_name,
+                             trigger_id,
+                             creator,
+                             reviewer,
+                             sha,
+                             tree_sha,
+                             cloneurl,
+                             branch,
+                             version,
+                             reg_branch,
+                             time) VALUES ('$request_type',
+                                           '$trigger_phrase',
+                                           '$pkg_trigger_url',
+                                           '$target_registry',
+                                           '$registry_pr_url',
+                                           '$pkg_repo_name',
+                                           '$trigger_id',
+                                           '$creator',
+                                           '$reviewer',
+                                           '$sha',
+                                           '$tree_sha',
+                                           '$cloneurl',
+                                           '$branch',
+                                           '$(rbrn.version)',
+                                           '$(rbrn.branch)',
+                                           DATETIME('now'))
+""")
+end
+
 function handle_register(rp::RegParams, target_registry::Dict{String,Any})
     pp = ProcessedParams(rp)
 
@@ -575,8 +691,9 @@ function handle_register(rp::RegParams, target_registry::Dict{String,Any})
             make_comment(rp.evt, msg)
             set_error_status(rp)
         else
-            make_pull_request(pp, rp, rbrn, target_registry)
+            reg_pr = make_pull_request(pp, rp, rbrn, target_registry)
             set_success_status(rp)
+            save_to_db(pp, rp, reg_pr, rbrn)
         end
     elseif pp.cparams.error != nothing
         @info("Error while processing event: $(pp.cparams.error)")
