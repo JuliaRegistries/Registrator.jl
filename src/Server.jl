@@ -8,6 +8,7 @@ using Base64
 using Pkg
 using Logging
 using SQLite
+using Dates
 
 import Pkg: TOML
 import ..Registrator: register, RegBranch, post_on_slack_channel
@@ -70,8 +71,7 @@ struct RegParams
             end
         elseif action_name == "approved"
             request_type = :approval
-            registry_repos = [join(split(r["repo"], "/")[end-1:end], "/") \
-                              for (n, r) in config["targets"]]
+            registry_repos = [join(split(r["repo"], "/")[end-1:end], "/") for (n, r) in config["targets"]]
             if reponame in registry_repos
                 @debug("Recieved approval comment")
                 comment_by_collaborator = is_comment_by_collaborator(evt)
@@ -115,34 +115,48 @@ function tag_package(rname, ver::VersionNumber, mcs, auth)
 end
 
 function get_from_db(rp::RegParams)
-    db = SQlite.DB(SQLITE_DB_FILE)
+    db = SQLite.DB(config["sqlite"]["db"])
+    u = HTTP.URI(get_html_url(rp.evt.payload))
+    rpu = u.scheme * "://" * u.host * u.path
     SQLite.query(db, """
-SELECT * FROM github_requests WHERE registry_pr_url='$rpu' ORDER BY DATETIME(time) DESC LIMIT 1
+SELECT * FROM register_requests WHERE registry_pr_url='$rpu' ORDER BY DATETIME(time) DESC LIMIT 1
 """)
 end
 
 function handle_approval(rp::RegParams)
     d = get_from_db(rp)
-    rpu = get_html_url(rp.evt.payload)
+
+    if size(d, 1) == 0
+        return "Registration source not found for this PR"
+    end
+
+    if rp.evt.payload["repository"]["private"]
+        auth = get_access_token(rp.evt)
+    else
+        auth = GitHub.AnonymousAuth()
+    end
+
     reg_name = rp.reponame
     reg_prid = rp.prid
-    reponame = d[:package_repo_name, 1]
-    ver = VersionNumber(d[:version, 1])
-    tree_sha = d[:tree_sha, 1]
-    trigger_id = d[:trigger_id, 1]
+    reponame = d[:pkg_repo_name][1]
+    ver = VersionNumber(d[:version][1])
+    tree_sha = d[:tree_sha][1]
+    trigger_id = d[:trigger_id][1]
+    request_type = d[:request_type][1]
 
-    if request_type == :pull_request
+    if request_type == "pull_request"
         merge_pull_request(reponame, parse(Int, trigger_id); auth=auth,
                            params=Dict("merge_method" => "squash"))
     end
 
     tag_package(reponame, ver, tree_sha, auth)
 
-    if request_type == :issue
+    if request_type == "issue"
         close_issue(reponame, parse(Int, trigger_id); auth=auth)
     end
 
     merge_pull_request(reg_name, reg_prid; auth=auth)
+    nothing
 end
 
 struct ProcessedParams
@@ -176,9 +190,7 @@ struct ProcessedParams
             auth = GitHub.AnonymousAuth()
         end
 
-        if rp.request_type == :approval
-            handle_approval(rp)
-        elseif rp.request_type == :pull_request
+        if rp.request_type == :pull_request
             pr = pull_request(rp.reponame, rp.prid; auth=auth)
             cloneurl = pr.head.repo.html_url.uri * ".git"
             sha = pr.head.sha
@@ -504,8 +516,10 @@ function handle_comment_event(event::WebhookEvent, phrase::RegexMatch)
             @info("Creating registration pull request for $(rp.reponame) PR: $(rp.prid)")
         elseif rp.request_type == :commit_comment
             @info("Creating registration pull request for $(rp.reponame) sha: `$(get_comment_commit_id(rp.evt))`")
-        else
+        elseif rp.request_type == :issue
             @info("Creating registration pull request for $(rp.reponame) branch: `$(rp.branch)`")
+        elseif rp.request_type == :approval
+            @info("Approving Pull request  $(rp.reponame)/$(rp.prid)")
         end
 
         push!(event_queue, rp)
@@ -595,14 +609,23 @@ function make_pull_request(pp::ProcessedParams, rp::RegParams, rbrn::RegBranch, 
 
     if pr == nothing
         d = get_from_db(rp)
-        prid = d[:trigger_id, 1]
-        html_url = d[:pkg_trigger_url, 1]
-    else
-        prid = pr.number
-        html_url = pr.html_url
+        if size(d, 1) == 0
+            for p in pull_requests(repo; auth=GitHub.authenticate(config["github"]["token"]))[1]
+                if p.base.ref == target_registry["base_branch"] && p.head.ref == brn
+                    @debug("PR found")
+                    pr = p
+                    break
+                end
+            end
+            if pr == nothing
+                error("Unable to find registration PR")
+            end
+        else
+            pr = pull_request(d[:pkg_repo_name][1], d[:trigger_id][1]; auth=auth)
+        end
     end
 
-    cbody = "Registration pull request $msg: [$(repo)/$(prid)]($(html_url))"
+    cbody = "Registration pull request $msg: [$(repo)/$(pr.number)]($(pr.html_url))"
     @debug(cbody)
     make_comment(rp.evt, cbody)
     return pr
@@ -623,12 +646,29 @@ function handle_register_events(rp::RegParams)
     end
 end
 
-function save_to_db(pp::ProcessedParams, rp::RegParams, reg_pr::PullRequest, rbrn::RegBranch)
-    db = SQlite.DB(SQLITE_DB_FILE)
+function handle_approval_events(rp::RegParams)
+    @info("Processing approval event", reponame=rp.reponame, rp.prid)
+    try
+        err = handle_approval(rp)
+        if err != nothing
+            make_comment(rp.evt, "Error in approval process: $err")
+        end
+    catch ex
+        bt = get_backtrace(ex)
+        @info("Unexpected error: $bt")
+        raise_issue(rp.evt, rp.phrase, bt)
+    end
+    @info("Done processing approval event", reponame=rp.reponame, rp.prid)
+end
+
+function save_to_db(pp::ProcessedParams, rp::RegParams,
+                    reg_pr::PullRequest, rbrn::RegBranch,
+                    treg::Dict{String, Any})
+    db = SQLite.DB(config["sqlite"]["db"])
     request_type = string(rp.request_type)
     trigger_phrase = string(rp.phrase)
     pkg_trigger_url = get_html_url(rp.evt.payload)
-    target_registry = join(split(reg_pr.html_url, "/")[1:end-2], "/")
+    target_registry = treg["repo"]
     registry_pr_url = reg_pr.html_url
     pkg_repo_name = rp.reponame
     trigger_id = split(HTTP.URI(pkg_trigger_url).path, "/")[5]
@@ -639,7 +679,7 @@ function save_to_db(pp::ProcessedParams, rp::RegParams, reg_pr::PullRequest, rbr
     cloneurl = pp.cloneurl
     branch = rp.branch == nothing ? "" : rp.branch
     SQLite.execute!(db, """
-INSERT INTO github_requests (request_type,
+INSERT INTO register_requests (request_type,
                              trigger_phrase,
                              pkg_trigger_url,
                              target_registry,
@@ -689,7 +729,7 @@ function handle_register(rp::RegParams, target_registry::Dict{String,Any})
         else
             reg_pr = make_pull_request(pp, rp, rbrn, target_registry)
             set_success_status(rp)
-            save_to_db(pp, rp, reg_pr, rbrn)
+            save_to_db(pp, rp, reg_pr, rbrn, target_registry)
         end
     elseif pp.cparams.error != nothing
         @info("Error while processing event: $(pp.cparams.error)")
@@ -754,7 +794,12 @@ function recover(name, keep_running, do_action, handle_exception; backoff=0, bac
 end
 
 function request_processor()
-    do_action() = handle_register_events(take!(event_queue))
+    rp = take!(event_queue)
+    if rp.request_type == :approval
+        do_action = () -> handle_approval_events(rp)
+    else
+        do_action = () -> handle_register_events(rp)
+    end
     handle_exception(ex) = (isa(ex, InvalidStateException) && (ex.state == :closed)) ? :exit : :continue
     keep_running() = isopen(event_queue)
     recover("request_processor", keep_running, do_action, handle_exception)
