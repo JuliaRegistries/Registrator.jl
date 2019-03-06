@@ -160,41 +160,71 @@ function handle_approval(rp::RequestParams)
 
     if request_type == "pull_request"
         prnum = parse(Int, trigger_id)
-        @info("Merging pull request on package repo", reponame, prnum)
         pr = pull_request(reponame, prnum; auth=auth)
         tree_sha = pr.merge_commit_sha
-        try
+        if pr.state == "open"
+            @debug("Merging pull request on package repo", reponame, prnum)
             merge_pull_request(reponame, prnum; auth=auth,
                                params=Dict("merge_method" => "squash"))
-        catch ex
-            s = get_backtrace(ex)
-            @info("Error merging pull request: \n$s", reponame, prnum)
+        else
+            @debug("Pull request already merged", reponame, prnum)
         end
     end
 
-    @info("Tag package", reponame, ver, tree_sha)
-    tag_package(reponame, ver, tree_sha, auth)
-    @info("Create release", reponame, ver, tree_sha)
-    create_release(reponame; auth=auth,
-                   params=Dict("tag_name" => "v$ver", "name" => "v$ver"))
+    tag_exists = false
+    ts = tags(reponame; auth=auth, page_limit=1, params=Dict("per_page" => 15))[1]
+    for t in ts
+        if split(t.url.path, "/")[end] == "v$ver"
+            if t.object["sha"] != tree_sha
+                return "Tag with name `v$ver` already exists and points to a different commit"
+            end
+            tag_exists = true
+            @debug("Tag already exists", reponame, ver, tree_sha)
+            break
+        end
+    end
+
+    if !tag_exists
+        @debug("Creating new tag", reponame, ver, tree_sha)
+        tag_package(reponame, ver, tree_sha, auth)
+    end
+
+    release_exists = false
+    if tag_exists
+        # Look for release in last 15 releases
+        rs = releases(reponame; auth=auth, page_limit=1, params=Dict("per_page"=>15))[1]
+        for r in rs
+            if r.name == "v$ver"
+                release_exists = true
+                @debug("Release already exists", r.name)
+                break
+            end
+        end
+    end
+
+    if !release_exists
+        @debug("Creating new release", ver)
+        create_release(reponame; auth=auth,
+                       params=Dict("tag_name" => "v$ver", "name" => "v$ver"))
+    end
 
     if request_type == "issue"
         isid = parse(Int, trigger_id)
-        @info("Closing issue", reponame, isid)
-        try
-            close_issue(reponame, isid; auth=auth)
-        catch ex
-            s = get_backtrace(ex)
-            @info("Error closing issue: \n$s", reponame, isid)
+        iss = issue(reponame, Issue(isid); auth=auth)
+        if iss.state == "open"
+            @debug("Closing issue", reponame, isid)
+            edit_issue(reponame, isid; auth=auth, params=Dict("state"=>"closed"))
+        else
+            @debug("Issue already closed", reponame, isid)
         end
     end
 
-    @info("Merging pull request on registry", reg_name, reg_prid)
-    try
+    reg_pr = pull_request(reg_name, reg_prid; auth=auth)
+    if reg_pr.state == "open"
+        @debug("Merging pull request on registry", reg_name, reg_prid)
         merge_pull_request(reg_name, reg_prid; auth=auth)
-    catch ex
-        s = get_backtrace(ex)
-        @info("Error merging pull request: \n$s", reg_name, reg_prid)
+    else
+        @debug("Pull request on registry already merged", reg_name, reg_prid)
     end
     nothing
 end
@@ -668,7 +698,10 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
     if pr == nothing
         d = get_from_db(rp)
         if size(d, 1) == 0
-            for p in pull_requests(repo; auth=GitHub.authenticate(config["github"]["token"]))[1]
+            # Look for pull request in last 15 pull requests
+            prs = pull_requests(repo; auth=GitHub.authenticate(config["github"]["token"]),
+                                params=Dict("state"=>"open", "per_page"=>15), page_limit=1)[1]
+            for p in prs
                 if p.base.ref == target_registry["base_branch"] && p.head.ref == brn
                     @debug("PR found")
                     pr = p
@@ -709,6 +742,7 @@ function handle_events(rp::RequestParams{ApprovalTrigger})
     try
         err = handle_approval(rp)
         if err != nothing
+            @debug(err)
             make_comment(rp.evt, "Error in approval process: $err")
         end
     catch ex
