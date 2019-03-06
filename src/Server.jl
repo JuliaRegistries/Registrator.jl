@@ -565,8 +565,10 @@ function handle_register(rp::RegParams, target_registry::Dict{String,Any})
     pp = ProcessedParams(rp)
 
     if pp.cparams.isvalid && pp.cparams.error == nothing
-        rbrn = register(pp.cloneurl, Pkg.Types.read_project(copy(IOBuffer(pp.projectfile_contents))),
-                        pp.tree_sha; registry=target_registry["repo"], push=true)
+        rbrn = register(pp.cloneurl, Pkg.Types.read_project(copy(IOBuffer(pp.projectfile_contents))), pp.tree_sha;
+            registry=target_registry["repo"],
+            push=true,
+            gitconfig=Dict("user.name"=>config["github"]["user"], "user.email"=>config["github"]["email"]))
         if rbrn.error !== nothing
             msg = "Error while trying to register: $(rbrn.error)"
             @debug(msg)

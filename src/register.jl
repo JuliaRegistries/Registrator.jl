@@ -1,7 +1,18 @@
+showsafe(x) = (x === nothing) ? "nothing" : x
+
+function gitcmd(path::String, gitconfig::Dict)
+    cmd = ["git", "-C", path]
+    for (n,v) in gitconfig
+        push!(cmd, "-c")
+        push!(cmd, "$n=$v")
+    end
+    Cmd(cmd)
+end
+
 """
 Return a `GitRepo` object for an up-to-date copy of `registry`.
 """
-function get_registry(registry::String)
+function get_registry(registry::String; gitconfig::Dict=Dict())
     reg_path(args...) = joinpath("registries", map(string, args)...)
     if haskey(REGISTRIES, registry)
         registry_uuid = REGISTRIES[registry]
@@ -10,7 +21,7 @@ function get_registry(registry::String)
             LibGit2.clone(registry, registry_path, branch="master")
         else
             # this is really annoying/impossible to do with LibGit2
-            git = `git -C $registry_path`
+            git = gitcmd(registry_path, gitconfig)
             run(`$git config remote.origin.url $registry`)
             run(`$git checkout -q -f master`)
             run(`$git fetch -q -P origin master`)
@@ -105,6 +116,7 @@ function register(
     package_repo::String, pkg::Pkg.Types.Project, tree_hash::String;
     registry::String = DEFAULT_REGISTRY,
     push::Bool = false,
+    gitconfig::Dict = Dict()
 )
     # get info from package registry
     @debug("get info from package registry")
@@ -115,7 +127,7 @@ function register(
     # get up-to-date clone of registry
     @debug("get up-to-date clone of registry")
     registry = GitTools.normalize_url(registry)
-    registry_repo = get_registry(registry)
+    registry_repo = get_registry(registry; gitconfig=gitconfig)
     registry_path = LibGit2.path(registry_repo)
 
     clean_registry = true
@@ -123,7 +135,7 @@ function register(
     try
         # branch registry repo
         @debug("branch registry repo")
-        git = `git -C $registry_path`
+        git = gitcmd(registry_path, gitconfig)
         run(`$git checkout -qf master`)
         run(`$git branch -qf $branch`)
         run(`$git checkout -qf $branch`)
@@ -277,7 +289,7 @@ function register(
         return RegBranch(pkg.name, pkg.version, branch, nothing)
     finally
         if clean_registry
-            @debug("cleaning up possibly inconsistent registry", registry_path, err)
+            @debug("cleaning up possibly inconsistent registry", registry_path=showsafe(registry_path), err=showsafe(err))
             rm(registry_path; recursive=true, force=true)
         end
     end
