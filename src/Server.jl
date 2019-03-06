@@ -19,22 +19,39 @@ struct CommonParams
     report_error::Bool
 end
 
-struct RegParams
+abstract type RequestTrigger end
+abstract type RegisterTrigger <: RequestTrigger end
+
+struct PullRequestTrigger <: RegisterTrigger
+    prid::Int
+end
+
+struct IssueTrigger <: RegisterTrigger
+    branch::String
+end
+
+struct CommitCommentTrigger <: RegisterTrigger
+end
+
+struct ApprovalTrigger <: RequestTrigger
+    prid::Int
+end
+
+struct EmptyTrigger <: RequestTrigger
+end
+
+struct RequestParams{T<:RequestTrigger}
     evt::WebhookEvent
     phrase::RegexMatch
     reponame::String
-    request_type::Symbol
-    prid::Union{Nothing, Int}
-    branch::Union{Nothing, String}
+    trigger_src::T
     comment_by_collaborator::Bool
     target::Union{Nothing,String}
     cparams::CommonParams
 
-    function RegParams(evt::WebhookEvent, phrase::RegexMatch)
+    function RequestParams(evt::WebhookEvent, phrase::RegexMatch)
         reponame = evt.repository.full_name
-        request_type = :pull_request
-        prid = nothing
-        brn = nothing
+        trigger_src = EmptyTrigger()
         comment_by_collaborator = false
         err = nothing
         report_error = false
@@ -50,14 +67,15 @@ struct RegParams
                     if is_pull_request(evt.payload)
                         @debug("Comment is on a pull request")
                         prid = get_prid(evt.payload)
+                        trigger_src = PullRequestTrigger(prid)
                     elseif is_commit_comment(evt.payload)
                         @debug("Comment is on a commit")
-                        request_type = :commit_comment
+                        trigger_src = CommitCommentTrigger()
                     else
                         @debug("Comment is on an issue")
                         brn = get(action_kwargs, :branch, "master")
                         @debug("Will use branch", brn)
-                        request_type = :issue
+                        trigger_src = IssueTrigger(brn)
                     end
                 else
                     err = "Comment not made by collaborator"
@@ -70,7 +88,6 @@ struct RegParams
                 report_error = true
             end
         elseif action_name == "approved"
-            request_type = :approval
             registry_repos = [join(split(r["repo"], "/")[end-1:end], "/") for (n, r) in config["targets"]]
             if reponame in registry_repos
                 @debug("Recieved approval comment")
@@ -79,6 +96,7 @@ struct RegParams
                     @debug("Comment is by collaborator")
                     if is_pull_request(evt.payload)
                         prid = get_prid(evt.payload)
+                        trigger_src = ApprovalTrigger(prid)
                     end
                 else
                     err = "Comment not made by collaborator"
@@ -96,16 +114,16 @@ struct RegParams
         isvalid = comment_by_collaborator
         @debug("Event pre-check validity: $isvalid")
 
-        return new(evt, phrase, reponame, request_type,
-                   prid, brn, comment_by_collaborator, target,
-                   CommonParams(isvalid, err, report_error))
+        return new{typeof(trigger_src)}(evt, phrase, reponame, trigger_src,
+                             comment_by_collaborator, target,
+                             CommonParams(isvalid, err, report_error))
     end
 end
 
 function tag_package(rname, ver::VersionNumber, mcs, auth)
     tagger = Dict("name" => config["github"]["user"],
                   "email" => config["github"]["email"],
-                  "date" => Dates.format(now(), dateformat"YYYY-MM-DDTHH:MM:SSZ"))
+                  "date" => Dates.format(now(), dateformat"YYYY-mm-ddTHH:MM:SSZ"))
     create_tag(rname; auth=auth,
                params=Dict("tag" => "v$ver",
                "message" => "Release: v$ver",
@@ -114,7 +132,7 @@ function tag_package(rname, ver::VersionNumber, mcs, auth)
                "tagger" => tagger))
 end
 
-function get_from_db(rp::RegParams)
+function get_from_db(rp::RequestParams)
     db = SQLite.DB(config["sqlite"]["db"])
     u = HTTP.URI(get_html_url(rp.evt.payload))
     rpu = u.scheme * "://" * u.host * u.path
@@ -123,21 +141,17 @@ SELECT * FROM register_requests WHERE registry_pr_url='$rpu' ORDER BY DATETIME(t
 """)
 end
 
-function handle_approval(rp::RegParams)
+function handle_approval(rp::RequestParams)
     d = get_from_db(rp)
 
     if size(d, 1) == 0
         return "Registration source not found for this PR"
     end
 
-    if rp.evt.payload["repository"]["private"]
-        auth = get_access_token(rp.evt)
-    else
-        auth = GitHub.AnonymousAuth()
-    end
+    auth = get_access_token(rp.evt)
 
     reg_name = rp.reponame
-    reg_prid = rp.prid
+    reg_prid = rp.trigger_src.prid
     reponame = d[:pkg_repo_name][1]
     ver = VersionNumber(d[:version][1])
     tree_sha = d[:tree_sha][1]
@@ -145,18 +159,66 @@ function handle_approval(rp::RegParams)
     request_type = d[:request_type][1]
 
     if request_type == "pull_request"
-        merge_pull_request(reponame, parse(Int, trigger_id); auth=auth,
-                           params=Dict("merge_method" => "squash"))
+        prnum = parse(Int, trigger_id)
+        @info("Merging pull request on package repo", reponame, prnum)
+        pr = pull_request(reponame, prnum; auth=auth)
+        tree_sha = pr.merge_commit_sha
+        try
+            merge_pull_request(reponame, prnum; auth=auth,
+                               params=Dict("merge_method" => "squash"))
+        catch ex
+            s = get_backtrace(ex)
+            @info("Error merging pull request: \n$s", reponame, prnum)
+        end
     end
 
+    @info("Tag package", reponame, ver, tree_sha)
     tag_package(reponame, ver, tree_sha, auth)
+    @info("Create release", reponame, ver, tree_sha)
+    create_release(reponame; auth=auth,
+                   params=Dict("tag_name" => "v$ver", "name" => "v$ver"))
 
     if request_type == "issue"
-        close_issue(reponame, parse(Int, trigger_id); auth=auth)
+        isid = parse(Int, trigger_id)
+        @info("Closing issue", reponame, isid)
+        try
+            close_issue(reponame, isid; auth=auth)
+        catch ex
+            s = get_backtrace(ex)
+            @info("Error closing issue: \n$s", reponame, isid)
+        end
     end
 
-    merge_pull_request(reg_name, reg_prid; auth=auth)
+    @info("Merging pull request on registry", reg_name, reg_prid)
+    try
+        merge_pull_request(reg_name, reg_prid; auth=auth)
+    catch ex
+        s = get_backtrace(ex)
+        @info("Error merging pull request: \n$s", reg_name, reg_prid)
+    end
     nothing
+end
+
+function get_cloneurl_and_sha(rp::RequestParams{PullRequestTrigger}, auth)
+    pr = pull_request(rp.reponame, rp.trigger_src.prid; auth=auth)
+    cloneurl = pr.head.repo.html_url.uri * ".git"
+    sha = pr.head.sha
+
+    cloneurl, sha, nothing
+end
+
+function get_cloneurl_and_sha(rp::RequestParams{CommitCommentTrigger}, auth)
+    cloneurl = get_clone_url(rp.evt)
+    sha = get_comment_commit_id(rp.evt)
+
+    cloneurl, sha, nothing
+end
+
+function get_cloneurl_and_sha(rp::RequestParams{IssueTrigger}, auth)
+    cloneurl = get_clone_url(rp.evt)
+    sha, err = get_sha_from_branch(rp.reponame, rp.trigger_src.branch; auth=auth)
+
+    cloneurl, sha, err
 end
 
 struct ProcessedParams
@@ -168,9 +230,9 @@ struct ProcessedParams
     cloneurl::Union{Nothing, String}
     cparams::CommonParams
 
-    function ProcessedParams(rp::RegParams)
+    function ProcessedParams(rp::RequestParams)
         if rp.cparams.error != nothing
-            @debug("Pre-check failed, not processing RegParams: $(rp.cparams.error)")
+            @debug("Pre-check failed, not processing RequestParams: $(rp.cparams.error)")
             return ProcessedParams(nothing, nothing, copy(rp.cparams))
         end
 
@@ -190,24 +252,12 @@ struct ProcessedParams
             auth = GitHub.AnonymousAuth()
         end
 
-        if rp.request_type == :pull_request
-            pr = pull_request(rp.reponame, rp.prid; auth=auth)
-            cloneurl = pr.head.repo.html_url.uri * ".git"
-            sha = pr.head.sha
-        elseif rp.request_type == :commit_comment
-            cloneurl = get_clone_url(rp.evt)
-            sha = get_comment_commit_id(rp.evt)
-        else
-            cloneurl = get_clone_url(rp.evt)
-            @debug("Getting sha from branch reponame=$(rp.reponame) branch=$(rp.branch)")
-            sha, err = get_sha_from_branch(rp.reponame, rp.branch; auth=auth)
-            @debug("Got sha=$(repr(sha)) error=$(repr(err))")
-        end
+        cloneurl, sha, err = get_cloneurl_and_sha(rp, auth)
 
         if err == nothing && sha != nothing
             projectfile_contents, tree_sha, projectfile_found, projectfile_valid, err = verify_projectfile_from_sha(rp.reponame, sha; auth = auth)
             if !projectfile_found
-                err = "Project file not found on branch `$(rp.branch)`"
+                err = "Project file not found on branch `$(rp.trigger_src.branch)`"
                 @debug(err)
             end
         end
@@ -247,7 +297,7 @@ function parse_submission_string(fncall)
     return name, args, kwargs
 end
 
-const event_queue = Channel{RegParams}(1024)
+const event_queue = Channel{RequestParams}(1024)
 const config = Dict{String,Any}()
 const httpsock = Ref{Sockets.TCPServer}()
 
@@ -508,19 +558,27 @@ set_pending_status(rp) = set_status(rp, "pending", "Processing request...")
 set_error_status(rp) = set_status(rp, "error", "Failed to register")
 set_success_status(rp) = set_status(rp, "success", "Done")
 
+function print_entry_log(rp::RequestParams{PullRequestTrigger})
+    @info("Creating registration pull request for $(rp.reponame) PR: $(rp.trigger_src.prid)")
+end
+
+function print_entry_log(rp::RequestParams{CommitCommentTrigger})
+    @info("Creating registration pull request for $(rp.reponame) sha: `$(get_comment_commit_id(rp.evt))`")
+end
+
+function print_entry_log(rp::RequestParams{IssueTrigger})
+    @info("Creating registration pull request for $(rp.reponame) branch: `$(rp.trigger_src.branch)`")
+end
+
+function print_entry_log(rp::RequestParams{ApprovalTrigger})
+    @info("Approving Pull request  $(rp.reponame)/$(rp.trigger_src.prid)")
+end
+
 function handle_comment_event(event::WebhookEvent, phrase::RegexMatch)
-    rp = RegParams(event, phrase)
+    rp = RequestParams(event, phrase)
 
     if rp.cparams.isvalid && rp.cparams.error == nothing
-        if rp.request_type == :pull_request
-            @info("Creating registration pull request for $(rp.reponame) PR: $(rp.prid)")
-        elseif rp.request_type == :commit_comment
-            @info("Creating registration pull request for $(rp.reponame) sha: `$(get_comment_commit_id(rp.evt))`")
-        elseif rp.request_type == :issue
-            @info("Creating registration pull request for $(rp.reponame) branch: `$(rp.branch)`")
-        elseif rp.request_type == :approval
-            @info("Approving Pull request  $(rp.reponame)/$(rp.prid)")
-        end
+        print_entry_log(rp)
 
         push!(event_queue, rp)
         set_pending_status(rp)
@@ -568,7 +626,7 @@ function get_user_login(payload)
     end
 end
 
-function make_pull_request(pp::ProcessedParams, rp::RegParams, rbrn::RegBranch, target_registry::Dict{String,Any})
+function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBranch, target_registry::Dict{String,Any})
     name = rbrn.name
     ver = rbrn.version
     brn = rbrn.branch
@@ -631,7 +689,7 @@ function make_pull_request(pp::ProcessedParams, rp::RegParams, rbrn::RegBranch, 
     return pr
 end
 
-function handle_register_events(rp::RegParams)
+function handle_events(rp::RequestParams{T}) where T <: RegisterTrigger
     targets = (rp.target === nothing) ? config["targets"] : filter(x->(x[1]==rp.target), config["targets"])
     for (target_registry_name,target_registry) in targets
         @info("Processing register event", reponame=rp.reponame, target_registry_name)
@@ -646,8 +704,8 @@ function handle_register_events(rp::RegParams)
     end
 end
 
-function handle_approval_events(rp::RegParams)
-    @info("Processing approval event", reponame=rp.reponame, rp.prid)
+function handle_events(rp::RequestParams{ApprovalTrigger})
+    @info("Processing approval event", reponame=rp.reponame, rp.trigger_src.prid)
     try
         err = handle_approval(rp)
         if err != nothing
@@ -658,15 +716,20 @@ function handle_approval_events(rp::RegParams)
         @info("Unexpected error: $bt")
         raise_issue(rp.evt, rp.phrase, bt)
     end
-    @info("Done processing approval event", reponame=rp.reponame, rp.prid)
+    @info("Done processing approval event", reponame=rp.reponame, rp.trigger_src.prid)
 end
 
-function save_to_db(pp::ProcessedParams, rp::RegParams,
+string(::RequestParams{PullRequestTrigger}) = "pull_request"
+string(::RequestParams{CommitCommentTrigger}) = "commit_comment"
+string(::RequestParams{IssueTrigger}) = "issue"
+string(::RequestParams{ApprovalTrigger}) = "approval"
+
+function save_to_db(pp::ProcessedParams, rp::RequestParams,
                     reg_pr::PullRequest, rbrn::RegBranch,
                     treg::Dict{String, Any})
     db = SQLite.DB(config["sqlite"]["db"])
-    request_type = string(rp.request_type)
-    trigger_phrase = string(rp.phrase)
+    request_type = string(rp)
+    trigger_phrase = rp.phrase.match
     pkg_trigger_url = get_html_url(rp.evt.payload)
     target_registry = treg["repo"]
     registry_pr_url = reg_pr.html_url
@@ -677,7 +740,7 @@ function save_to_db(pp::ProcessedParams, rp::RegParams,
     sha = pp.sha
     tree_sha = pp.tree_sha
     cloneurl = pp.cloneurl
-    branch = rp.branch == nothing ? "" : rp.branch
+    branch = isa(rp.trigger_src, IssueTrigger) ? rp.trigger_src.branch : ""
     SQLite.execute!(db, """
 INSERT INTO register_requests (request_type,
                              trigger_phrase,
@@ -713,7 +776,7 @@ INSERT INTO register_requests (request_type,
 """)
 end
 
-function handle_register(rp::RegParams, target_registry::Dict{String,Any})
+function handle_register(rp::RequestParams, target_registry::Dict{String,Any})
     pp = ProcessedParams(rp)
 
     if pp.cparams.isvalid && pp.cparams.error == nothing
@@ -794,12 +857,7 @@ function recover(name, keep_running, do_action, handle_exception; backoff=0, bac
 end
 
 function request_processor()
-    rp = take!(event_queue)
-    if rp.request_type == :approval
-        do_action = () -> handle_approval_events(rp)
-    else
-        do_action = () -> handle_register_events(rp)
-    end
+    do_action() = handle_events(take!(event_queue))
     handle_exception(ex) = (isa(ex, InvalidStateException) && (ex.state == :closed)) ? :exit : :continue
     keep_running() = isopen(event_queue)
     recover("request_processor", keep_running, do_action, handle_exception)
