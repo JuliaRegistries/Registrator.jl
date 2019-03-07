@@ -28,6 +28,3 @@ set_status = true
 alert = false
 token = "xxxx"
 channel = "xxxx"
-
-[sqlite]
-db = "test.db"
