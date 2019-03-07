@@ -8,7 +8,6 @@ using Base64
 using Pkg
 using Logging
 using Dates
-using Markdown
 using JSON
 
 import Pkg: TOML
