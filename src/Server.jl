@@ -137,13 +137,15 @@ function get_metadata_from_pr_body(rp::RequestParams, auth)
     reg_name = rp.reponame
     reg_prid = rp.trigger_src.prid
 
-    pr = pull_request(reg_name, reg_prid, auth)
+    pr = pull_request(reg_name, reg_prid; auth=auth)
 
-    c = Markdown.parse(pr.body)
-    for m in c.content
-        if isa(c, Markdown.Paragraph) && m.content[1] == "<!"
-            return JSON.parse(m.content[3])
-        end
+    mstart = match(r"<!--", pr.body)
+    mend = match(r"-->", pr.body)
+
+    try
+        return JSON.parse(pr.body[mstart.offset+4:mend.offset-1])
+    catch ex
+        @debug("Exception occured while parsing PR body", get_backtrace(ex))
     end
 
     nothing
@@ -664,7 +666,7 @@ function get_user_login(payload)
 end
 
 get_trigger_id(rp::RequestParams{PullRequestTrigger}) = rp.trigger_src.prid
-get_trigger_id(rp::RequestParams{Issue}) = get_prid(rp.evt.payload)
+get_trigger_id(rp::RequestParams{IssueTrigger}) = get_prid(rp.evt.payload)
 get_trigger_id(rp::RequestParams{CommitCommentTrigger}) = get_comment_commit_id(rp.evt)
 
 function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBranch, target_registry::Dict{String,Any})
@@ -685,7 +687,8 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
     "request_type": "$(string(rp))",
     "pkg_repo_name": "$(rp.reponame)",
     "trigger_id": "$trigger_id",
-    "tree_sha": "$(pp.tree_sha)"
+    "tree_sha": "$(pp.tree_sha)",
+    "version": "$ver"
      } -->
 """
     params = Dict("title"=>"Register $name: $ver",
