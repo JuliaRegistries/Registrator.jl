@@ -9,6 +9,7 @@ using Pkg
 using Logging
 using Dates
 using JSON
+using MbedTLS
 
 import Pkg: TOML
 import ..Registrator: register, RegBranch, post_on_slack_channel
@@ -141,8 +142,11 @@ function get_metadata_from_pr_body(rp::RequestParams, auth)
     mstart = match(r"<!--", pr.body)
     mend = match(r"-->", pr.body)
 
+    key = config["registrator"]["enc_key"]
     try
-        return JSON.parse(pr.body[mstart.offset+4:mend.offset-1])
+        enc_meta = strip(pr.body[mstart.offset+4:mend.offset-1])
+        meta = String(decrypt(MbedTLS.CIPHER_AES_128_CBC, key, hex2bytes(enc_meta), key))
+        return JSON.parse(meta)
     catch ex
         @debug("Exception occured while parsing PR body", get_backtrace(ex))
     end
@@ -681,15 +685,13 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
 
     trigger_id = get_trigger_id(rp)
 
-    meta = """
-<!-- {
-    "request_type": "$(string(rp))",
-    "pkg_repo_name": "$(rp.reponame)",
-    "trigger_id": "$trigger_id",
-    "tree_sha": "$(pp.tree_sha)",
-    "version": "$ver"
-     } -->
-"""
+    meta = JSON.json(Dict("request_type"=> string(rp),
+                          "pkg_repo_name"=> rp.reponame,
+                          "trigger_id"=> trigger_id,
+                          "tree_sha"=> pp.tree_sha,
+                          "version"=> string(ver)))
+    key = config["registrator"]["enc_key"]
+    enc_meta = "<!-- " * bytes2hex(encrypt(MbedTLS.CIPHER_AES_128_CBC, key, meta, key)) * " -->"
     params = Dict("title"=>"Register $name: $ver",
                   "base"=>target_registry["base_branch"],
                   "head"=>brn,
@@ -702,7 +704,7 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
 | Reviewed by | @$(reviewer) |
 | Reference   | [$ref]($ref) |
 
-$meta
+$enc_meta
 """
 
     pr = nothing
