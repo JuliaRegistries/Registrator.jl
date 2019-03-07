@@ -13,6 +13,7 @@ using MbedTLS
 
 import Pkg: TOML
 import ..Registrator: register, RegBranch, post_on_slack_channel
+import Base: string
 
 struct CommonParams
     isvalid::Bool
@@ -171,15 +172,14 @@ function handle_approval(rp::RequestParams)
     request_type = d["request_type"]
 
     if request_type == "pull_request"
-        prnum = parse(Int, trigger_id)
-        pr = pull_request(reponame, prnum; auth=auth)
+        pr = pull_request(reponame, trigger_id; auth=auth)
         tree_sha = pr.merge_commit_sha
         if pr.state == "open"
-            @debug("Merging pull request on package repo", reponame, prnum)
-            merge_pull_request(reponame, prnum; auth=auth,
+            @debug("Merging pull request on package repo", reponame, trigger_id)
+            merge_pull_request(reponame, trigger_id; auth=auth,
                                params=Dict("merge_method" => "squash"))
         else
-            @debug("Pull request already merged", reponame, prnum)
+            @debug("Pull request already merged", reponame, trigger_id)
         end
     end
 
@@ -221,13 +221,12 @@ function handle_approval(rp::RequestParams)
     end
 
     if request_type == "issue"
-        isid = parse(Int, trigger_id)
-        iss = issue(reponame, Issue(isid); auth=auth)
+        iss = issue(reponame, Issue(trigger_id); auth=auth)
         if iss.state == "open"
-            @debug("Closing issue", reponame, isid)
-            edit_issue(reponame, isid; auth=auth, params=Dict("state"=>"closed"))
+            @debug("Closing issue", reponame, trigger_id)
+            edit_issue(reponame, trigger_id; auth=auth, params=Dict("state"=>"closed"))
         else
-            @debug("Issue already closed", reponame, isid)
+            @debug("Issue already closed", reponame, trigger_id)
         end
     end
 
