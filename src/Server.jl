@@ -7,8 +7,9 @@ using Distributed
 using Base64
 using Pkg
 using Logging
-using SQLite
 using Dates
+using Markdown
+using JSON
 
 import Pkg: TOML
 import ..Registrator: register, RegBranch, post_on_slack_channel
@@ -132,31 +133,37 @@ function tag_package(rname, ver::VersionNumber, mcs, auth)
                "tagger" => tagger))
 end
 
-function get_from_db(rp::RequestParams)
-    db = SQLite.DB(config["sqlite"]["db"])
-    u = HTTP.URI(get_html_url(rp.evt.payload))
-    rpu = u.scheme * "://" * u.host * u.path
-    SQLite.query(db, """
-SELECT * FROM register_requests WHERE registry_pr_url='$rpu' ORDER BY DATETIME(time) DESC LIMIT 1
-""")
+function get_metadata_from_pr_body(rp::RequestParams, auth)
+    reg_name = rp.reponame
+    reg_prid = rp.trigger_src.prid
+
+    pr = pull_request(reg_name, reg_prid, auth)
+
+    c = Markdown.parse(pr.body)
+    for m in c.content
+        if isa(c, Markdown.Paragraph) && m.content[1] == "<!"
+            return JSON.parse(m.content[3])
+        end
+    end
+
+    nothing
 end
 
 function handle_approval(rp::RequestParams)
-    d = get_from_db(rp)
-
-    if size(d, 1) == 0
-        return "Registration source not found for this PR"
-    end
-
     auth = get_access_token(rp.evt)
+    d = get_metadata_from_pr_body(rp, auth)
+
+    if d == nothing
+        return "Unable to get registration metdata for this PR"
+    end
 
     reg_name = rp.reponame
     reg_prid = rp.trigger_src.prid
-    reponame = d[:pkg_repo_name][1]
-    ver = VersionNumber(d[:version][1])
-    tree_sha = d[:tree_sha][1]
-    trigger_id = d[:trigger_id][1]
-    request_type = d[:request_type][1]
+    reponame = d["pkg_repo_name"]
+    ver = VersionNumber(d["version"])
+    tree_sha = d["tree_sha"]
+    trigger_id = d["trigger_id"]
+    request_type = d["request_type"]
 
     if request_type == "pull_request"
         prnum = parse(Int, trigger_id)
@@ -656,6 +663,10 @@ function get_user_login(payload)
     end
 end
 
+get_trigger_id(rp::RequestParams{PullRequestTrigger}) = rp.trigger_src.prid
+get_trigger_id(rp::RequestParams{Issue}) = get_prid(rp.evt.payload)
+get_trigger_id(rp::RequestParams{CommitCommentTrigger}) = get_comment_commit_id(rp.evt)
+
 function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBranch, target_registry::Dict{String,Any})
     name = rbrn.name
     ver = rbrn.version
@@ -667,6 +678,16 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
     reviewer = payload["sender"]["login"]
     @debug("Pull request creator=$creator, reviewer=$reviewer")
 
+    trigger_id = get_trigger_id(rp)
+
+    meta = """
+<!-- {
+    "request_type": "$(string(rp))",
+    "pkg_repo_name": "$(rp.reponame)",
+    "trigger_id": "$trigger_id",
+    "tree_sha": "$(pp.tree_sha)"
+     } -->
+"""
     params = Dict("title"=>"Register $name: $ver",
                   "base"=>target_registry["base_branch"],
                   "head"=>brn,
@@ -678,6 +699,8 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
 | Proposed by | @$(creator)  |
 | Reviewed by | @$(reviewer) |
 | Reference   | [$ref]($ref) |
+
+$meta
 """
 
     pr = nothing
@@ -696,23 +719,18 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
     msg = "created"
 
     if pr == nothing
-        d = get_from_db(rp)
-        if size(d, 1) == 0
-            # Look for pull request in last 15 pull requests
-            prs = pull_requests(repo; auth=GitHub.authenticate(config["github"]["token"]),
-                                params=Dict("state"=>"open", "per_page"=>15), page_limit=1)[1]
-            for p in prs
-                if p.base.ref == target_registry["base_branch"] && p.head.ref == brn
-                    @debug("PR found")
-                    pr = p
-                    break
-                end
+        # Look for pull request in last 15 pull requests
+        prs = pull_requests(repo; auth=GitHub.authenticate(config["github"]["token"]),
+                            params=Dict("state"=>"open", "per_page"=>15), page_limit=1)[1]
+        for p in prs
+            if p.base.ref == target_registry["base_branch"] && p.head.ref == brn
+                @debug("PR found")
+                pr = p
+                break
             end
-            if pr == nothing
-                error("Unable to find registration PR")
-            end
-        else
-            pr = pull_request(d[:pkg_repo_name][1], d[:trigger_id][1]; auth=auth)
+        end
+        if pr == nothing
+            error("Registration PR already exists but unable to find it")
         end
     end
 
@@ -758,58 +776,6 @@ string(::RequestParams{CommitCommentTrigger}) = "commit_comment"
 string(::RequestParams{IssueTrigger}) = "issue"
 string(::RequestParams{ApprovalTrigger}) = "approval"
 
-function save_to_db(pp::ProcessedParams, rp::RequestParams,
-                    reg_pr::PullRequest, rbrn::RegBranch,
-                    treg::Dict{String, Any})
-    db = SQLite.DB(config["sqlite"]["db"])
-    request_type = string(rp)
-    trigger_phrase = rp.phrase.match
-    pkg_trigger_url = get_html_url(rp.evt.payload)
-    target_registry = treg["repo"]
-    registry_pr_url = reg_pr.html_url
-    pkg_repo_name = rp.reponame
-    trigger_id = split(HTTP.URI(pkg_trigger_url).path, "/")[5]
-    creator = get_user_login(rp.evt.payload)
-    reviewer = rp.evt.payload["sender"]["login"]
-    sha = pp.sha
-    tree_sha = pp.tree_sha
-    cloneurl = pp.cloneurl
-    branch = isa(rp.trigger_src, IssueTrigger) ? rp.trigger_src.branch : ""
-    SQLite.execute!(db, """
-INSERT INTO register_requests (request_type,
-                             trigger_phrase,
-                             pkg_trigger_url,
-                             target_registry,
-                             registry_pr_url,
-                             pkg_repo_name,
-                             trigger_id,
-                             creator,
-                             reviewer,
-                             sha,
-                             tree_sha,
-                             cloneurl,
-                             branch,
-                             version,
-                             reg_branch,
-                             time) VALUES ('$request_type',
-                                           '$trigger_phrase',
-                                           '$pkg_trigger_url',
-                                           '$target_registry',
-                                           '$registry_pr_url',
-                                           '$pkg_repo_name',
-                                           '$trigger_id',
-                                           '$creator',
-                                           '$reviewer',
-                                           '$sha',
-                                           '$tree_sha',
-                                           '$cloneurl',
-                                           '$branch',
-                                           '$(rbrn.version)',
-                                           '$(rbrn.branch)',
-                                           DATETIME('now'))
-""")
-end
-
 function handle_register(rp::RequestParams, target_registry::Dict{String,Any})
     pp = ProcessedParams(rp)
 
@@ -826,7 +792,6 @@ function handle_register(rp::RequestParams, target_registry::Dict{String,Any})
         else
             reg_pr = make_pull_request(pp, rp, rbrn, target_registry)
             set_success_status(rp)
-            save_to_db(pp, rp, reg_pr, rbrn, target_registry)
         end
     elseif pp.cparams.error != nothing
         @info("Error while processing event: $(pp.cparams.error)")
