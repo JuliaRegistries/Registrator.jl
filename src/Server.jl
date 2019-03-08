@@ -7,9 +7,13 @@ using Distributed
 using Base64
 using Pkg
 using Logging
+using Dates
+using JSON
+using MbedTLS
 
 import Pkg: TOML
 import ..Registrator: register, RegBranch, post_on_slack_channel
+import Base: string
 
 struct CommonParams
     isvalid::Bool
@@ -17,24 +21,39 @@ struct CommonParams
     report_error::Bool
 end
 
-struct RegParams
+abstract type RequestTrigger end
+abstract type RegisterTrigger <: RequestTrigger end
+
+struct PullRequestTrigger <: RegisterTrigger
+    prid::Int
+end
+
+struct IssueTrigger <: RegisterTrigger
+    branch::String
+end
+
+struct CommitCommentTrigger <: RegisterTrigger
+end
+
+struct ApprovalTrigger <: RequestTrigger
+    prid::Int
+end
+
+struct EmptyTrigger <: RequestTrigger
+end
+
+struct RequestParams{T<:RequestTrigger}
     evt::WebhookEvent
     phrase::RegexMatch
     reponame::String
-    ispr::Bool
-    iscc::Bool
-    prid::Union{Nothing, Int}
-    branch::Union{Nothing, String}
+    trigger_src::T
     comment_by_collaborator::Bool
     target::Union{Nothing,String}
     cparams::CommonParams
 
-    function RegParams(evt::WebhookEvent, phrase::RegexMatch)
+    function RequestParams(evt::WebhookEvent, phrase::RegexMatch)
         reponame = evt.repository.full_name
-        ispr = false
-        iscc = false
-        prid = nothing
-        brn = nothing
+        trigger_src = EmptyTrigger()
         comment_by_collaborator = false
         err = nothing
         report_error = false
@@ -49,24 +68,44 @@ struct RegParams
                     @debug("Comment is by collaborator")
                     if is_pull_request(evt.payload)
                         @debug("Comment is on a pull request")
-                        ispr = true
                         prid = get_prid(evt.payload)
+                        trigger_src = PullRequestTrigger(prid)
                     elseif is_commit_comment(evt.payload)
                         @debug("Comment is on a commit")
-                        iscc = true
+                        trigger_src = CommitCommentTrigger()
                     else
                         @debug("Comment is on an issue")
                         brn = get(action_kwargs, :branch, "master")
                         @debug("Will use branch", brn)
+                        trigger_src = IssueTrigger(brn)
+                    end
+                else
+                    err = "Comment not made by collaborator"
+                    @debug(err)
+                end
+                @debug("Comment is on a pull request")
+            else
+                err = "Package name does not end with '.jl'"
+                @debug(err)
+                report_error = true
+            end
+        elseif action_name == "approved"
+            registry_repos = [join(split(r["repo"], "/")[end-1:end], "/") for (n, r) in config["targets"]]
+            if reponame in registry_repos
+                @debug("Recieved approval comment")
+                comment_by_collaborator = is_comment_by_collaborator(evt)
+                if comment_by_collaborator
+                    @debug("Comment is by collaborator")
+                    if is_pull_request(evt.payload)
+                        prid = get_prid(evt.payload)
+                        trigger_src = ApprovalTrigger(prid)
                     end
                 else
                     err = "Comment not made by collaborator"
                     @debug(err)
                 end
             else
-                err = "Package name does not end with '.jl'"
-                @debug(err)
-                report_error = true
+                @debug("Approval comment not made on a valid registry")
             end
         else
             err = "Action not recognized: $action_name"
@@ -77,10 +116,150 @@ struct RegParams
         isvalid = comment_by_collaborator
         @debug("Event pre-check validity: $isvalid")
 
-        return new(evt, phrase, reponame, ispr, iscc,
-                   prid, brn, comment_by_collaborator, target,
-                   CommonParams(isvalid, err, report_error))
+        return new{typeof(trigger_src)}(evt, phrase, reponame, trigger_src,
+                                        comment_by_collaborator, target,
+                                        CommonParams(isvalid, err, report_error))
     end
+end
+
+function tag_package(rname, ver::VersionNumber, mcs, auth)
+    tagger = Dict("name" => config["github"]["user"],
+                  "email" => config["github"]["email"],
+                  "date" => Dates.format(now(), dateformat"YYYY-mm-ddTHH:MM:SSZ"))
+    create_tag(rname; auth=auth,
+               params=Dict("tag" => "v$ver",
+                           "message" => "Release: v$ver",
+                           "object" => mcs,
+                           "type" => "commit",
+                           "tagger" => tagger))
+end
+
+function get_metadata_from_pr_body(rp::RequestParams, auth)
+    reg_name = rp.reponame
+    reg_prid = rp.trigger_src.prid
+
+    pr = pull_request(reg_name, reg_prid; auth=auth)
+
+    mstart = match(r"<!--", pr.body)
+    mend = match(r"-->", pr.body)
+
+    key = config["registrator"]["enc_key"]
+    try
+        enc_meta = strip(pr.body[mstart.offset+4:mend.offset-1])
+        meta = String(decrypt(MbedTLS.CIPHER_AES_128_CBC, key, hex2bytes(enc_meta), key))
+        return JSON.parse(meta)
+    catch ex
+        @debug("Exception occured while parsing PR body", get_backtrace(ex))
+    end
+
+    nothing
+end
+
+function handle_approval(rp::RequestParams)
+    auth = get_access_token(rp.evt)
+    d = get_metadata_from_pr_body(rp, auth)
+
+    if d == nothing
+        return "Unable to get registration metdata for this PR"
+    end
+
+    reg_name = rp.reponame
+    reg_prid = rp.trigger_src.prid
+    reponame = d["pkg_repo_name"]
+    ver = VersionNumber(d["version"])
+    tree_sha = d["tree_sha"]
+    trigger_id = d["trigger_id"]
+    request_type = d["request_type"]
+
+    if request_type == "pull_request"
+        pr = pull_request(reponame, trigger_id; auth=auth)
+        tree_sha = pr.merge_commit_sha
+        if pr.state == "open"
+            @debug("Merging pull request on package repo", reponame, trigger_id)
+            merge_pull_request(reponame, trigger_id; auth=auth,
+                               params=Dict("merge_method" => "squash"))
+        else
+            @debug("Pull request already merged", reponame, trigger_id)
+        end
+    end
+
+    tag_exists = false
+    ts = tags(reponame; auth=auth, page_limit=1, params=Dict("per_page" => 15))[1]
+    for t in ts
+        if split(t.url.path, "/")[end] == "v$ver"
+            if t.object["sha"] != tree_sha
+                return "Tag with name `v$ver` already exists and points to a different commit"
+            end
+            tag_exists = true
+            @debug("Tag already exists", reponame, ver, tree_sha)
+            break
+        end
+    end
+
+    if !tag_exists
+        @debug("Creating new tag", reponame, ver, tree_sha)
+        tag_package(reponame, ver, tree_sha, auth)
+    end
+
+    release_exists = false
+    if tag_exists
+        # Look for release in last 15 releases
+        rs = releases(reponame; auth=auth, page_limit=1, params=Dict("per_page"=>15))[1]
+        for r in rs
+            if r.name == "v$ver"
+                release_exists = true
+                @debug("Release already exists", r.name)
+                break
+            end
+        end
+    end
+
+    if !release_exists
+        @debug("Creating new release", ver)
+        create_release(reponame; auth=auth,
+                       params=Dict("tag_name" => "v$ver", "name" => "v$ver"))
+    end
+
+    if request_type == "issue"
+        iss = issue(reponame, Issue(trigger_id); auth=auth)
+        if iss.state == "open"
+            @debug("Closing issue", reponame, trigger_id)
+            edit_issue(reponame, trigger_id; auth=auth, params=Dict("state"=>"closed"))
+        else
+            @debug("Issue already closed", reponame, trigger_id)
+        end
+    end
+
+    reg_pr = pull_request(reg_name, reg_prid; auth=auth)
+    if reg_pr.state == "open"
+        @debug("Merging pull request on registry", reg_name, reg_prid)
+        merge_pull_request(reg_name, reg_prid; auth=auth)
+    else
+        @debug("Pull request on registry already merged", reg_name, reg_prid)
+    end
+    nothing
+end
+
+function get_cloneurl_and_sha(rp::RequestParams{PullRequestTrigger}, auth)
+    pr = pull_request(rp.reponame, rp.trigger_src.prid; auth=auth)
+    cloneurl = pr.head.repo.html_url.uri * ".git"
+    sha = pr.head.sha
+
+    cloneurl, sha, nothing
+end
+
+function get_cloneurl_and_sha(rp::RequestParams{CommitCommentTrigger}, auth)
+    cloneurl = get_clone_url(rp.evt)
+    sha = get_comment_commit_id(rp.evt)
+
+    cloneurl, sha, nothing
+end
+
+function get_cloneurl_and_sha(rp::RequestParams{IssueTrigger}, auth)
+    cloneurl = get_clone_url(rp.evt)
+    sha, err = get_sha_from_branch(rp.reponame, rp.trigger_src.branch; auth=auth)
+
+    cloneurl, sha, err
 end
 
 struct ProcessedParams
@@ -92,9 +271,9 @@ struct ProcessedParams
     cloneurl::Union{Nothing, String}
     cparams::CommonParams
 
-    function ProcessedParams(rp::RegParams)
+    function ProcessedParams(rp::RequestParams)
         if rp.cparams.error != nothing
-            @debug("Pre-check failed, not processing RegParams: $(rp.cparams.error)")
+            @debug("Pre-check failed, not processing RequestParams: $(rp.cparams.error)")
             return ProcessedParams(nothing, nothing, copy(rp.cparams))
         end
 
@@ -114,24 +293,12 @@ struct ProcessedParams
             auth = GitHub.AnonymousAuth()
         end
 
-        if rp.ispr
-            pr = pull_request(rp.reponame, rp.prid; auth=auth)
-            cloneurl = pr.head.repo.html_url.uri * ".git"
-            sha = pr.head.sha
-        elseif rp.iscc
-            cloneurl = get_clone_url(rp.evt)
-            sha = get_comment_commit_id(rp.evt)
-        else
-            cloneurl = get_clone_url(rp.evt)
-            @debug("Getting sha from branch reponame=$(rp.reponame) branch=$(rp.branch)")
-            sha, err = get_sha_from_branch(rp.reponame, rp.branch; auth=auth)
-            @debug("Got sha=$(repr(sha)) error=$(repr(err))")
-        end
+        cloneurl, sha, err = get_cloneurl_and_sha(rp, auth)
 
         if err == nothing && sha != nothing
             projectfile_contents, tree_sha, projectfile_found, projectfile_valid, err = verify_projectfile_from_sha(rp.reponame, sha; auth = auth)
             if !projectfile_found
-                err = "Project file not found on branch `$(rp.branch)`"
+                err = "Project file not found on branch `$(rp.trigger_src.branch)`"
                 @debug(err)
             end
         end
@@ -171,7 +338,7 @@ function parse_submission_string(fncall)
     return name, args, kwargs
 end
 
-const event_queue = Channel{RegParams}(1024)
+const event_queue = Channel{RequestParams}(1024)
 const config = Dict{String,Any}()
 const httpsock = Ref{Sockets.TCPServer}()
 
@@ -432,17 +599,27 @@ set_pending_status(rp) = set_status(rp, "pending", "Processing request...")
 set_error_status(rp) = set_status(rp, "error", "Failed to register")
 set_success_status(rp) = set_status(rp, "success", "Done")
 
+function print_entry_log(rp::RequestParams{PullRequestTrigger})
+    @info("Creating registration pull request for $(rp.reponame) PR: $(rp.trigger_src.prid)")
+end
+
+function print_entry_log(rp::RequestParams{CommitCommentTrigger})
+    @info("Creating registration pull request for $(rp.reponame) sha: `$(get_comment_commit_id(rp.evt))`")
+end
+
+function print_entry_log(rp::RequestParams{IssueTrigger})
+    @info("Creating registration pull request for $(rp.reponame) branch: `$(rp.trigger_src.branch)`")
+end
+
+function print_entry_log(rp::RequestParams{ApprovalTrigger})
+    @info("Approving Pull request  $(rp.reponame)/$(rp.trigger_src.prid)")
+end
+
 function handle_comment_event(event::WebhookEvent, phrase::RegexMatch)
-    rp = RegParams(event, phrase)
+    rp = RequestParams(event, phrase)
 
     if rp.cparams.isvalid && rp.cparams.error == nothing
-        if rp.ispr
-            @info("Creating registration pull request for $(rp.reponame) PR: $(rp.prid)")
-        elseif rp.iscc
-            @info("Creating registration pull request for $(rp.reponame) sha: `$(get_comment_commit_id(rp.evt))`")
-        else
-            @info("Creating registration pull request for $(rp.reponame) branch: `$(rp.branch)`")
-        end
+        print_entry_log(rp)
 
         push!(event_queue, rp)
         set_pending_status(rp)
@@ -490,7 +667,11 @@ function get_user_login(payload)
     end
 end
 
-function make_pull_request(pp::ProcessedParams, rp::RegParams, rbrn::RegBranch, target_registry::Dict{String,Any})
+get_trigger_id(rp::RequestParams{PullRequestTrigger}) = rp.trigger_src.prid
+get_trigger_id(rp::RequestParams{IssueTrigger}) = get_prid(rp.evt.payload)
+get_trigger_id(rp::RequestParams{CommitCommentTrigger}) = get_comment_commit_id(rp.evt)
+
+function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBranch, target_registry::Dict{String,Any})
     name = rbrn.name
     ver = rbrn.version
     brn = rbrn.branch
@@ -501,14 +682,29 @@ function make_pull_request(pp::ProcessedParams, rp::RegParams, rbrn::RegBranch, 
     reviewer = payload["sender"]["login"]
     @debug("Pull request creator=$creator, reviewer=$reviewer")
 
+    trigger_id = get_trigger_id(rp)
+
+    meta = JSON.json(Dict("request_type"=> string(rp),
+                          "pkg_repo_name"=> rp.reponame,
+                          "trigger_id"=> trigger_id,
+                          "tree_sha"=> pp.tree_sha,
+                          "version"=> string(ver)))
+    key = config["registrator"]["enc_key"]
+    enc_meta = "<!-- " * bytes2hex(encrypt(MbedTLS.CIPHER_AES_128_CBC, key, meta, key)) * " -->"
     params = Dict("title"=>"Register $name: $ver",
                   "base"=>target_registry["base_branch"],
                   "head"=>brn,
                   "maintainer_can_modify"=>true)
+    ref = get_html_url(rp.evt.payload)
+    params["body"] = """
+| $name       |     $ver     |
+|-------------|--------------|
+| Proposed by | @$(creator)  |
+| Reviewed by | @$(reviewer) |
+| Reference   | [$ref]($ref) |
 
-    params["body"] = """Register $name: $ver
-cc: @$(creator)
-reviewer: @$(reviewer)"""
+$enc_meta
+"""
 
     pr = nothing
     repo = join(split(target_registry["repo"], "/")[end-1:end], "/")
@@ -526,27 +722,28 @@ reviewer: @$(reviewer)"""
     msg = "created"
 
     if pr == nothing
-        @debug("Searching for existing PR")
-        for p in pull_requests(repo; auth=GitHub.authenticate(config["github"]["token"]))[1]
+        # Look for pull request in last 15 pull requests
+        prs = pull_requests(repo; auth=GitHub.authenticate(config["github"]["token"]),
+                            params=Dict("state"=>"open", "per_page"=>15), page_limit=1)[1]
+        for p in prs
             if p.base.ref == target_registry["base_branch"] && p.head.ref == brn
                 @debug("PR found")
                 pr = p
                 break
             end
         end
-        msg = "updated"
-    end
-
-    if pr == nothing
-        error("Existing PR not found")
+        if pr == nothing
+            error("Registration PR already exists but unable to find it")
+        end
     end
 
     cbody = "Registration pull request $msg: [$(repo)/$(pr.number)]($(pr.html_url))"
     @debug(cbody)
     make_comment(rp.evt, cbody)
+    return pr
 end
 
-function handle_register_events(rp::RegParams)
+function handle_events(rp::RequestParams{T}) where T <: RegisterTrigger
     targets = (rp.target === nothing) ? config["targets"] : filter(x->(x[1]==rp.target), config["targets"])
     for (target_registry_name,target_registry) in targets
         @info("Processing register event", reponame=rp.reponame, target_registry_name)
@@ -561,7 +758,28 @@ function handle_register_events(rp::RegParams)
     end
 end
 
-function handle_register(rp::RegParams, target_registry::Dict{String,Any})
+function handle_events(rp::RequestParams{ApprovalTrigger})
+    @info("Processing approval event", reponame=rp.reponame, rp.trigger_src.prid)
+    try
+        err = handle_approval(rp)
+        if err != nothing
+            @debug(err)
+            make_comment(rp.evt, "Error in approval process: $err")
+        end
+    catch ex
+        bt = get_backtrace(ex)
+        @info("Unexpected error: $bt")
+        raise_issue(rp.evt, rp.phrase, bt)
+    end
+    @info("Done processing approval event", reponame=rp.reponame, rp.trigger_src.prid)
+end
+
+string(::RequestParams{PullRequestTrigger}) = "pull_request"
+string(::RequestParams{CommitCommentTrigger}) = "commit_comment"
+string(::RequestParams{IssueTrigger}) = "issue"
+string(::RequestParams{ApprovalTrigger}) = "approval"
+
+function handle_register(rp::RequestParams, target_registry::Dict{String,Any})
     pp = ProcessedParams(rp)
 
     if pp.cparams.isvalid && pp.cparams.error == nothing
@@ -641,7 +859,7 @@ function recover(name, keep_running, do_action, handle_exception; backoff=0, bac
 end
 
 function request_processor()
-    do_action() = handle_register_events(take!(event_queue))
+    do_action() = handle_events(take!(event_queue))
     handle_exception(ex) = (isa(ex, InvalidStateException) && (ex.state == :closed)) ? :exit : :continue
     keep_running() = isopen(event_queue)
     recover("request_processor", keep_running, do_action, handle_exception)
