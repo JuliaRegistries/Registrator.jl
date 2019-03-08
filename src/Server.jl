@@ -117,8 +117,8 @@ struct RequestParams{T<:RequestTrigger}
         @debug("Event pre-check validity: $isvalid")
 
         return new{typeof(trigger_src)}(evt, phrase, reponame, trigger_src,
-                             comment_by_collaborator, target,
-                             CommonParams(isvalid, err, report_error))
+                                        comment_by_collaborator, target,
+                                        CommonParams(isvalid, err, report_error))
     end
 end
 
@@ -128,10 +128,10 @@ function tag_package(rname, ver::VersionNumber, mcs, auth)
                   "date" => Dates.format(now(), dateformat"YYYY-mm-ddTHH:MM:SSZ"))
     create_tag(rname; auth=auth,
                params=Dict("tag" => "v$ver",
-               "message" => "Release: v$ver",
-               "object" => mcs,
-               "type" => "commit",
-               "tagger" => tagger))
+                           "message" => "Release: v$ver",
+                           "object" => mcs,
+                           "type" => "commit",
+                           "tagger" => tagger))
 end
 
 function get_metadata_from_pr_body(rp::RequestParams, auth)
@@ -793,7 +793,7 @@ function handle_register(rp::RequestParams, target_registry::Dict{String,Any})
             make_comment(rp.evt, msg)
             set_error_status(rp)
         else
-            reg_pr = make_pull_request(pp, rp, rbrn, target_registry)
+            make_pull_request(pp, rp, rbrn, target_registry)
             set_success_status(rp)
         end
     elseif pp.cparams.error != nothing
