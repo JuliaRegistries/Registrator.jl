@@ -332,6 +332,8 @@ function parse_submission_string(fncall)
                 push!(args, phrase_argument(x))
             end
         end
+    elseif isa(parsed_args, Expr) && parsed_args.head == :(=) && isa(parsed_args.args[1], Symbol)
+        kwargs[parsed_args.args[1]] = phrase_argument(parsed_args.args[2])
     else
         push!(args, phrase_argument(parsed_args))
     end
