@@ -155,7 +155,7 @@ function get_metadata_from_pr_body(rp::RequestParams, auth)
     nothing
 end
 
-function handle_approval(rp::RequestParams)
+function handle_approval(rp::RequestParams{ApprovalTrigger})
     auth = get_access_token(rp.evt)
     d = get_metadata_from_pr_body(rp, auth)
 

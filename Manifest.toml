@@ -35,9 +35,9 @@ uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 
 [[GitHub]]
 deps = ["Base64", "Compat", "Dates", "HTTP", "JSON", "MbedTLS", "Sockets", "Test"]
-git-tree-sha1 = "6fa2721dc476b30da48d8e5aad0501dde50c4ff6"
+git-tree-sha1 = "0224f2efcf87d783d64861e4a9ee08299164a569"
 uuid = "bc5e4493-9b4d-5f90-b8aa-2b2bcaad7a26"
-version = "5.1.0"
+version = "5.1.1"
 
 [[HTTP]]
 deps = ["Base64", "Dates", "Distributed", "IniFile", "MbedTLS", "Random", "Sockets", "Test"]
