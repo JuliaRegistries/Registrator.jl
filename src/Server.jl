@@ -68,7 +68,7 @@ struct RequestParams{T<:RequestTrigger}
                     @debug("Comment is by collaborator")
                     if is_pull_request(evt.payload)
                         if config["registrator"]["disable_pull_request_trigger"]
-                            make_comment(evt, "Pull request comments will not trigger Registrator as it is disabled. Please trying using a commit or issue comment")
+                            make_comment(evt, "Pull request comments will not trigger Registrator as it is disabled. Please trying using a commit or issue comment.")
                         else
                             @debug("Comment is on a pull request")
                             prid = get_prid(evt.payload)
@@ -627,6 +627,7 @@ end
 
 function handle_comment_event(event::WebhookEvent, phrase::RegexMatch)
     rp = RequestParams(event, phrase)
+    isa(rp.trigger_src, EmptyTrigger) && rp.cparams.error == nothing && return
 
     if rp.cparams.isvalid && rp.cparams.error == nothing
         print_entry_log(rp)
@@ -796,8 +797,6 @@ string(::RequestParams{IssueTrigger}) = "issue"
 string(::RequestParams{ApprovalTrigger}) = "approval"
 
 function handle_register(rp::RequestParams, target_registry::Dict{String,Any})
-    isa(rp.trigger_src, EmptyTrigger) && rp.cparams.error == nothing && return
-
     pp = ProcessedParams(rp)
 
     if pp.cparams.isvalid && pp.cparams.error == nothing

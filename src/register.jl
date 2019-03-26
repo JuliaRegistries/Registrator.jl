@@ -185,7 +185,7 @@ function register(
 
         try
             versions = sort!([VersionNumber(v) for v in keys(versions_data)])
-            Base.check_new_version(versions, pkg.version)
+            #Base.check_new_version(versions, pkg.version)
         catch ex
             if isa(ex, ErrorException)
                 return RegBranch(pkg.name, pkg.version, branch, ex.msg)
