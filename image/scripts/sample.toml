@@ -24,6 +24,8 @@ issue_repo = "JuliaComputing/Registrator.jl"
 reply_comment = true
 set_status = true
 enc_key = "1234567890123456"
+disable_pull_request_trigger = false
+disable_approval_process = false
 
 [slack]
 alert = false

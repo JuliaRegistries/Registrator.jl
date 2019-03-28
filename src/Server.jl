@@ -67,9 +67,13 @@ struct RequestParams{T<:RequestTrigger}
                 if comment_by_collaborator
                     @debug("Comment is by collaborator")
                     if is_pull_request(evt.payload)
-                        @debug("Comment is on a pull request")
-                        prid = get_prid(evt.payload)
-                        trigger_src = PullRequestTrigger(prid)
+                        if config["registrator"]["disable_pull_request_trigger"]
+                            make_comment(evt, "Pull request comments will not trigger Registrator as it is disabled. Please trying using a commit or issue comment.")
+                        else
+                            @debug("Comment is on a pull request")
+                            prid = get_prid(evt.payload)
+                            trigger_src = PullRequestTrigger(prid)
+                        end
                     elseif is_commit_comment(evt.payload)
                         @debug("Comment is on a commit")
                         trigger_src = CommitCommentTrigger()
@@ -90,22 +94,26 @@ struct RequestParams{T<:RequestTrigger}
                 report_error = true
             end
         elseif action_name == "approved"
-            registry_repos = [join(split(r["repo"], "/")[end-1:end], "/") for (n, r) in config["targets"]]
-            if reponame in registry_repos
-                @debug("Recieved approval comment")
-                comment_by_collaborator = is_comment_by_collaborator(evt)
-                if comment_by_collaborator
-                    @debug("Comment is by collaborator")
-                    if is_pull_request(evt.payload)
-                        prid = get_prid(evt.payload)
-                        trigger_src = ApprovalTrigger(prid)
+            if config["registrator"]["disable_approval_process"]
+                make_comment(evt, "The `approved()` command is disabled.")
+            else
+                registry_repos = [join(split(r["repo"], "/")[end-1:end], "/") for (n, r) in config["targets"]]
+                if reponame in registry_repos
+                    @debug("Recieved approval comment")
+                    comment_by_collaborator = is_comment_by_collaborator(evt)
+                    if comment_by_collaborator
+                        @debug("Comment is by collaborator")
+                        if is_pull_request(evt.payload)
+                            prid = get_prid(evt.payload)
+                            trigger_src = ApprovalTrigger(prid)
+                        end
+                    else
+                        err = "Comment not made by collaborator"
+                        @debug(err)
                     end
                 else
-                    err = "Comment not made by collaborator"
-                    @debug(err)
+                    @debug("Approval comment not made on a valid registry")
                 end
-            else
-                @debug("Approval comment not made on a valid registry")
             end
         else
             err = "Action not recognized: $action_name"
@@ -619,6 +627,7 @@ end
 
 function handle_comment_event(event::WebhookEvent, phrase::RegexMatch)
     rp = RequestParams(event, phrase)
+    isa(rp.trigger_src, EmptyTrigger) && rp.cparams.error == nothing && return
 
     if rp.cparams.isvalid && rp.cparams.error == nothing
         print_entry_log(rp)
@@ -710,18 +719,20 @@ $enc_meta
 
     pr = nothing
     repo = join(split(target_registry["repo"], "/")[end-1:end], "/")
+    msg = ""
     try
         pr = create_pull_request(repo; auth=GitHub.authenticate(config["github"]["token"]), params=params)
+        msg = "created"
         @debug("Pull request created")
     catch ex
         if is_pr_exists_exception(ex)
             @debug("Pull request already exists, not creating")
+            msg = "updated"
         else
             rethrow(ex)
         end
     end
 
-    msg = "created"
 
     if pr == nothing
         # Look for pull request in last 15 pull requests
@@ -739,7 +750,11 @@ $enc_meta
         end
     end
 
-    cbody = "Registration pull request $msg: [$(repo)/$(pr.number)]($(pr.html_url))"
+    cbody = """
+Registration pull request $msg: [$(repo)/$(pr.number)]($(pr.html_url))
+
+Optionally, you can create a tag and release on this repository for the above registration.
+"""
     @debug(cbody)
     make_comment(rp.evt, cbody)
     return pr
