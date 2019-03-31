@@ -1,6 +1,6 @@
 # Registrator
 
-<img src="https://juliaregistrator.github.io/julia_id.jpg" alt="logo" width="200" />
+!["amelia robot logo"](graphics/logo.png)
 
 Click [here](https://github.com/apps/registratortest/installations/new) to install.
 
