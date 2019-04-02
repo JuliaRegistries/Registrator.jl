@@ -256,6 +256,25 @@ function commit_registry(pkg::Pkg.Types.Project, package_path, package_repo, tre
     run(`$git commit -qm $message`)
 end
 
+function get_tree_hash(package_path, gitconfig)
+    # repo = LibGit2.GitRepo(package_repo)
+    # commit = LibGit2.GitObject(repo, "HEAD")
+    # tree = LibGit2.peel(commit)
+    # tree_hash = string(LibGit2.GitHash(git_tree))
+
+    git = gitcmd(package_path, gitconfig)
+    return read(`$git log --pretty=format:%T -1`, String)
+end
+
+function get_remote_repo(package_path, gitconfig)
+    git = gitcmd(package_path, gitconfig)
+    remote_name = split(chomp(read(`$git remote`, String)), '\n')
+    length(remote_name) > 1 && throw("Repository has multiple remotes.")
+    # TODO: Handle this case?
+    remote_name[1] == "" && throw("Repository does not have a remote.")
+    return read(`$git remote get-url $(remote_name[1])`, String)
+end
+
 """
 Register the package at `package_repo` / `tree_spect` in `registry`.
 """
@@ -305,6 +324,34 @@ function register(
         if clean_registry
             @debug("cleaning up possibly inconsistent registry", registry_path=showsafe(registry_path), err=showsafe(err))
             rm(registry_path; recursive=true, force=true)
+        end
+    end
+end
+
+function register(package::Module, registry_path; repo = nothing, commit = true,
+                  gitconfig::Dict = Dict())
+    registry_path = expanduser(registry_path)
+    if LibGit2.isdirty(LibGit2.GitRepo(registry_path))
+        throw("Registry repo is dirty. Stash or commit files.")
+    end
+    git = gitcmd(registry_path, gitconfig)
+
+    package_path = normpath(joinpath(dirname(pathof(package)), ".."))
+    pkg = Pkg.Types.read_project(joinpath(package_path, "Project.toml"))
+    tree_hash = get_tree_hash(package_path, gitconfig)
+    package_repo = repo === nothing ? get_remote_repo(package_path, gitconfig) : repo
+
+    @info "Registering package" package_path registry_path package_repo uuid=pkg.uuid version=pkg.version tree_hash
+    clean_registry = true
+
+    try
+        package_path = get_package_path(registry_path, pkg)
+        update_package_data(pkg, package_repo, package_path, tree_hash)
+        commit && commit_registry(pkg, package_path, package_repo, tree_hash, git)
+        clean_registry = false
+    finally
+        if clean_registry
+            run(`$git reset --hard`)
         end
     end
 end
