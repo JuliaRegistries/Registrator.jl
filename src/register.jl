@@ -109,6 +109,153 @@ struct RegBranch
     error::Union{Nothing, String}
 end
 
+function update_package_data(pkg::Pkg.Types.Project, package_repo, package_path, tree_hash)
+    # package file
+    @debug("update package data: package file")
+    package_info = filter(((k,v),)->!(v isa Dict), Pkg.Types.destructure(pkg))
+    delete!(package_info, "version")
+    package_info["repo"] = package_repo
+    package_file = joinpath(package_path, "Package.toml")
+    write_toml(package_file, package_info)
+
+    # versions file
+    @debug("update package data: versions file")
+    versions_file = joinpath(package_path, "Versions.toml")
+    versions_data = isfile(versions_file) ? TOML.parsefile(versions_file) : Dict()
+
+    try
+        versions = sort!([VersionNumber(v) for v in keys(versions_data)])
+        #Base.check_new_version(versions, pkg.version)
+    catch ex
+        if isa(ex, ErrorException)
+            return RegBranch(pkg.name, pkg.version, branch, ex.msg)
+        else
+            rethrow(ex)
+        end
+    end
+
+    version_info = Dict{String,Any}("git-tree-sha1" => string(tree_hash))
+    versions_data[string(pkg.version)] = version_info
+
+    vnlist = sort([(VersionNumber(k), v) for (k, v) in versions_data])
+    vslist = [(string(k), v) for (k, v) in vnlist]
+
+    open(versions_file, "w") do io
+        TOML.print(io, OrderedDict(vslist))
+    end
+
+    # deps file
+    @debug("update package data: deps file")
+    deps_file = joinpath(package_path, "Deps.toml")
+    if isfile(deps_file)
+        deps_data = Pkg.Compress.load(deps_file)
+    else
+        deps_data = Dict()
+    end
+
+    @debug("Verifying package name and uuid in deps")
+    for (k, v) in pkg.deps
+        u = string(v)
+        if haskey(registry_data["packages"], u)
+            name_in_reg = registry_data["packages"][u]["name"]
+            if name_in_reg != k
+                err = "Error in `[deps]`: UUID $u refers to package '$name_in_reg' in registry but deps file has '$k'"
+                throw(err)
+            end
+        elseif haskey(BUILTIN_PKGS, k)
+            if BUILTIN_PKGS[k] != u
+                err = "Error in `[deps]`: UUID $u for package $k should be $(BUILTIN_PKGS[k])"
+                throw(err)
+            end
+        else
+            err = "Error in `[deps]`: Package '$k' with UUID: $u not found in registry or stdlib"
+            throw(err)
+        end
+    end
+
+    deps_data[pkg.version] = pkg.deps
+    Pkg.Compress.save(deps_file, deps_data)
+
+    # compat file
+    @debug("check compat section")
+    for (p, v) in pkg.compat
+        try
+            ver = Pkg.Types.semver_spec(v)
+            if p == "julia" && any(map(x->!isempty(intersect(Pkg.Types.VersionRange("0-0.6"),x)), ver.ranges))
+                err = "Julia version < 0.7 not allowed in `[compat]`"
+                @debug(err)
+                throw(err)
+            end
+        catch ex
+            if isa(ex, ArgumentError)
+                err = "Error in `[compat]`: $(ex.msg)"
+                @debug(err)
+                throw(err)
+            else
+                rethrow(ex)
+            end
+        end
+    end
+
+    @debug("update package data: compat file")
+    compat_file = joinpath(package_path, "Compat.toml")
+    if isfile(compat_file)
+        compat_data = Pkg.Compress.load(compat_file)
+    else
+        compat_data = Dict()
+    end
+    compat_data[pkg.version] = Dict{String,Any}(n=>Pkg.Types.semver_spec(v) for (n,v) in pkg.compat)
+    Pkg.Compress.save(compat_file, compat_data)
+
+    return
+end
+
+function get_package_path(registry_path, pkg::Pkg.Types.Project)
+    @debug("find package in registry")
+    registry_file = joinpath(registry_path, "Registry.toml")
+    registry_data = TOML.parsefile(registry_file)
+
+    uuid = string(pkg.uuid)
+    if haskey(registry_data["packages"], uuid)
+        package_data = registry_data["packages"][uuid]
+        if (package_data["name"] != pkg.name)
+            err = "Changing package names not supported yet"
+            @debug(err)
+            throw(err)
+        end
+        package_path = joinpath(registry_path, package_data["path"])
+    else
+        @debug("Package with UUID: $uuid not found in registry, checking if UUID was changed")
+        for (k, v) in registry_data["packages"]
+            if v["name"] == pkg.name
+                err = "Changing UUIDs is not allowed"
+                @debug(err)
+                throw(err)
+            end
+        end
+
+        @debug("Creating directory for new package $(pkg.name)")
+        first_letter = uppercase(pkg.name[1])
+        package_path = joinpath(registry_path, "$first_letter", pkg.name)
+        mkpath(package_path)
+    end
+
+    return package_path
+end
+
+function commit_registry(pkg::Pkg.Types.Project, package_path, package_repo, tree_hash, git)
+    @debug("commit changes")
+    message = """
+    New version: $(pkg.name) v$(pkg.version)
+
+    UUID: $(pkg.uuid)
+    Repo: $(package_repo)
+    Tree: $(string(tree_hash))
+    """
+    run(`$git add -- $package_path`)
+    run(`$git commit -qm $message`)
+end
+
 """
 Register the package at `package_repo` / `tree_spect` in `registry`.
 """
@@ -140,146 +287,13 @@ function register(
         run(`$git branch -qf $branch`)
         run(`$git checkout -qf $branch`)
 
-        # find package in registry
-        @debug("find package in registry")
-        registry_file = joinpath(registry_path, "Registry.toml")
-        registry_data = TOML.parsefile(registry_file)
-
-        uuid = string(pkg.uuid)
-        if haskey(registry_data["packages"], uuid)
-            package_data = registry_data["packages"][uuid]
-            if (package_data["name"] != pkg.name)
-                err = "Changing package names not supported yet"
-                @debug(err)
-                return RegBranch(pkg.name, pkg.version, branch, err)
-            end
-            package_path = joinpath(registry_path, package_data["path"])
-        else
-            @debug("Package with UUID: $uuid not found in registry, checking if UUID was changed")
-            for (k, v) in registry_data["packages"]
-                if v["name"] == pkg.name
-                    err = "Changing UUIDs is not allowed"
-                    @debug(err)
-                    return RegBranch(pkg.name, pkg.version, branch, err)
-                end
-            end
-
-            @debug("Creating directory for new package $(pkg.name)")
-            first_letter = uppercase(pkg.name[1])
-            package_path = joinpath(registry_path, "$first_letter", pkg.name)
-            mkpath(package_path)
-        end
-
-        # update package data: package file
-        @debug("update package data: package file")
-        package_info = filter(((k,v),)->!(v isa Dict), Pkg.Types.destructure(pkg))
-        delete!(package_info, "version")
-        package_info["repo"] = package_repo
-        package_file = joinpath(package_path, "Package.toml")
-        write_toml(package_file, package_info)
-
-        # update package data: versions file
-        @debug("update package data: versions file")
-        versions_file = joinpath(package_path, "Versions.toml")
-        versions_data = isfile(versions_file) ? TOML.parsefile(versions_file) : Dict()
-
         try
-            versions = sort!([VersionNumber(v) for v in keys(versions_data)])
-            #Base.check_new_version(versions, pkg.version)
-        catch ex
-            if isa(ex, ErrorException)
-                return RegBranch(pkg.name, pkg.version, branch, ex.msg)
-            else
-                rethrow(ex)
-            end
+            package_path = get_package_path(registry_path, pkg)
+            update_package_data(pkg, package_repo, package_path, tree_hash)
+            commit_registry(pkg, package_path, package_repo, tree_hash, git)
+        catch err
+            return RegBranch(pkg.name, pkg.version, branch, err)
         end
-
-        version_info = Dict{String,Any}("git-tree-sha1" => string(tree_hash))
-        versions_data[string(pkg.version)] = version_info
-
-        vnlist = sort([(VersionNumber(k), v) for (k, v) in versions_data])
-        vslist = [(string(k), v) for (k, v) in vnlist]
-
-        open(versions_file, "w") do io
-            TOML.print(io, OrderedDict(vslist))
-        end
-
-        # update package data: deps file
-        @debug("update package data: deps file")
-        deps_file = joinpath(package_path, "Deps.toml")
-        if isfile(deps_file)
-            deps_data = Pkg.Compress.load(deps_file)
-        else
-            deps_data = Dict()
-        end
-
-        @debug("Verifying package name and uuid in deps")
-        for (k, v) in pkg.deps
-            u = string(v)
-            if haskey(registry_data["packages"], u)
-                name_in_reg = registry_data["packages"][u]["name"]
-                if name_in_reg != k
-                    err = "Error in `[deps]`: UUID $u refers to package '$name_in_reg' in registry but deps file has '$k'"
-                    break
-                end
-            elseif haskey(BUILTIN_PKGS, k)
-                if BUILTIN_PKGS[k] != u
-                    err = "Error in `[deps]`: UUID $u for package $k should be $(BUILTIN_PKGS[k])"
-                    break
-                end
-            else
-                err = "Error in `[deps]`: Package '$k' with UUID: $u not found in registry or stdlib"
-                break
-            end
-        end
-
-        err !== nothing && return RegBranch(pkg.name, pkg.version, branch, err)
-
-        deps_data[pkg.version] = pkg.deps
-        Pkg.Compress.save(deps_file, deps_data)
-
-        # update package data: compat file
-        @debug("check compat section")
-        for (p, v) in pkg.compat
-            try
-                ver = Pkg.Types.semver_spec(v)
-                if p == "julia" && any(map(x->!isempty(intersect(Pkg.Types.VersionRange("0-0.6"),x)), ver.ranges))
-                    err = "Julia version < 0.7 not allowed in `[compat]`"
-                    @debug(err)
-                end
-            catch ex
-                if isa(ex, ArgumentError)
-                    err = "Error in `[compat]`: $(ex.msg)"
-                    @debug(err)
-                else
-                    rethrow(ex)
-                end
-            end
-        end
-
-        err !== nothing && return RegBranch(pkg.name, pkg.version, branch, err)
-
-        @debug("update package data: compat file")
-        compat_file = joinpath(package_path, "Compat.toml")
-        if isfile(compat_file)
-            compat_data = Pkg.Compress.load(compat_file)
-        else
-            compat_data = Dict()
-        end
-        compat_data[pkg.version] = Dict{String,Any}(n=>Pkg.Types.semver_spec(v) for (n,v) in pkg.compat)
-        Pkg.Compress.save(compat_file, compat_data)
-
-        # commit changes
-        @debug("commit changes")
-        message = """
-        New version: $(pkg.name) v$(pkg.version)
-
-        UUID: $(pkg.uuid)
-        Repo: $(package_repo)
-        Tree: $(string(tree_hash))
-        """
-        run(`$git add -- $package_path`)
-        run(`$git commit -qm $message`)
 
         # push -f branch to remote
         @debug("push -f branch to remote")
