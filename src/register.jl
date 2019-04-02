@@ -355,3 +355,25 @@ function register(package::Module, registry_path; repo = nothing, commit = true,
         end
     end
 end
+
+function create_registry(name, repo; description = nothing, gitconfig::Dict = Dict())
+    path = joinpath(pwd(), name)
+    isdir(path) && throw("$path already exists.")
+    mkpath(path)
+
+    registry_info = Dict()
+    registry_info["name"] = name
+    registry_info["uuid"] = UUIDs.uuid1()
+    registry_info["repo"] = repo
+    description !== nothing && (registry_info["description"] = description)
+    registry_info["packages"] = Dict()
+    write_toml(joinpath(path, "Registry.toml"), registry_info)
+
+    git = gitcmd(path, gitconfig)
+    run(`$git init -q`)
+    run(`$git add --all`)
+    run(`$git commit -qm 'initial commit'`)
+    run(`$git remote add origin $repo`)
+
+    return path
+end
