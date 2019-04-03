@@ -22,7 +22,7 @@ On GitHub click on a commit that you wish to register. In the comment section be
 
 #### Approving pull requests on the registry
 
-This step has to be performed by the maintainer of the registry, for public packages the maintainer of the [General](https://github.com/JuliaRegistries/General) registry. Comment with `` @JuliaRegistrator \`approved()\` `` on a pull request on the registry to approve it. This will make Registrator to merge the pull request on the package (if any) and create a new tag and release. The approved PR will also be merged after that.
+This step has to be performed by the maintainer of the registry, for public packages the maintainer of the [General](https://github.com/JuliaRegistries/General) registry. Comment with `` @JuliaRegistrator `approved()` `` on a pull request on the registry to approve it. This will make Registrator to merge the pull request on the package (if any) and create a new tag and release. The approved PR will also be merged after that.
 
 #### Permissions and subscribed events for the app
 
