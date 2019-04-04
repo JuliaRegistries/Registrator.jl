@@ -219,14 +219,12 @@ end
 # Get the raw Project.toml text from a repository.
 function gettoml(f::GitHubAPI, repo::GitHub.Repo)
     fc = @gf get_file_contents(f, repo.owner.login, repo.name, "Project.toml")
-    fc === nothing && return nothing
-    return String(base64decode(strip(fc.content)))
+    return fc === nothing ? nothing : String(base64decode(strip(fc.content)))
 end
 
 function gettoml(::GitLabAPI, repo::GitLab.Project)
     fc = @gf get_file_contents(gitlab, repo.id, "Project.toml"; ref=repo.default_branch)
-    fc === nothing && return nothing
-    return String(base64decode(fc.content))
+    return fc === nothing ? nothing : String(base64decode(fc.content))
 end
 
 # Get a repo's clone URL.
@@ -242,15 +240,15 @@ end
 # GitLab's API does not provide the tree hash anywhere.
 function treesha(::GitLabAPI, r::GitLab.Project)
     url = cloneurl(r)
-    try
-        return mktempdir() do dir
+    return try
+        mktempdir() do dir
             dest = joinpath(dir, r.name)
             run(`git clone $url $dest`)
             match(r"tree (.*)", readchomp(`git -C $dest show HEAD --format=raw`))[1]
         end
     catch
+        nothing
     end
-    return nothing
 end
 
 # Step 5: Register the package (maybe).
@@ -264,14 +262,18 @@ function register(r::HTTP.Request)
     registry = getquery(r, "registry")
     package = getquery(r, "package")
     occursin("://", package) || (package = "https://$package")
+
+    # GitLab organizations can be nested, i.e. foo/bar.
     pieces = split(HTTP.URI(package).path, "/"; keepempty=false)
     owner = join(pieces[1:end-1], "/")
     name = pieces[end]
 
+    # Get the repo, then check for authorization.
     repo = getrepo(u.forge, owner, name)
     isauthorized(u, repo) ||
         return html("Unauthorized to release this package")
 
+    # Get the Project.toml, and make sure it has a version.
     toml = gettoml(u.forge, repo)
     toml === nothing && return html("Project.toml was not found")
     m = match(r"version = \"(.*)\"", toml)
@@ -282,16 +284,18 @@ function register(r::HTTP.Request)
         return html("Version <b>$(m[1])</b> is invalid")
     end
 
-    url = @show cloneurl(repo)
-    project = @show Pkg.Types.read_project(IOBuffer(toml))
-    tree = @show treesha(u.forge, repo)
+    url = cloneurl(repo)
+    project = Pkg.Types.read_project(IOBuffer(toml))
+    tree = treesha(u.forge, repo)
     tree === nothing && return html("Looking up the tree hash failed")
-
-    @show Registrator.register(url, project, tree; registry=registry)
-
-    # TODO: Make PR, etc.
-
-    return html("registered! (maybe)")
+    branch = Registrator.register(url, project, tree; registry=registry)
+    return if branch.error === nothing
+        @error "Registration error: " * branch.error
+        html("Registration failed")
+    else
+        # TODO: Make PR.
+        html("Registered!")
+    end
 end
 
 const ROUTER = HTTP.Router()
