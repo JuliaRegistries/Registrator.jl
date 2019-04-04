@@ -252,7 +252,7 @@ function commit_registry(pkg::Pkg.Types.Project, package_path, package_repo, tre
     Repo: $(package_repo)
     Tree: $(string(tree_hash))
     """
-    run(`$git add -- $package_path`)
+    run(`$git add --all`)
     run(`$git commit -qm $message`)
 end
 
@@ -366,8 +366,11 @@ function create_registry(name, repo; description = nothing, gitconfig::Dict = Di
     registry_info["uuid"] = UUIDs.uuid1()
     registry_info["repo"] = repo
     description !== nothing && (registry_info["description"] = description)
-    registry_info["packages"] = Dict()
     write_toml(joinpath(path, "Registry.toml"), registry_info)
+
+    open(joinpath(path, "Registry.toml"), "a") do io
+        print(io, "[packages]")
+    end
 
     git = gitcmd(path, gitconfig)
     run(`$git init -q`)
