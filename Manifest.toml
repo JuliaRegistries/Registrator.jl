@@ -38,6 +38,14 @@ uuid = "8bb1440f-4735-579b-a4ab-409b98df4dab"
 deps = ["Random", "Serialization", "Sockets"]
 uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 
+[[GitForge]]
+deps = ["Dates", "HTTP", "JSON2"]
+git-tree-sha1 = "6e95de25c0578c7368d2c86e44797f7fee79d723"
+repo-rev = "master"
+repo-url = "https://github.com/christopher-dG/GitForge.jl"
+uuid = "8f6bce27-0656-5410-875b-07a5572985df"
+version = "0.1.0"
+
 [[GitHub]]
 deps = ["Base64", "Compat", "Dates", "HTTP", "JSON", "MbedTLS", "Sockets", "Test"]
 git-tree-sha1 = "0224f2efcf87d783d64861e4a9ee08299164a569"
@@ -66,6 +74,14 @@ git-tree-sha1 = "1f7a25b53ec67f5e9422f1f551ee216503f4a0fa"
 uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 version = "0.20.0"
 
+[[JSON2]]
+deps = ["Dates", "Parsers", "Test"]
+git-tree-sha1 = "082d6fac0d7d72308633f07a58e4ec2b9c6cadc4"
+repo-rev = "cdg/options"
+repo-url = "https://github.com/christopher-dG/JSON2.jl"
+uuid = "2535ab7d-5cd8-5a07-80ac-9b1792aadce3"
+version = "0.2.4+"
+
 [[LibGit2]]
 uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
 
@@ -89,6 +105,12 @@ git-tree-sha1 = "c93a87da4081a3de781f34e0540175795a2ce83d"
 uuid = "739be429-bea8-5141-9913-cc70e7f3736d"
 version = "0.6.6"
 
+[[Missings]]
+deps = ["Dates", "InteractiveUtils", "SparseArrays", "Test"]
+git-tree-sha1 = "d1d2585677f2bd93a97cfeb8faa7a0de0f982042"
+uuid = "e1d29d7a-bbdc-5cf2-9ac0-f12de2c33e28"
+version = "0.4.0"
+
 [[Mmap]]
 uuid = "a63ad114-7e13-5084-954f-fe012c677804"
 
@@ -97,6 +119,12 @@ deps = ["Random", "Serialization", "Test"]
 git-tree-sha1 = "85619a3f3e17bb4761fe1b1fd47f0e979f964d5b"
 uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 version = "1.0.2"
+
+[[Parsers]]
+deps = ["Dates", "Mmap", "Test", "WeakRefStrings"]
+git-tree-sha1 = "d4e634c9cab597f0ec8f5a1d62c0787e98602c55"
+uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
+version = "0.2.22"
 
 [[Pkg]]
 deps = ["Dates", "LibGit2", "Markdown", "Printf", "REPL", "Random", "SHA", "UUIDs"]
@@ -139,9 +167,21 @@ uuid = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 deps = ["Distributed", "InteractiveUtils", "Logging", "Random"]
 uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
+[[TimeToLive]]
+deps = ["Dates", "Test"]
+git-tree-sha1 = "43defcaf72b89b047f11b778cd83b71ac3e418b0"
+uuid = "37f0c46e-897f-50ef-b453-b26c3eed3d6c"
+version = "0.2.0"
+
 [[UUIDs]]
 deps = ["Random", "SHA"]
 uuid = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 
 [[Unicode]]
 uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
+
+[[WeakRefStrings]]
+deps = ["Missings", "Random", "Test"]
+git-tree-sha1 = "960639a12ffd223ee463e93392aeb260fa325566"
+uuid = "ea10d353-3f73-51f8-a26c-33c1cb351aa5"
+version = "0.5.8"
