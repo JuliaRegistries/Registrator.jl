@@ -115,6 +115,7 @@ Register the package at `package_repo` / `tree_spect` in `registry`.
 function register(
     package_repo::String, pkg::Pkg.Types.Project, tree_hash::String;
     registry::String = DEFAULT_REGISTRY,
+    registry_deps::Vector{String} = String[],
     push::Bool = false,
     gitconfig::Dict = Dict()
 )
@@ -129,6 +130,11 @@ function register(
     registry = GitTools.normalize_url(registry)
     registry_repo = get_registry(registry; gitconfig=gitconfig)
     registry_path = LibGit2.path(registry_repo)
+
+    isempty(registry_deps) || @debug("get up-to-date clones of registry dependencies")
+    registry_deps_paths = map(registry_deps) do registry
+        LibGit2.path(get_registry(GitTools.normalize_url(registry); gitconfig=gitconfig))
+    end
 
     clean_registry = true
     err = nothing
@@ -214,15 +220,29 @@ function register(
         end
 
         @debug("Verifying package name and uuid in deps")
+        registry_deps_data = map(registry_deps_paths) do registry_path
+            TOML.parsefile(joinpath(registry_path, "Registry.toml"))
+        end
         for (k, v) in pkg.deps
             u = string(v)
-            if haskey(registry_data["packages"], u)
-                name_in_reg = registry_data["packages"][u]["name"]
-                if name_in_reg != k
-                    err = "Error in `[deps]`: UUID $u refers to package '$name_in_reg' in registry but deps file has '$k'"
+
+            uuid_found = false
+            for _registry_data in [registry_data; registry_deps_data]
+                if haskey(_registry_data["packages"], u)
+                    uuid_found = true
+                    name_in_reg = _registry_data["packages"][u]["name"]
+                    if name_in_reg != k
+                        err = "Error in `[deps]`: UUID $u refers to package '$name_in_reg' in registry but deps file has '$k'"
+                        break
+                    end
                     break
                 end
-            elseif haskey(BUILTIN_PKGS, k)
+            end
+
+            err !== nothing && break
+            uuid_found == true && continue
+
+            if haskey(BUILTIN_PKGS, k)
                 if BUILTIN_PKGS[k] != u
                     err = "Error in `[deps]`: UUID $u for package $k should be $(BUILTIN_PKGS[k])"
                     break
