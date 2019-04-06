@@ -58,7 +58,7 @@ struct RequestParams{T<:RequestTrigger}
         err = nothing
         report_error = false
 
-        action_name, action_args, action_kwargs = parse_submission_string(phrase.captures[1])
+        action_name, action_args, action_kwargs = parse_submission_string(strip(phrase.captures[1], '`'))
         target = get(action_kwargs, :target, nothing)
 
         if action_name == "register"
@@ -893,7 +893,7 @@ end
 
 function github_webhook(http_ip=config["server"]["http_ip"], http_port=config["server"]["http_port"])
     auth = get_jwt_auth()
-    trigger = Regex("@$(config["registrator"]["trigger"]) (.*?)")
+    trigger = Regex("@$(config["registrator"]["trigger"]) (.*?)\$")
     listener = GitHub.CommentListener(comment_handler, trigger; check_collab=false, auth=auth, secret=config["github"]["secret"])
     httpsock[] = Sockets.listen(IPv4(http_ip), http_port)
 
