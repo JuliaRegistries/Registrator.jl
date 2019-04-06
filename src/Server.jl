@@ -438,6 +438,10 @@ function is_pfile_nuv(c)
             err = "Project file should contain name, uuid and version"
             @debug(err)
             return false, err
+        else !isempty(p.version.prerelease)
+            err = "Pre-release version not allowed"
+            @debug(err)
+            return false, err
         end
     catch ex
         if isa(ex, ArgumentError)
@@ -753,7 +757,12 @@ $enc_meta
     cbody = """
 Registration pull request $msg: [$(repo)/$(pr.number)]($(pr.html_url))
 
-Optionally, you can create a tag and release on this repository for the above registration.
+Optionally, you can create a tag on this repository for the above registration.
+
+```
+git tag -a v$(string(ver)) -m "my version $(string(ver))" $(pp.tree_sha)
+git push --tags
+```
 """
     @debug(cbody)
     make_comment(rp.evt, cbody)
@@ -884,7 +893,7 @@ end
 
 function github_webhook(http_ip=config["server"]["http_ip"], http_port=config["server"]["http_port"])
     auth = get_jwt_auth()
-    trigger = Regex("@$(config["registrator"]["trigger"]) `(.*?)`")
+    trigger = Regex("@$(config["registrator"]["trigger"]) (.*?)")
     listener = GitHub.CommentListener(comment_handler, trigger; check_collab=false, auth=auth, secret=config["github"]["secret"])
     httpsock[] = Sockets.listen(IPv4(http_ip), http_port)
 
