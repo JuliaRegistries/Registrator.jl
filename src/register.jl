@@ -109,6 +109,51 @@ struct RegBranch
     error::Union{Nothing, String}
 end
 
+function write_registry(io::IO, data::Dict)
+    mandatory_keys = ("name", "uuid")
+    optional_keys = ("repo",)
+    reserved_keys = (mandatory_keys..., optional_keys..., "description", "packages")
+
+    extra_keys = filter(!in(reserved_keys), keys(data))
+
+    for key in mandatory_keys
+        println(io, "$key = ", repr(data[key]))
+    end
+
+    for key in optional_keys
+        if haskey(data, key)
+            println(io, "$key = ", repr(data[key]))
+        end
+    end
+
+    if haskey(data, "description")
+        println(io)
+        print(io, """
+            description = \"\"\"
+            $(data["description"])\"\"\"
+            """
+        )
+    end
+
+    for key in extra_keys
+        TOML.print(io, Dict(key => data["key"]), sorted=true)
+    end
+
+    println(io)
+    println(io, "[packages]")
+    if haskey(data, "packages")
+        for (uuid, data) in sort!(collect(data["packages"]), by=first)
+            println(io, uuid, " = { name = ", repr(data["name"]), ", path = ", repr(data["path"]), " }")
+        end
+    end
+end
+
+function write_registry(registry_path::String, data::Dict)
+    open(registry_path, "w") do io
+        write_registry(io, data)
+    end
+end
+
 """
 Register the package at `package_repo` / `tree_spect` in `registry`.
 """
@@ -166,8 +211,15 @@ function register(
 
             @debug("Creating directory for new package $(pkg.name)")
             first_letter = uppercase(pkg.name[1])
-            package_path = joinpath(registry_path, "$first_letter", pkg.name)
+            package_relpath = joinpath("$first_letter", pkg.name)
+            package_path = joinpath(registry_path, package_relpath)
             mkpath(package_path)
+
+            @debug("Adding package UUID to registry")
+            registry_data["packages"][uuid] = Dict(
+                "name" => pkg.name, "path" => package_relpath
+            )
+            write_registry(registry_file, registry_data)
         end
 
         # update package data: package file
@@ -279,6 +331,7 @@ function register(
         Tree: $(string(tree_hash))
         """
         run(`$git add -- $package_path`)
+        run(`$git add -- $registry_file`)
         run(`$git commit -qm $message`)
 
         # push -f branch to remote
