@@ -743,9 +743,9 @@ $enc_meta
 
 
     if pr == nothing
-        # Look for pull request in last 15 pull requests
+        # Look for pull request in last 60 pull requests
         prs = pull_requests(repo; auth=get_user_auth(),
-                            params=Dict("state"=>"open", "per_page"=>15), page_limit=1)[1]
+                            params=Dict("state"=>"open", "per_page"=>60), page_limit=1)[1]
         for p in prs
             if p.base.ref == target_registry["base_branch"] && p.head.ref == brn
                 @debug("PR found")
