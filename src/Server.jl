@@ -58,7 +58,7 @@ struct RequestParams{T<:RequestTrigger}
         err = nothing
         report_error = false
 
-        action_name, action_args, action_kwargs = parse_submission_string(phrase.captures[1])
+        action_name, action_args, action_kwargs = parse_submission_string(strip(phrase.captures[1], '`'))
         target = get(action_kwargs, :target, nothing)
 
         if action_name == "register"
@@ -356,6 +356,10 @@ function get_access_token(event)
     create_access_token(Installation(event.payload["installation"]), get_jwt_auth())
 end
 
+function get_user_auth()
+    GitHub.authenticate(config["github"]["token"])
+end
+
 function get_sha_from_branch(reponame, brn; auth = GitHub.AnonymousAuth())
     try
         b = branch(reponame, Branch(brn); auth=auth)
@@ -438,6 +442,10 @@ function is_pfile_nuv(c)
             err = "Project file should contain name, uuid and version"
             @debug(err)
             return false, err
+        elseif !isempty(p.version.prerelease)
+            err = "Pre-release version not allowed"
+            @debug(err)
+            return false, err
         end
     catch ex
         if isa(ex, ArgumentError)
@@ -477,7 +485,7 @@ function verify_projectfile_from_sha(reponame, sha; auth=GitHub.AnonymousAuth())
 
             @debug("Getting projectfile blob")
             if isa(auth, GitHub.AnonymousAuth)
-                a = GitHub.authenticate(config["github"]["token"])
+                a = get_user_auth()
             else
                 a = auth
             end
@@ -511,7 +519,7 @@ function make_comment(evt::WebhookEvent, body::String)
     headers = Dict("private_token" => config["github"]["token"])
     params = Dict("body" => body)
     repo = evt.repository
-    auth = get_access_token(evt)
+    auth = get_user_auth()
     if is_commit_comment(evt.payload)
         GitHub.create_comment(repo, get_comment_commit_id(evt),
                               :commit; headers=headers,
@@ -563,7 +571,7 @@ $bt
     if config["registrator"]["report_issue"]
         params = Dict("title"=>title, "body"=>body)
         regrepo = config["registrator"]["issue_repo"]
-        iss = create_issue(regrepo; params=params, auth=GitHub.authenticate(config["github"]["token"]))
+        iss = create_issue(regrepo; params=params, auth=get_user_auth())
         msg = "Unexpected error occured during registration, see issue: [$(regrepo)#$(iss.number)]($(iss.html_url))"
         @debug(msg)
         make_comment(event, msg)
@@ -721,7 +729,7 @@ $enc_meta
     repo = join(split(target_registry["repo"], "/")[end-1:end], "/")
     msg = ""
     try
-        pr = create_pull_request(repo; auth=GitHub.authenticate(config["github"]["token"]), params=params)
+        pr = create_pull_request(repo; auth=get_user_auth(), params=params)
         msg = "created"
         @debug("Pull request created")
     catch ex
@@ -735,9 +743,9 @@ $enc_meta
 
 
     if pr == nothing
-        # Look for pull request in last 15 pull requests
-        prs = pull_requests(repo; auth=GitHub.authenticate(config["github"]["token"]),
-                            params=Dict("state"=>"open", "per_page"=>15), page_limit=1)[1]
+        # Look for pull request in last 60 pull requests
+        prs = pull_requests(repo; auth=get_user_auth(),
+                            params=Dict("state"=>"open", "per_page"=>60), page_limit=1)[1]
         for p in prs
             if p.base.ref == target_registry["base_branch"] && p.head.ref == brn
                 @debug("PR found")
@@ -753,7 +761,12 @@ $enc_meta
     cbody = """
 Registration pull request $msg: [$(repo)/$(pr.number)]($(pr.html_url))
 
-Optionally, you can create a tag and release on this repository for the above registration.
+Optionally, you can create a tag on this repository for the above registration.
+
+```
+git tag -a v$(string(ver)) -m "my version $(string(ver))" $(pp.tree_sha)
+git push --tags
+```
 """
     @debug(cbody)
     make_comment(rp.evt, cbody)
@@ -884,7 +897,7 @@ end
 
 function github_webhook(http_ip=config["server"]["http_ip"], http_port=config["server"]["http_port"])
     auth = get_jwt_auth()
-    trigger = Regex("@$(config["registrator"]["trigger"]) `(.*?)`")
+    trigger = Regex("@$(config["registrator"]["trigger"]) (.*?)\$")
     listener = GitHub.CommentListener(comment_handler, trigger; check_collab=false, auth=auth, secret=config["github"]["secret"])
     httpsock[] = Sockets.listen(IPv4(http_ip), http_port)
 
