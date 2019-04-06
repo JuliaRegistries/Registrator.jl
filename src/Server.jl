@@ -442,7 +442,7 @@ function is_pfile_nuv(c)
             err = "Project file should contain name, uuid and version"
             @debug(err)
             return false, err
-        else !isempty(p.version.prerelease)
+        elseif !isempty(p.version.prerelease)
             err = "Pre-release version not allowed"
             @debug(err)
             return false, err
