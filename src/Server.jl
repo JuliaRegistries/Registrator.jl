@@ -356,6 +356,10 @@ function get_access_token(event)
     create_access_token(Installation(event.payload["installation"]), get_jwt_auth())
 end
 
+function get_user_auth()
+    GitHub.authenticate(config["github"]["token"])
+end
+
 function get_sha_from_branch(reponame, brn; auth = GitHub.AnonymousAuth())
     try
         b = branch(reponame, Branch(brn); auth=auth)
@@ -481,7 +485,7 @@ function verify_projectfile_from_sha(reponame, sha; auth=GitHub.AnonymousAuth())
 
             @debug("Getting projectfile blob")
             if isa(auth, GitHub.AnonymousAuth)
-                a = GitHub.authenticate(config["github"]["token"])
+                a = get_user_auth()
             else
                 a = auth
             end
@@ -515,7 +519,7 @@ function make_comment(evt::WebhookEvent, body::String)
     headers = Dict("private_token" => config["github"]["token"])
     params = Dict("body" => body)
     repo = evt.repository
-    auth = get_access_token(evt)
+    auth = get_user_auth()
     if is_commit_comment(evt.payload)
         GitHub.create_comment(repo, get_comment_commit_id(evt),
                               :commit; headers=headers,
@@ -567,7 +571,7 @@ $bt
     if config["registrator"]["report_issue"]
         params = Dict("title"=>title, "body"=>body)
         regrepo = config["registrator"]["issue_repo"]
-        iss = create_issue(regrepo; params=params, auth=GitHub.authenticate(config["github"]["token"]))
+        iss = create_issue(regrepo; params=params, auth=get_user_auth())
         msg = "Unexpected error occured during registration, see issue: [$(regrepo)#$(iss.number)]($(iss.html_url))"
         @debug(msg)
         make_comment(event, msg)
@@ -725,7 +729,7 @@ $enc_meta
     repo = join(split(target_registry["repo"], "/")[end-1:end], "/")
     msg = ""
     try
-        pr = create_pull_request(repo; auth=GitHub.authenticate(config["github"]["token"]), params=params)
+        pr = create_pull_request(repo; auth=get_user_auth(), params=params)
         msg = "created"
         @debug("Pull request created")
     catch ex
@@ -740,7 +744,7 @@ $enc_meta
 
     if pr == nothing
         # Look for pull request in last 15 pull requests
-        prs = pull_requests(repo; auth=GitHub.authenticate(config["github"]["token"]),
+        prs = pull_requests(repo; auth=get_user_auth(),
                             params=Dict("state"=>"open", "per_page"=>15), page_limit=1)[1]
         for p in prs
             if p.base.ref == target_registry["base_branch"] && p.head.ref == brn

@@ -22,11 +22,11 @@ If you are not a collaborator then you can ask someone who is a collaborator to 
 
 If you are a collaborator you can trigger registrator using these two methods:
 
-1) Open an issue on the package repo you wish to register. Add `` @JuliaRegistrator `register()` `` as a comment on the issue to trigger registrator. If registrator reports an error with your Project.toml, you can fix the error and re-trigger registrator by commenting `` @JuliaRegistrator `register()` `` again.
+1) Open an issue on the package repo you wish to register. Add ` @JuliaRegistrator register() ` as a comment on the issue to trigger registrator. If registrator reports an error with your Project.toml, you can fix the error and re-trigger registrator by commenting ` @JuliaRegistrator register() ` again.
 
-2) Click on a commit that you wish to register. In the comment section below say `` @JuliaRegistrator `register()` ``.
+2) Click on a commit that you wish to register. In the comment section below say ` @JuliaRegistrator register() `.
 
-Registrator will look for the project file in the master branch by default. To use a custom branch comment with `` @JuliaRegistrator `register(branch=name-of-your-branch)` ``.
+Registrator will look for the project file in the master branch by default. To use a custom branch comment with ` @JuliaRegistrator register(branch=name-of-your-branch) `.
 
 #### Approving pull requests on the registry
 
