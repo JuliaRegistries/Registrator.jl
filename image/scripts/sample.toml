@@ -26,6 +26,7 @@ set_status = true
 enc_key = "1234567890123456"
 disable_pull_request_trigger = false
 disable_approval_process = false
+registry_deps = ["https://github.com/JuliaRegistries/General"]
 
 [slack]
 alert = false
