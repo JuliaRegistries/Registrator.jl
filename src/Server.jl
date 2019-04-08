@@ -895,7 +895,7 @@ function request_processor()
     recover("request_processor", keep_running, do_action, handle_exception)
 end
 
-function github_webhook(http_ip=config["server"]["http_ip"], http_port=config["server"]["http_port"])
+function github_webhook(http_ip=config["server"]["http_ip"], http_port=get(config["server"], "http_port", get(ENV, "PORT", 8001)))
     auth = get_jwt_auth()
     trigger = Regex("@$(config["registrator"]["trigger"]) (.*?)\$")
     listener = GitHub.CommentListener(comment_handler, trigger; check_collab=false, auth=auth, secret=config["github"]["secret"])
