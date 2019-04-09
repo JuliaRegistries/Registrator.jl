@@ -270,18 +270,19 @@ function register(r::HTTP.Request)
 
     # Get the repo, then check for authorization.
     repo = getrepo(u.forge, owner, name)
-    isauthorized(u, repo) ||
-        return html("Unauthorized to release this package")
+    repo === nothing && return html("Repository was not found")
+    isauthorized(u, repo) || return html("Unauthorized to release this package")
 
-    # Get the Project.toml, and make sure it has a version.
+    # Get the Project.toml, and make sure it is valid.
     toml = gettoml(u.forge, repo)
     toml === nothing && return html("Project.toml was not found")
-    m = match(r"version = \"(.*)\"", toml)
-    m === nothing && return html("Project.toml did not contain a version")
-    try
-        VersionNumber(m[1])
+    project = try
+        Pkg.Types.read_project(IOBuffer(toml))
     catch
-        return html("Version <b>$(m[1])</b> is invalid")
+        return html("Project.toml is invalid")
+    end
+    for k in [:name, :uuid, :version]
+        getfield(project, k) === nothing && return html("Package $k is invalid")
     end
 
     url = cloneurl(repo)
@@ -289,12 +290,12 @@ function register(r::HTTP.Request)
     tree = treesha(u.forge, repo)
     tree === nothing && return html("Looking up the tree hash failed")
     branch = Registrator.register(url, project, tree; registry=registry)
+
     return if branch.error === nothing
-        @error "Registration error: " * branch.error
-        html("Registration failed")
-    else
         # TODO: Make PR.
         html("Registered!")
+    else
+        html("Registration failed: " * branch.error)
     end
 end
 
