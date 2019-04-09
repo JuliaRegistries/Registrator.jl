@@ -40,7 +40,7 @@ uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 
 [[GitForge]]
 deps = ["Dates", "HTTP", "JSON2"]
-git-tree-sha1 = "6e95de25c0578c7368d2c86e44797f7fee79d723"
+git-tree-sha1 = "fc1ece919916007a92fbfb91ec701c89fe82f33b"
 repo-rev = "master"
 repo-url = "https://github.com/christopher-dG/GitForge.jl"
 uuid = "8f6bce27-0656-5410-875b-07a5572985df"
@@ -100,10 +100,10 @@ deps = ["Base64"]
 uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 
 [[MbedTLS]]
-deps = ["BinaryProvider", "Dates", "Libdl", "Random", "Sockets", "Test"]
-git-tree-sha1 = "c93a87da4081a3de781f34e0540175795a2ce83d"
+deps = ["BinaryProvider", "Dates", "Distributed", "Libdl", "Random", "Sockets", "Test"]
+git-tree-sha1 = "2d94286a9c2f52c63a16146bb86fd6cdfbf677c6"
 uuid = "739be429-bea8-5141-9913-cc70e7f3736d"
-version = "0.6.6"
+version = "0.6.8"
 
 [[Missings]]
 deps = ["Dates", "InteractiveUtils", "SparseArrays", "Test"]

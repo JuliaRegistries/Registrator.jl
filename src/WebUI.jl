@@ -4,6 +4,7 @@ Required environment variables:
 - GITLAB_API_TOKEN: A personal access token with "api" scope.
 - GITLAB_CLIENT_ID
 - GITLAB_CLIENT_SECRET
+- GITHUB_API_TOKEN: A personal access token with enough permissions to create PRs.
 - GITHUB_CLIENT_ID
 - GITHUB_CLIENT_SECRET
 - IP: IP address to use, or "localhost".
@@ -30,12 +31,9 @@ const ROUTE_CALLBACK = "/callback"
 const ROUTE_SELECT = "/select"
 const ROUTE_REGISTER = "/register"
 
-# We should be able to use the authenticated user's GitLab client,
-# but GitLab requires full API permissions for practically everything.
-const gitlab = GitLabAPI(; token=PersonalAccessToken(ENV["GITLAB_API_TOKEN"]))
-
 const FORGES = Dict(
     "github" => (
+        client=GitHubAPI(; token=Token(ENV["GITHUB_API_TOKEN"])),
         client_id=ENV["GITHUB_CLIENT_ID"],
         client_secret=ENV["GITHUB_CLIENT_SECRET"],
         auth_url="https://github.com/login/oauth/authorize",
@@ -47,6 +45,7 @@ const FORGES = Dict(
         Token=Token,
     ),
     "gitlab" => (
+        client=GitLabAPI(; token=PersonalAccessToken(ENV["GITLAB_API_TOKEN"])),
         client_id=ENV["GITLAB_CLIENT_ID"],
         client_secret=ENV["GITLAB_CLIENT_SECRET"],
         auth_url="https://gitlab.com/oauth/authorize",
@@ -138,6 +137,15 @@ index(::HTTP.Request) = html(PAGE_INDEX)
 # Step 2: Redirect to provider.
 function auth(r::HTTP.Request)
     forge = getforge(r)
+
+    # If the user has already authenticated, skip.
+    # TODO: This doesn't allow a user to register packages
+    # from multiple providers in one session.
+    state = getcookie(r, "state")
+    if !isempty(state) && haskey(USERS, state)
+        return HTTP.Response(307, ["Location" => ROUTE_SELECT])
+    end
+
     state = String(rand('a':'z', 32))
     return HTTP.Response(307, [
         "Set-Cookie" => String(HTTP.Cookie("state", state; path="/"), false),
@@ -182,13 +190,6 @@ function callback(r::HTTP.Request)
     return HTTP.Response(308, ["Location" => ROUTE_SELECT])
 end
 
-const REGISTRIES = split(ENV["REGISTRIES"], ','; keepempty=false)
-const REGISTRY_OPTIONS =
-const REGISTRY_SELECT = """
-    <select>
-      <option value="https://github.cpom
-    </select>
-    """
 const PAGE_SELECT = let
     registries = split(ENV["REGISTRIES"], ','; keepempty=false)
     select = string(
@@ -198,7 +199,7 @@ const PAGE_SELECT = let
     )
 
     """
-    <form action="$ROUTE_REGISTER">
+    <form action="$ROUTE_REGISTER" method="post">
     URL of package to register: <input type="text" name="package">
     <br>
     URL of registry to target: $select
@@ -280,25 +281,63 @@ function treesha(::GitLabAPI, r::GitLab.Project)
     end
 end
 
+# Make the PR to the registry.
+function make_registration_request(
+    f::GitLabAPI,
+    repo::GitLab.Project,
+    branch::AbstractString,
+    title::AbstractString,
+    body::AbstractString,
+)
+    return create_pull_request(
+        f, repo.id;
+        source_branch=branch,
+        target_branch=repo.default_branch,
+        title=title,
+    )
+end
+
+function make_registration_request(
+    f::GitHubAPI,
+    repo::GitHub.Repo,
+    branch::AbstractString,
+    title::AbstractString,
+    body::AbstractString,
+)
+    return create_pull_request(
+        f, repo.owner.login, repo.name;
+        head=branch,
+        base=repo.default_branch,
+        title=title,
+        body=body,
+    )
+end
+
+# Get the web URL of a pull request.
+pr_url(pr::GitHub.PullRequest) = pr.html_url
+pr_url(mr::GitLab.MergeRequest) = mr.web_url
+
 # Step 5: Register the package (maybe).
 function register(r::HTTP.Request)
     state = getcookie(r, "state")
     if isempty(state) || !haskey(USERS, state)
-        return html("Missing state cookie")
+        return html("Missing or invalid state cookie")
     end
     u = USERS[state]
 
-    registry = getquery(r, "registry")
+    # Parse the form data.
+    form = Dict(map(p -> map(HTTP.unescapeuri, split(p, '=')), split(String(r.body), '&')))
+    registry = form["registry"]
+    package = form["package"]
+    isempty(package) && return html("Package URL was not provided")
     occursin("://", registry) || (registry = "https://$registry")
-    package = getquery(r, "package")
     occursin("://", package) || (package = "https://$package")
 
+    # Get the repo, then check for authorization.
     # GitLab organizations can be nested, i.e. foo/bar.
     pieces = split(HTTP.URI(package).path, "/"; keepempty=false)
     owner = join(pieces[1:end-1], "/")
     name = pieces[end]
-
-    # Get the repo, then check for authorization.
     repo = getrepo(u.forge, owner, name)
     repo === nothing && return html("Repository was not found")
     isauthorized(u, repo) || return html("Unauthorized to release this package")
@@ -315,15 +354,38 @@ function register(r::HTTP.Request)
         getfield(project, k) === nothing && return html("Package $k is invalid")
     end
 
-    url = cloneurl(repo)
+    # Register the package,
+    clone = cloneurl(repo)
     project = Pkg.Types.read_project(IOBuffer(toml))
     tree = treesha(u.forge, repo)
     tree === nothing && return html("Looking up the tree hash failed")
-    branch = Registrator.register(url, project, tree; registry=registry)
+    branch = Registrator.register(clone, project, tree; registry=registry)
 
-    return if branch.error === nothing
-        # TODO: Make PR.
-        html("Registered!")
+    if branch.error === nothing
+        forgekey = if occursin("github", registry)
+            "github"
+        elseif occursin("gitlab", registry)
+            "gitlab"
+        else
+            return html("Registration failed: Unrecognized registry")
+        end
+        forge = FORGES[forgekey].client
+
+        # Get the registry repo (same process as above for the package repo).
+        # TODO: This can be saved.
+        pieces = split(HTTP.URI(registry).path, "/"; keepempty=false)
+        regrepo = getrepo(forge, join(pieces[1:end-1], "/"), pieces[end])
+        regrepo === nothing && return html("Registration failed: Registry lookup failed")
+
+        title = "TODO: Title"
+        body = "TODO: Body"
+
+        # Make the PR.
+        pr = @gf make_registration_request(forge, regrepo, branch.branch, title, body)
+        pr === nothing || return html("Registration failed: Making pull request failed")
+
+        url = pr_url(pr)
+        html("""Registry PR successfully created, see it <a href="$url">here</a>!""")
     else
         html("Registration failed: " * branch.error)
     end
@@ -335,7 +397,7 @@ HTTP.@register ROUTER "GET" ROUTE_INDEX index
 HTTP.@register ROUTER "GET" "$ROUTE_AUTH/*" auth
 HTTP.@register ROUTER "GET" "$ROUTE_CALLBACK/*" callback
 HTTP.@register ROUTER "GET" ROUTE_SELECT select
-HTTP.@register ROUTER "GET" ROUTE_REGISTER register
+HTTP.@register ROUTER "POST" ROUTE_REGISTER register
 
 const IP = ENV["IP"] == "localhost" ? Sockets.localhost : ENV["IP"]
 const PORT = parse(Int, ENV["PORT"])
