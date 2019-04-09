@@ -1,16 +1,16 @@
 """
 Required environment variables:
 
-- GITLAB_API_TOKEN: A personal access token with "api" scope.
+- GITLAB_API_TOKEN
 - GITLAB_CLIENT_ID
 - GITLAB_CLIENT_SECRET
-- GITHUB_API_TOKEN: A personal access token with enough permissions to create PRs.
+- GITHUB_API_TOKEN
 - GITHUB_CLIENT_ID
 - GITHUB_CLIENT_SECRET
 - IP: IP address to use, or "localhost".
 - PORT: Port to use. e.g. 4000.
 - SERVER_URL: Full URL, e.g. http://localhost:4000.
-- REGISTRIES: Comma-separated URLs of registries, e.g. github.com/JuliaRegistries/General.
+- REGISTRY_URL: URL to the target registry.
 """
 module WebUI
 
@@ -31,32 +31,26 @@ const ROUTE_CALLBACK = "/callback"
 const ROUTE_SELECT = "/select"
 const ROUTE_REGISTER = "/register"
 
-const FORGES = Dict(
-    "github" => (
-        client=GitHubAPI(; token=Token(ENV["GITHUB_API_TOKEN"])),
-        client_id=ENV["GITHUB_CLIENT_ID"],
-        client_secret=ENV["GITHUB_CLIENT_SECRET"],
-        auth_url="https://github.com/login/oauth/authorize",
-        token_url="https://github.com/login/oauth/access_token",
-        redirect_uri=string(ENV["SERVER_URL"], ROUTE_CALLBACK, "/github"),
-        scope="public_repo",
-        include_state=true,
-        Forge=GitHubAPI,
-        Token=Token,
-    ),
-    "gitlab" => (
-        client=GitLabAPI(; token=PersonalAccessToken(ENV["GITLAB_API_TOKEN"])),
-        client_id=ENV["GITLAB_CLIENT_ID"],
-        client_secret=ENV["GITLAB_CLIENT_SECRET"],
-        auth_url="https://gitlab.com/oauth/authorize",
-        token_url="https://gitlab.com/oauth/token",
-        redirect_uri=string(ENV["SERVER_URL"], ROUTE_CALLBACK, "/gitlab"),
-        scope="read_user",
-        include_state=false,
-        Forge=GitLabAPI,
-        Token=OAuth2Token,
-    ),
-)
+Base.@kwdef struct Forge{F <: GitForge.Forge}
+    name::String
+    client::F
+    client_id::String
+    client_secret::String
+    auth_url::String
+    token_url::String
+    scope::String
+    include_state::Bool = true
+    token_type::Type = typeof(client.token)
+end
+
+struct Registry{F <: GitForge.Forge, R}
+    forge::F
+    repo::R
+    url::String
+end
+
+const FORGES = Dict{String, Forge}()
+const REGISTRY = Ref{Registry}()
 
 # U is a User type, e.g. GitHub.User.
 struct User{U, F <: GitForge.Forge}
@@ -76,8 +70,11 @@ macro gf(ex::Expr)
     end
 end
 
-# Get the forge type from a request whose path ends in the forge name, e.g. "github".
-getforge(r::HTTP.Request) = FORGES[split(HTTP.URI(r.target).path, "/")[end]]
+# Get the last path element of a request.
+pathend(r::HTTP.Request) = split(HTTP.URI(r.target).path, "/")[end]
+
+# Get the callback URL with an extra path component.
+callback_url(x::AbstractString) = string(ENV["SERVER_URL"], ROUTE_CALLBACK, "/", x)
 
 # Get a query string parameter from a request.
 getquery(r::HTTP.Request, key::AbstractString, default="") =
@@ -109,10 +106,14 @@ const TEMPLATE = """
         a {
           color: inherit;
         }
+        h3 {
+          color: #555;
+        }
         </style>
       </head>
       <body>
         <h1><a href=$ROUTE_INDEX>Registrator</a></h1>
+        <h3>Registry URL: <a href="{{registry}}">{{registry}}</a></h3>
         <br>
         {{body}}
       </body>
@@ -121,22 +122,27 @@ const TEMPLATE = """
 
 # Return an HTML response.
 function html(body::AbstractString)
-    doc = replace(TEMPLATE, "{{body}}" => body)
+    doc = TEMPLATE
+    doc = replace(doc, "{{body}}" => body)
+    doc = replace(doc, "{{registry}}" => REGISTRY[].url)
     return HTTP.Response(200, ["Content-Type" => "text/html"]; body=doc)
 end
 
-const PAGE_INDEX = """
-    <a href="$ROUTE_AUTH/github">Log in to GitHub</a>
-    <br>
-    <a href="$ROUTE_AUTH/gitlab">Log in to GitLab</a>
-    """
-
 # Step 1: Home page prompts login.
-index(::HTTP.Request) = html(PAGE_INDEX)
+function index(::HTTP.Request)
+    links = map(collect(FORGES)) do p
+        link = p.first
+        name = p.second.name
+        """<a href="$ROUTE_AUTH/$link">Log in to $name</a>"""
+    end
+    return html(join(links, "<br>"))
+end
 
 # Step 2: Redirect to provider.
 function auth(r::HTTP.Request)
-    forge = getforge(r)
+    forgekey = pathend(r)
+    forge = get(FORGES, forgekey, nothing)
+    forge === nothing && return html("Requested uknown OAuth provider")
 
     # If the user has already authenticated, skip.
     # TODO: This doesn't allow a user to register packages
@@ -152,7 +158,7 @@ function auth(r::HTTP.Request)
         "Location" => forge.auth_url * "?" * HTTP.escapeuri(Dict(
             :response_type => :code,
             :client_id => forge.client_id,
-            :redirect_uri => forge.redirect_uri,
+            :redirect_uri => callback_url(forgekey),
             :scope => forge.scope,
             :state => state,
         )),
@@ -162,59 +168,45 @@ end
 # Step 3: OAuth callback.
 function callback(r::HTTP.Request)
     state = getcookie(r, "state")
-    if isempty(state) || state != getquery(r, "state")
-        @error "Bad state parameter"
-        return html("Bad state parameter")
-    end
+    (isempty(state) || state != getquery(r, "state")) && return html("Invalid state")
 
-    forge = getforge(r)
+    forgekey = pathend(r)
+    forge = get(FORGES, forgekey, nothing)
+    forge === nothing && return html("Invalid callback URL")
+
     query = Dict(
         :client_id => forge.client_id,
         :client_secret => forge.client_secret,
-        :redirect_uri => forge.redirect_uri,
+        :redirect_uri => callback_url(forgekey),
         :code => getquery(r, "code"),
         :grant_type => "authorization_code",
     )
     forge.include_state && (query[:state] = state)
     resp = HTTP.post(
-        forge.token_url,
-        [
-            "Accept" => "application/json",
-            "User-Agent" => "Registrator.jl",
-        ];
+        forge.token_url;
+        headers=["Accept" => "application/json", "User-Agent" => "Registrator.jl"],
         query=query,
     )
     token = JSON2.read(IOBuffer(resp.body)).access_token
-    api = forge.Forge(; token=forge.Token(token))
-    USERS[state] = User(@gf(get_user(api)), api)
+    client = typeof(forge.client)(; token=forge.token_type(token))
+    USERS[state] = User(@gf(get_user(client)), client)
     return HTTP.Response(308, ["Location" => ROUTE_SELECT])
 end
 
-const PAGE_SELECT = let
-    registries = split(ENV["REGISTRIES"], ','; keepempty=false)
-    select = string(
-        """<select name="registry">""",
-        mapreduce(r -> """<option value="$r">$r</option>""", *, registries),
-        "</select>",
-    )
-
-    """
+const PAGE_SELECT = """
     <form action="$ROUTE_REGISTER" method="post">
-    URL of package to register: <input type="text" name="package">
-    <br>
-    URL of registry to target: $select
+    URL of package to register: <input type="text" size="50" name="package">
     <br>
     <input type="submit" value="Submit">
     </form>
     """
-end
 
 # Step 4: Select a package.
 select(::HTTP.Request) = html(PAGE_SELECT)
 
 # Look up a repository.
 getrepo(::GitLabAPI, owner::AbstractString, name::AbstractString) =
-    @gf get_repo(gitlab, owner, name)
+    @gf get_repo(FORGES["gitlab"].client, owner, name)
 getrepo(f::GitHubAPI, owner::AbstractString, name::AbstractString) =
     @gf get_repo(f, owner, name)
 
@@ -283,31 +275,29 @@ end
 
 # Make the PR to the registry.
 function make_registration_request(
-    f::GitLabAPI,
-    repo::GitLab.Project,
+    r::Registry{GitLabAPI},
     branch::AbstractString,
     title::AbstractString,
     body::AbstractString,
 )
     return create_pull_request(
-        f, repo.id;
+        r.forge, r.repo.id;
         source_branch=branch,
-        target_branch=repo.default_branch,
+        target_branch=r.repo.default_branch,
         title=title,
     )
 end
 
 function make_registration_request(
-    f::GitHubAPI,
-    repo::GitHub.Repo,
+    r::Registry{GitHubAPI},
     branch::AbstractString,
     title::AbstractString,
     body::AbstractString,
 )
     return create_pull_request(
-        f, repo.owner.login, repo.name;
+        r.forge, r.repo.owner.login, r.repo.name;
         head=branch,
-        base=repo.default_branch,
+        base=r.repo.default_branch,
         title=title,
         body=body,
     )
@@ -327,10 +317,8 @@ function register(r::HTTP.Request)
 
     # Parse the form data.
     form = Dict(map(p -> map(HTTP.unescapeuri, split(p, '=')), split(String(r.body), '&')))
-    registry = form["registry"]
     package = form["package"]
     isempty(package) && return html("Package URL was not provided")
-    occursin("://", registry) || (registry = "https://$registry")
     occursin("://", package) || (package = "https://$package")
 
     # Get the repo, then check for authorization.
@@ -359,30 +347,15 @@ function register(r::HTTP.Request)
     project = Pkg.Types.read_project(IOBuffer(toml))
     tree = treesha(u.forge, repo)
     tree === nothing && return html("Looking up the tree hash failed")
-    branch = Registrator.register(clone, project, tree; registry=registry)
+    branch = Registrator.register(clone, project, tree; registry=REGISTRY[].url)
 
     if branch.error === nothing
-        forgekey = if occursin("github", registry)
-            "github"
-        elseif occursin("gitlab", registry)
-            "gitlab"
-        else
-            return html("Registration failed: Unrecognized registry")
-        end
-        forge = FORGES[forgekey].client
-
-        # Get the registry repo (same process as above for the package repo).
-        # TODO: This can be saved.
-        pieces = split(HTTP.URI(registry).path, "/"; keepempty=false)
-        regrepo = getrepo(forge, join(pieces[1:end-1], "/"), pieces[end])
-        regrepo === nothing && return html("Registration failed: Registry lookup failed")
-
         title = "TODO: Title"
         body = "TODO: Body"
 
         # Make the PR.
-        pr = @gf make_registration_request(forge, regrepo, branch.branch, title, body)
-        pr === nothing || return html("Registration failed: Making pull request failed")
+        pr = @gf make_registration_request(REGISTRY[], branch.branch, title, body)
+        pr === nothing && return html("Registration failed: Making pull request failed")
 
         url = pr_url(pr)
         html("""Registry PR successfully created, see it <a href="$url">here</a>!""")
@@ -399,9 +372,30 @@ HTTP.@register ROUTER "GET" "$ROUTE_CALLBACK/*" callback
 HTTP.@register ROUTER "GET" ROUTE_SELECT select
 HTTP.@register ROUTER "POST" ROUTE_REGISTER register
 
-const IP = ENV["IP"] == "localhost" ? Sockets.localhost : ENV["IP"]
-const PORT = parse(Int, ENV["PORT"])
+function main()
+    # The config file should populate FORGES.
+    include(get(ENV, "REGISTRATOR_CONFIG", joinpath(dirname(@__DIR__), "config.jl")))
 
-main() = HTTP.serve(ROUTER, IP, PORT)
+    # Look up the registry.
+    url = ENV["REGISTRY_URL"]
+    k = if occursin("github", url)
+        "github"
+    elseif occursin("gitlab", url)
+        "gitlab"
+    else
+        error("Unsupported registry host")
+    end
+    forge = FORGES[k].client
+    pieces = split(HTTP.URI(url).path, "/"; keepempty=false)
+    owner = join(pieces[1:end-1], "/")
+    name = pieces[end]
+    repo = @gf get_repo(forge, owner, name)
+    repo === nothing && error("Registry lookup failed")
+    REGISTRY[] = Registry(forge, repo, url)
+
+    ip = ENV["IP"] == "localhost" ? Sockets.localhost : ENV["IP"]
+    port = parse(Int, ENV["PORT"])
+    HTTP.serve(ROUTER, ip, port)
+end
 
 end
