@@ -741,11 +741,11 @@ $enc_meta
         end
     end
 
-
     if pr == nothing
-        # Look for pull request in last 60 pull requests
-        prs = pull_requests(repo; auth=get_user_auth(),
-                            params=Dict("state"=>"open", "per_page"=>60), page_limit=1)[1]
+        # Look for pull request in last 10 pages, each page contains 15 PRs
+        params = Dict("state"=>"open", "per_page"=>15)
+        auth = get_user_auth()
+        prs, page_data = pull_requests(repo; auth=auth, params=params, page_limit=1)
         for p in prs
             if p.base.ref == target_registry["base_branch"] && p.head.ref == brn
                 @debug("PR found")
@@ -753,9 +753,24 @@ $enc_meta
                 break
             end
         end
+
         if pr == nothing
-            error("Registration PR already exists but unable to find it")
+            i = 1
+            while i < 10
+                prs, page_data = pull_requests(repo; auth=auth, page_limit=1, start_page=page_data["next"]);
+                for p in prs
+                    if p.base.ref == target_registry["base_branch"] && p.head.ref == brn
+                        @debug("PR found")
+                        pr = p
+                        break
+                    end
+                end
+                pr == nothing || break
+                i += 1
+            end
         end
+
+        pr == nothing && error("Registration PR already exists but unable to find it")
     end
 
     cbody = """
