@@ -9,7 +9,7 @@ Required environment variables:
 - IP: IP address to use, or "localhost".
 - PORT: Port to use. e.g. 4000.
 - SERVER_URL: Full URL, e.g. http://localhost:4000.
-- DEFAULT_REGISTRY: URL to default registry, e.g. https://github.com/JuliaRegistries/General
+- REGISTRIES: Comma-separated URLs of registries, e.g. github.com/JuliaRegistries/General.
 """
 module WebUI
 
@@ -97,6 +97,20 @@ const TEMPLATE = """
       <head>
         <meta charset="utf-8">
         <title>Registrator</title>
+        <style>
+        body {
+          background-color: #ddd;
+          text-align: center;
+          margin: auto;
+          max-width: 50em;
+          font-family: Helvetica, sans-serif;
+          line-height: 1.5;
+          color: #333;
+        }
+        a {
+          color: inherit;
+        }
+        </style>
       </head>
       <body>
         <h1><a href=$ROUTE_INDEX>Registrator</a></h1>
@@ -168,16 +182,31 @@ function callback(r::HTTP.Request)
     return HTTP.Response(308, ["Location" => ROUTE_SELECT])
 end
 
-const DEFAULT_REGISTRY = ENV["DEFAULT_REGISTRY"]
-const PAGE_SELECT = """
+const REGISTRIES = split(ENV["REGISTRIES"], ','; keepempty=false)
+const REGISTRY_OPTIONS =
+const REGISTRY_SELECT = """
+    <select>
+      <option value="https://github.cpom
+    </select>
+    """
+const PAGE_SELECT = let
+    registries = split(ENV["REGISTRIES"], ','; keepempty=false)
+    select = string(
+        """<select name="registry">""",
+        mapreduce(r -> """<option value="$r">$r</option>""", *, registries),
+        "</select>",
+    )
+
+    """
     <form action="$ROUTE_REGISTER">
     URL of package to register: <input type="text" name="package">
     <br>
-    URL of registry to target: <input type="text" name="registry" value="$DEFAULT_REGISTRY">
+    URL of registry to target: $select
     <br>
     <input type="submit" value="Submit">
     </form>
     """
+end
 
 # Step 4: Select a package.
 select(::HTTP.Request) = html(PAGE_SELECT)
@@ -260,6 +289,7 @@ function register(r::HTTP.Request)
     u = USERS[state]
 
     registry = getquery(r, "registry")
+    occursin("://", registry) || (registry = "https://$registry")
     package = getquery(r, "package")
     occursin("://", package) || (package = "https://$package")
 
