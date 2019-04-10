@@ -264,9 +264,27 @@ function make_registration_request(
     )
 end
 
-# Get the web URL of a pull request.
-pr_url(pr::GitHub.PullRequest) = pr.html_url
-pr_url(mr::GitLab.MergeRequest) = mr.web_url
+# Get the web URL of various Git things.
+web_url(pr::GitHub.PullRequest) = pr.html_url
+web_url(mr::GitLab.MergeRequest) = mr.web_url
+web_url(u::GitHub.User) = u.html_url
+web_url(u::GitLab.User) = u.web_url
+web_url(r::GitHub.Repo) = r.html_url
+web_url(r::GitLab.Project) = r.web_url
+
+# Get a user's @ mention.
+mention(u::GitHub.User) = "@$(u.login)"
+mention(u::GitLab.User) = "@$(u.username)"
+
+# Get a user's representation for a registry PR.
+# If the registry is from the same provider, mention the user, otherwise use the URL.
+function display_user(u::U) where U
+    return if parentmodule(typeof(REGISTRY[].repo)) === parentmodule(U)
+        mention(u)
+    else
+        web_url(u)
+    end
+end
 
 # Routes.
 
@@ -382,15 +400,18 @@ function register(r::HTTP.Request)
         registry=REGISTRY[].clone, push=true,
     )
 
-    if branch.error === nothing
-        title = "TODO: Title"
-        body = "TODO: Body"
+    return if branch.error === nothing
+        title = "Register $(project.name): v$(project.version)"
+        body = """
+            - Created by: $(display_user(u.user))
+            - Repository: $(web_url(repo))
+            """
 
         # Make the PR.
         pr = @gf make_registration_request(REGISTRY[], branch.branch, title, body)
         pr === nothing && return html("Registration failed: Making pull request failed")
 
-        url = pr_url(pr)
+        url = web_url(pr)
         html("""Registry PR successfully created, see it <a href="$url">here</a>!""")
     else
         html("Registration failed: " * branch.error)
