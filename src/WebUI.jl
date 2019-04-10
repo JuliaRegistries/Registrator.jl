@@ -26,7 +26,9 @@ GitLab settings, if GitLab is not disabled:
 - SERVER_URL: Full URL, e.g. "http://localhost:4000".
 
 Registry settings:
-- REGISTRY_URL: URL to the target registry.
+- REGISTRY_URL: Web URL to the target registry.
+- REGISTRY_CLONE_URL: Clone URL to the registry. Only set if it's not the web URL,
+  e.g. an SSH URL.
 - REGISTRY_HOST: Host of the registry repo, e.g. "github" or "gitlab".
   You only need to set this if your URL doesn't contain either of those strings.
 """
@@ -110,6 +112,7 @@ struct Registry{F <: GitForge.Forge, R}
     forge::F
     repo::R
     url::String
+    clone::String
 end
 
 # U is a User type, e.g. GitHub.User.
@@ -370,7 +373,10 @@ function register(r::HTTP.Request)
     project = Pkg.Types.read_project(IOBuffer(toml))
     tree = treesha(u.forge, repo)
     tree === nothing && return html("Looking up the tree hash failed")
-    branch = Registrator.register(clone, project, tree; registry=REGISTRY[].url)
+    branch = Registrator.register(
+        clone, project, tree;
+        registry=REGISTRY[].clone, push=true,
+    )
 
     if branch.error === nothing
         title = "TODO: Title"
@@ -443,7 +449,7 @@ function main()
     owner, name = splitrepo(url)
     repo = @gf get_repo(forge, owner, name)
     repo === nothing && error("Registry lookup failed")
-    REGISTRY[] = Registry(forge, repo, url)
+    REGISTRY[] = Registry(forge, repo, url, get(ENV, "REGISTRY_CLONE_URL", url))
 
     ip = ENV["IP"] == "localhost" ? Sockets.localhost : ENV["IP"]
     port = parse(Int, ENV["PORT"])

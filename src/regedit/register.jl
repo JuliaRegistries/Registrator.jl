@@ -1,7 +1,41 @@
-# """
-# Given a remote repo URL and a git tree spec, get a `Project` object
-# for the project file in that tree and a hash string for the tree.
-# """
+"""
+Return a `GitRepo` object for an up-to-date copy of `registry`.
+"""
+function get_registry(registry::String; gitconfig::Dict=Dict())
+    reg_path(args...) = joinpath("registries", map(string, args)...)
+    if haskey(REGISTRIES, registry)
+        registry_uuid = REGISTRIES[registry]
+        registry_path = reg_path(registry_uuid)
+        if !ispath(registry_path)
+            run(`git clone $registry $registry_path`)
+        else
+            # this is really annoying/impossible to do with LibGit2
+            git = gitcmd(registry_path, gitconfig)
+            run(`$git config remote.origin.url $registry`)
+            run(`$git checkout -f master`)
+            run(`$git fetch -P origin master`)
+            run(`$git reset --hard origin/master`)
+        end
+    else
+        registry_temp = mktempdir(mkpath(reg_path()))
+        try
+            run(`git clone $registry $registry_temp`)
+            reg = TOML.parsefile(joinpath(registry_temp, "Registry.toml"))
+            registry_uuid = REGISTRIES[registry] = UUID(reg["uuid"])
+            registry_path = reg_path(registry_uuid)
+            rm(registry_path, recursive=true, force=true)
+            mv(registry_temp, registry_path)
+        finally
+            rm(registry_temp, recursive=true, force=true)
+        end
+    end
+    return GitRepo(registry_path)
+end
+
+"""
+Given a remote repo URL and a git tree spec, get a `Project` object
+for the project file in that tree and a hash string for the tree.
+"""
 # function get_project(remote_url::String, tree_spec::String)
 #     # TODO?: use raw file downloads for GitHub/GitLab
 #     mktempdir(mkpath("packages")) do tmp
@@ -146,9 +180,9 @@ function register(
         # branch registry repo
         @debug("branch registry repo")
         git = gitcmd(registry_path, gitconfig)
-        run(`$git checkout -qf master`)
-        run(`$git branch -qf $branch`)
-        run(`$git checkout -qf $branch`)
+        run(`$git checkout -f master`)
+        run(`$git branch -f $branch`)
+        run(`$git checkout -f $branch`)
 
         # find package in registry
         @debug("find package in registry")
@@ -302,11 +336,15 @@ function register(
         """
         run(`$git add -- $package_path`)
         run(`$git add -- $registry_file`)
-        run(`$git commit -qm $message`)
+        run(`$git commit -m $message`)
 
         # push -f branch to remote
-        @debug("push -f branch to remote")
-        push && run(`$git push -q -f -u origin $branch`)
+        if push
+            @debug("push -f branch to remote")
+            run(`$git push -f -u origin $branch`)
+        else
+            @debug("skipping git push")
+        end
 
         clean_registry = false
         return RegBranch(pkg, branch; wa=wa)
