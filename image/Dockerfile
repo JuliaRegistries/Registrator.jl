@@ -2,6 +2,9 @@
 
 FROM julia:latest
 
+# install GIT
+RUN apt-get update; apt-get install git -y
+
 RUN useradd -ms /bin/bash registrator
 
 USER registrator
