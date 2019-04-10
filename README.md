@@ -23,9 +23,8 @@ Registrator will look for the project file in the master branch by default. To u
 
 Either:
 
-1) Open an issue and add ` @JuliaRegistrator register() ` as a comment.  You can re-trigger the registrator by commenting ` @JuliaRegistrator register() ` again (in case registrator reports an error or you wish to make changes).
-
-2) Add a comment to a commit and say ` @JuliaRegistrator register() `.
+1. Open an issue and add ` @JuliaRegistrator register() ` as a comment.  You can re-trigger the registrator by commenting ` @JuliaRegistrator register() ` again (in case registrator reports an error or you wish to make changes).
+2. Add a comment to a commit and say ` @JuliaRegistrator register() `.
 
 ### If you are not a collaborator
 
