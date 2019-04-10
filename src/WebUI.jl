@@ -1,8 +1,8 @@
 """
-Required environment variables:
+Environment variable configuration:
 
-- DISABLED_FORGES: Space-delimited string of hosts to not use, e.g. "github gitlab"
-- EXTRA_FORGES: Optional path to a Julia file that adds entries to FORGES.
+- DISABLED_PROVIDERS: Space-delimited string of providers to not use, e.g. "github gitlab"
+- EXTRA_PROVIDERS: Optional path to a Julia file that adds entries to PROVIDERS.
 
 GitHub settings, if GitHub is not disabled:
 - GITHUB_API_TOKEN
@@ -121,7 +121,7 @@ struct User{U, F <: GitForge.Forge}
     forge::F
 end
 
-const FORGES = Dict{String, Forge}()
+const PROVIDERS = Dict{String, Forge}()
 const REGISTRY = Ref{Registry}()
 const USERS = TTL{String, User}(Hour(1))
 
@@ -173,7 +173,7 @@ end
 
 # Look up a repository.
 getrepo(::GitLabAPI, owner::AbstractString, name::AbstractString) =
-    @gf get_repo(FORGES["gitlab"].client, owner, name)
+    @gf get_repo(PROVIDERS["gitlab"].client, owner, name)
 getrepo(f::GitHubAPI, owner::AbstractString, name::AbstractString) =
     @gf get_repo(f, owner, name)
 
@@ -192,10 +192,11 @@ function isauthorized(u::User{GitHub.User}, repo::GitHub.Repo)
 end
 function isauthorized(u::User{GitLab.User}, repo::GitLab.Project)
     repo.visibility == "private" && return false
+    forge = PROVIDERS["gitlab"].client
     hasauth = @gf if repo.namespace == "user"
-        is_member(gitlab, repo.namespace.full_path, u.user.id)
+        is_member(forge, repo.namespace.full_path, u.user.id)
     else
-        is_collaborator(gitlab, repo.owner.username, repo.name, u.user.id)
+        is_collaborator(forge, repo.owner.username, repo.name, u.user.id)
     end
     return something(hasauth, false)
 end
@@ -206,7 +207,8 @@ function gettoml(f::GitHubAPI, repo::GitHub.Repo)
     return fc === nothing ? nothing : String(base64decode(strip(fc.content)))
 end
 function gettoml(::GitLabAPI, repo::GitLab.Project)
-    fc = @gf get_file_contents(gitlab, repo.id, "Project.toml"; ref=repo.default_branch)
+    forge = PROVIDERS["gitlab"].client
+    fc = @gf get_file_contents(forge, repo.id, "Project.toml"; ref=repo.default_branch)
     return fc === nothing ? nothing : String(base64decode(fc.content))
 end
 
@@ -270,7 +272,7 @@ pr_url(mr::GitLab.MergeRequest) = mr.web_url
 
 # Step 1: Home page prompts login.
 function index(::HTTP.Request)
-    links = map(collect(FORGES)) do p
+    links = map(collect(PROVIDERS)) do p
         link = p.first
         name = p.second.name
         """<a href="$ROUTE_AUTH?provider=$link">Log in to $name</a>"""
@@ -280,16 +282,18 @@ end
 
 # Step 2: Redirect to provider.
 function auth(r::HTTP.Request)
-    forgekey = getquery(r, "provider")
-    forge = get(FORGES, forgekey, nothing)
+    provider = getquery(r, "provider")
+    forge = get(PROVIDERS, provider, nothing)
     forge === nothing && return html("Requested uknown OAuth provider")
 
     # If the user has already authenticated, skip.
-    # TODO: This doesn't allow a user to register packages
-    # from multiple providers in one session.
     state = getcookie(r, "state")
     if !isempty(state) && haskey(USERS, state)
-        return HTTP.Response(307, ["Location" => ROUTE_SELECT])
+        F = typeof(USERS[state].forge)
+        if provider == "github" && F === GitHubAPI || provider == "gitlab" && F === GitLabAPI
+            # TODO: This does not support custom providers.
+            return HTTP.Response(307, ["Location" => ROUTE_SELECT])
+        end
     end
 
     state = String(rand('a':'z', 32))
@@ -298,7 +302,7 @@ function auth(r::HTTP.Request)
         "Location" => forge.auth_url * "?" * HTTP.escapeuri(Dict(
             :response_type => :code,
             :client_id => forge.client_id,
-            :redirect_uri => callback_url(forgekey),
+            :redirect_uri => callback_url(provider),
             :scope => forge.scope,
             :state => state,
         )),
@@ -310,14 +314,14 @@ function callback(r::HTTP.Request)
     state = getcookie(r, "state")
     (isempty(state) || state != getquery(r, "state")) && return html("Invalid state")
 
-    forgekey = getquery(r, "provider")
-    forge = get(FORGES, forgekey, nothing)
+    provider = getquery(r, "provider")
+    forge = get(PROVIDERS, provider, nothing)
     forge === nothing && return html("Invalid callback URL")
 
     query = Dict(
         :client_id => forge.client_id,
         :client_secret => forge.client_secret,
-        :redirect_uri => callback_url(forgekey),
+        :redirect_uri => callback_url(provider),
         :code => getquery(r, "code"),
         :grant_type => "authorization_code",
     )
@@ -402,9 +406,9 @@ HTTP.@register ROUTER "POST" ROUTE_REGISTER register
 # Entrypoint.
 
 function main()
-    disabled = split(get(ENV, "DISABLED_FORGES", ""))
+    disabled = split(get(ENV, "DISABLED_PROVIDERS", ""))
     if !in("github", disabled)
-        FORGES["github"] = Forge(;
+        PROVIDERS["github"] = Forge(;
             name="GitHub",
             client=GitHubAPI(;
                 url=get(ENV, "GITHUB_API_URL", GitHub.DEFAULT_URL),
@@ -418,7 +422,7 @@ function main()
         )
     end
     if !in("gitlab", disabled)
-        FORGES["gitlab"] = Forge(;
+        PROVIDERS["gitlab"] = Forge(;
             name="GitLab",
             client=GitLabAPI(;
                 url=get(ENV, "GITLAB_API_URL", GitLab.DEFAULT_URL),
@@ -430,10 +434,10 @@ function main()
             token_url=get(ENV, "GITLAB_TOKEN_URL", "https://gitlab.com/oauth/token"),
             scope="read_user",
             include_state=false,
-            token_type=PersonalAccessToken,
+            token_type=OAuth2Token,
         )
     end
-    haskey(ENV, "EXTRA_FORGES") && include(ENV["EXTRA_FORGES"])
+    haskey(ENV, "EXTRA_PROVIDERS") && include(ENV["EXTRA_PROVIDERS"])
 
     # Look up the registry.
     url = ENV["REGISTRY_URL"]
@@ -444,8 +448,8 @@ function main()
             "gitlab"
         end
     end
-    haskey(FORGES, k) || error("Unsupported registry host")
-    forge = FORGES[k].client
+    haskey(PROVIDERS, k) || error("Unsupported registry host")
+    forge = PROVIDERS[k].client
     owner, name = splitrepo(url)
     repo = @gf get_repo(forge, owner, name)
     repo === nothing && error("Registry lookup failed")
