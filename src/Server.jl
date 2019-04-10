@@ -839,6 +839,11 @@ function handle_register(rp::RequestParams, target_registry::Dict{String,Any})
             make_comment(rp.evt, msg)
             set_error_status(rp)
         else
+            if rbrn.warning !== nothing
+                msg = "Warning: $(rbrn.warning)"
+                @debug(msg)
+                make_comment(rp.evt, msg)
+            end
             make_pull_request(pp, rp, rbrn, target_registry)
             set_success_status(rp)
         end
