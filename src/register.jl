@@ -247,6 +247,7 @@ function register(
         versions_data = isfile(versions_file) ? TOML.parsefile(versions_file) : Dict()
         versions = sort!([VersionNumber(v) for v in keys(versions_data)])
 
+        wa = nothing
         if pkg.version in versions
             return RegBranch(pkg, branch; er="Version $(pkg.version) already exists in registry")
         else
@@ -254,7 +255,7 @@ function register(
                 Base.check_new_version(versions, pkg.version)
             catch ex
                 if isa(ex, ErrorException)
-                    return RegBranch(pkg, branch; wa=ex.msg)
+                    wa=ex.msg
                 else
                     rethrow(ex)
                 end
@@ -368,7 +369,7 @@ function register(
         push && run(`$git push -q -f -u origin $branch`)
 
         clean_registry = false
-        return RegBranch(pkg, branch)
+        return RegBranch(pkg, branch; wa=wa)
     finally
         if clean_registry
             @debug("cleaning up possibly inconsistent registry", registry_path=showsafe(registry_path), err=showsafe(err))
