@@ -776,11 +776,10 @@ $enc_meta
     cbody = """
 Registration pull request $msg: [$(repo)/$(pr.number)]($(pr.html_url))
 
-Optionally, after the pull request is merged, you can create a tag on
-this repository for the above registration.
-
+After the above pull request is merged, it is recommended that you create
+a tag on this repository for the registered package version:
 ```
-git tag -a v$(string(ver)) -m "my version $(string(ver))" $(pp.tree_sha)
+git tag -a v$(string(ver)) -m "<description of version>" $(pp.tree_sha)
 git push v$(string(ver))
 ```
 """
