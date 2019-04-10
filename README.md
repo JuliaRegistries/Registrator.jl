@@ -1,5 +1,8 @@
 # Registrator
 
+[![Build Status](https://travis-ci.com/JuliaComputing/Registrator.jl.svg?branch=master)](https://travis-ci.com/JuliaComputing/Registrator.jl)
+[![CodeCov](https://codecov.io/gh/JuliaComputing/Registrator.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/JuliaComputing/Registrator.jl)
+
 !["amelia robot logo"](graphics/logo.png)
 
 Registrator is a GitHub app that automates creation of registration pull requests for your julia packages to the [General](https://github.com/JuliaRegistries/General) registry. Install the app below!
