@@ -127,6 +127,14 @@ const USERS = TTL{String, User}(Hour(1))
 
 # Helpers.
 
+# Catch errors in route handlers.
+error_handler(f::Function) = r::HTTP.Request -> try
+    f(r)
+catch e
+    @error "Handler error" route=r.target exception=(e, catch_backtrace())
+    html("Server error, sorry!")
+end
+
 # Run some GitForge function, warning on error but still returning the value.
 macro gf(ex::Expr)
     quote
@@ -418,11 +426,11 @@ function register(r::HTTP.Request)
     end
 end
 
-HTTP.@register ROUTER "GET" ROUTE_INDEX index
-HTTP.@register ROUTER "GET" ROUTE_AUTH auth
-HTTP.@register ROUTER "GET" ROUTE_CALLBACK callback
-HTTP.@register ROUTER "GET" ROUTE_SELECT select
-HTTP.@register ROUTER "POST" ROUTE_REGISTER register
+HTTP.@register ROUTER "GET" ROUTE_INDEX error_handler(index)
+HTTP.@register ROUTER "GET" ROUTE_AUTH error_handler(auth)
+HTTP.@register ROUTER "GET" ROUTE_CALLBACK error_handler(callback)
+HTTP.@register ROUTER "GET" ROUTE_SELECT error_handler(select)
+HTTP.@register ROUTER "POST" ROUTE_REGISTER error_handler(register)
 
 # Entrypoint.
 
