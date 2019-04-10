@@ -106,7 +106,12 @@ struct RegBranch
     version::VersionNumber
     branch::String
 
+    warning::Union{Nothing, String}
     error::Union{Nothing, String}
+
+    function RegBranch(pkg::Pkg.Types.Project, branch::String; wa=nothing, er=nothing)
+        new(pkg.name, pkg.version, branch, wa, er)
+    end
 end
 
 function write_registry(io::IO, data::Dict)
@@ -202,7 +207,7 @@ function register(
             if (package_data["name"] != pkg.name)
                 err = "Changing package names not supported yet"
                 @debug(err)
-                return RegBranch(pkg.name, pkg.version, branch, err)
+                return RegBranch(pkg, branch; er=err)
             end
             package_path = joinpath(registry_path, package_data["path"])
         else
@@ -211,7 +216,7 @@ function register(
                 if v["name"] == pkg.name
                     err = "Changing UUIDs is not allowed"
                     @debug(err)
-                    return RegBranch(pkg.name, pkg.version, branch, err)
+                    return RegBranch(pkg, branch; er=err)
                 end
             end
 
@@ -240,15 +245,19 @@ function register(
         @debug("update package data: versions file")
         versions_file = joinpath(package_path, "Versions.toml")
         versions_data = isfile(versions_file) ? TOML.parsefile(versions_file) : Dict()
+        versions = sort!([VersionNumber(v) for v in keys(versions_data)])
 
-        try
-            versions = sort!([VersionNumber(v) for v in keys(versions_data)])
-            #Base.check_new_version(versions, pkg.version)
-        catch ex
-            if isa(ex, ErrorException)
-                return RegBranch(pkg.name, pkg.version, branch, ex.msg)
-            else
-                rethrow(ex)
+        if pkg.version in versions
+            return RegBranch(pkg, branch; er="Version $(pkg.version) already exists in registry")
+        else
+            try
+                Base.check_new_version(versions, pkg.version)
+            catch ex
+                if isa(ex, ErrorException)
+                    return RegBranch(pkg, branch; wa=ex.msg)
+                else
+                    rethrow(ex)
+                end
             end
         end
 
@@ -305,7 +314,7 @@ function register(
             end
         end
 
-        err !== nothing && return RegBranch(pkg.name, pkg.version, branch, err)
+        err !== nothing && return RegBranch(pkg, branch; er=err)
 
         deps_data[pkg.version] = pkg.deps
         Pkg.Compress.save(deps_file, deps_data)
@@ -329,7 +338,7 @@ function register(
             end
         end
 
-        err !== nothing && return RegBranch(pkg.name, pkg.version, branch, err)
+        err !== nothing && return RegBranch(pkg, branch; er=err)
 
         @debug("update package data: compat file")
         compat_file = joinpath(package_path, "Compat.toml")
@@ -359,7 +368,7 @@ function register(
         push && run(`$git push -q -f -u origin $branch`)
 
         clean_registry = false
-        return RegBranch(pkg.name, pkg.version, branch, nothing)
+        return RegBranch(pkg, branch)
     finally
         if clean_registry
             @debug("cleaning up possibly inconsistent registry", registry_path=showsafe(registry_path), err=showsafe(err))
