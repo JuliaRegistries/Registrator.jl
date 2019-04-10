@@ -1,6 +1,6 @@
 showsafe(x) = (x === nothing) ? "nothing" : x
 
-function gitcmd(path::String, gitconfig::Dict)
+function gitcmd(path::AbstractString, gitconfig::Dict)
     cmd = ["git", "-C", path]
     for (n,v) in gitconfig
         push!(cmd, "-c")
@@ -12,7 +12,7 @@ end
 """
 Write TOML data (with sorted keys).
 """
-function write_toml(file::String, data::Dict)
+function write_toml(file::AbstractString, data::Dict)
     open(file, "w") do io
         TOML.print(io, data, sorted=true)
     end

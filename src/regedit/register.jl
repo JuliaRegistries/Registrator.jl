@@ -1,7 +1,7 @@
 """
 Return a `GitRepo` object for an up-to-date copy of `registry`.
 """
-function get_registry(registry::String; gitconfig::Dict=Dict())
+function get_registry(registry::AbstractString; gitconfig::Dict=Dict())
     reg_path(args...) = joinpath("registries", map(string, args)...)
     if haskey(REGISTRIES, registry)
         registry_uuid = REGISTRIES[registry]
@@ -151,9 +151,9 @@ errors or warnings that occurred.
 * `gitconfig::Dict=Dict()`: dictionary of configuration options for the `git` command
 """
 function register(
-    package_repo::String, pkg::Pkg.Types.Project, tree_hash::String;
+    package_repo::AbstractString, pkg::Pkg.Types.Project, tree_hash::AbstractString;
     registry::String = DEFAULT_REGISTRY_URL,
-    registry_deps::Vector{String} = String[],
+    registry_deps::Vector{<:AbstractString} = String[],
     push::Bool = false,
     gitconfig::Dict = Dict()
 )

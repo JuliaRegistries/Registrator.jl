@@ -332,7 +332,7 @@ function callback(r::HTTP.Request)
         query=query,
     )
     token = JSON2.read(IOBuffer(resp.body)).access_token
-    client = typeof(forge.client)(; token=forge.token_type(token))
+    client = typeof(forge.client)(; url=forge.client.url, token=forge.token_type(token))
     USERS[state] = User(@gf(get_user(client)), client)
     return HTTP.Response(308, ["Location" => ROUTE_SELECT])
 end
