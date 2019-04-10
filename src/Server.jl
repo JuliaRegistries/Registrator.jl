@@ -12,7 +12,8 @@ using JSON
 using MbedTLS
 
 import Pkg: TOML
-import ..Registrator: register, RegBranch, post_on_slack_channel
+import ..Registrator: post_on_slack_channel
+import ..RegEdit: register, RegBranch
 import Base: string
 
 struct CommonParams
