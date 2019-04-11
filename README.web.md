@@ -118,7 +118,7 @@ If you do want to do this, then you should set the `EXTRA_PROVIDERS` variable me
 The file should look like this:
 
 ```julia
-PROVIDERS["mygithub"] = Forge(;
+PROVIDERS["mygithub"] = Provider(;
     name="PrivateGitHub",
     client=GitHubAPI(;
         url="https://api.github.mysite.com",
@@ -131,7 +131,7 @@ PROVIDERS["mygithub"] = Forge(;
     scope="public_repo",
 )
 
-PROVIDERS["mygitlab"] = Forge(;
+PROVIDERS["mygitlab"] = Provider(;
     name="PrivateGitLab",
     client=GitLabAPI(;
         url="https://gitlab.mysite.com/api/v4",

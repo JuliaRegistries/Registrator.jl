@@ -1,37 +1,3 @@
-"""
-Environment variable configuration:
-
-- DISABLED_PROVIDERS: Space-delimited string of providers to not use, e.g. "github gitlab"
-- EXTRA_PROVIDERS: Optional path to a Julia file that adds entries to PROVIDERS.
-
-GitHub settings, if GitHub is not disabled:
-- GITHUB_API_TOKEN
-- GITHUB_CLIENT_ID
-- GITHUB_CLIENT_SECRET
-- GITHUB_API_URL: URL of the GitHub instance's API. Only set if it's not the default.
-- GITHUB_AUTH_URL: OAuth authentication URL. Only set if it's not the default.
-- GITHUB_TOKEN_URL: OAuth token exchange URL. Only set if it's not the default.
-
-GitLab settings, if GitLab is not disabled:
-- GITLAB_API_TOKEN
-- GITLAB_CLIENT_ID
-- GITLAB_CLIENT_SECRET
-- GITLAB_API_URL: URL of the GitLab instance's API. Only set if it's not the default.
-- GITLAB_AUTH_URL: OAuth authentication URL. Only set if it's not the default.
-- GITLAB_TOKEN_URL: OAuth token exchange URL. Only set if it's not the default.
-
- Web server settings:
-- IP: IP address to use, or "localhost".
-- PORT: Port to use. e.g. "4000".
-- SERVER_URL: Full URL, e.g. "http://localhost:4000".
-
-Registry settings:
-- REGISTRY_URL: Web URL to the target registry.
-- REGISTRY_CLONE_URL: Clone URL to the registry. Only set if it's not the web URL,
-  e.g. an SSH URL.
-- REGISTRY_HOST: Host of the registry repo, e.g. "github" or "gitlab".
-  You only need to set this if your URL doesn't contain either of those strings.
-"""
 module WebUI
 
 using ..Registrator
@@ -95,7 +61,7 @@ const PAGE_SELECT = """
     """
 
 # a supported provider whose hosted repositories can be registered.
-Base.@kwdef struct Forge{F <: GitForge.Forge}
+Base.@kwdef struct Provider{F <: GitForge.Forge}
     name::String
     client::F
     client_id::String
@@ -121,7 +87,7 @@ struct User{U, F <: GitForge.Forge}
     forge::F
 end
 
-const PROVIDERS = Dict{String, Forge}()
+const PROVIDERS = Dict{String, Provider}()
 const REGISTRY = Ref{Registry}()
 const USERS = TTL{String, User}(Hour(1))
 
@@ -437,7 +403,7 @@ HTTP.@register ROUTER "POST" ROUTE_REGISTER error_handler(register)
 function main()
     disabled = split(get(ENV, "DISABLED_PROVIDERS", ""))
     if !in("github", disabled)
-        PROVIDERS["github"] = Forge(;
+        PROVIDERS["github"] = Provider(;
             name="GitHub",
             client=GitHubAPI(;
                 url=get(ENV, "GITHUB_API_URL", GitHub.DEFAULT_URL),
@@ -451,7 +417,7 @@ function main()
         )
     end
     if !in("gitlab", disabled)
-        PROVIDERS["gitlab"] = Forge(;
+        PROVIDERS["gitlab"] = Provider(;
             name="GitLab",
             client=GitLabAPI(;
                 url=get(ENV, "GITLAB_API_URL", GitLab.DEFAULT_URL),
