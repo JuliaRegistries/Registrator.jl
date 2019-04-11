@@ -124,22 +124,29 @@ const config = Dict(
             url = ENV["SERVER_URL"] * UI.ROUTE_REGISTER
             cookies = Dict("state" => state)
 
-            resp = HTTP.post(url; body="package=", cookies=cookies, status_exception=false)
+            body = "package=&ref=master"
+            resp = HTTP.post(url; body=body, cookies=cookies, status_exception=false)
             @test resp.status == 400
             @test occursin("Package URL was not provided", String(resp.body))
 
-            resp = HTTP.post(url; body="package=foo", cookies=cookies, status_exception=false)
+            body = "package=foo&ref=master"
+            resp = HTTP.post(url; body=body, cookies=cookies, status_exception=false)
             @test resp.status == 400
             @test occursin("Package URL is invalid", String(resp.body))
 
-            pkg = "http://github.com/foo/bar"
-            resp = HTTP.post(url; body="package=$pkg", cookies=cookies, status_exception=false)
+            body = "package=https://github.com/foo/bar&ref="
+            resp = HTTP.post(url; body=body, cookies=cookies, status_exception=false)
+            @test resp.status == 400
+            @test occursin("Branch was not provided", String(resp.body))
+
+            body = "package=https://github.com/foo/bar&ref=master"
+            resp = HTTP.post(url; body=body, cookies=cookies, status_exception=false)
             @test resp.status == 400
             @test occursin("Repository was not found", String(resp.body))
 
             # This is an actual repository, it hasn't been touched for >5 years.
-            pkg = "http://github.com/foo/ii"
-            resp = HTTP.post(url; body="package=$pkg", cookies=cookies, status_exception=false)
+            body = "package=http://github.com/foo/ii&ref=master"
+            resp = HTTP.post(url; body=body, cookies=cookies, status_exception=false)
             @test resp.status == 400
             @test occursin("Unauthorized to release this package", String(resp.body))
         end

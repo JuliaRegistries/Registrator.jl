@@ -56,11 +56,11 @@ const PAGE_SELECT = """
     <form action="$ROUTE_REGISTER" method="post">
     URL of package to register: <input type="text" size="50" name="package">
     <br>
+    Branch to register: <input type="text" size="20" name="ref" value="master">
+    <br>
     <input type="submit" value="Submit">
     </form>
     """
-
-const REPO_PATTERN = r"://.*\..*/.*/.*"
 
 # a supported provider whose hosted repositories can be registered.
 Base.@kwdef struct Provider{F <: GitForge.Forge}
@@ -179,13 +179,13 @@ function isauthorized(u::User{GitLab.User}, repo::GitLab.Project)
 end
 
 # Get the raw Project.toml text from a repository.
-function gettoml(f::GitHubAPI, repo::GitHub.Repo)
-    fc = @gf get_file_contents(f, repo.owner.login, repo.name, "Project.toml")
+function gettoml(f::GitHubAPI, repo::GitHub.Repo, ref::AbstractString)
+    fc = @gf get_file_contents(f, repo.owner.login, repo.name, "Project.toml"; ref=ref)
     return fc === nothing ? nothing : String(base64decode(strip(fc.content)))
 end
-function gettoml(::GitLabAPI, repo::GitLab.Project)
+function gettoml(::GitLabAPI, repo::GitLab.Project, ref::AbstractString)
     forge = PROVIDERS["gitlab"].client
-    fc = @gf get_file_contents(forge, repo.id, "Project.toml"; ref=repo.default_branch)
+    fc = @gf get_file_contents(forge, repo.id, "Project.toml"; ref=ref)
     return fc === nothing ? nothing : String(base64decode(fc.content))
 end
 
@@ -194,16 +194,16 @@ cloneurl(r::GitHub.Repo) = r.clone_url
 cloneurl(r::GitLab.Project) = r.http_url_to_repo
 
 # Get a repo's tree hash.
-function treesha(f::GitHubAPI, r::GitHub.Repo)
-    branch = @gf get_branch(f, r.owner.login, r.name, r.default_branch)
+function treesha(f::GitHubAPI, r::GitHub.Repo, ref::AbstractString)
+    branch = @gf get_branch(f, r.owner.login, r.name, ref)
     return branch === nothing ? nothing : branch.commit.commit.tree.sha
 end
-function treesha(::GitLabAPI, r::GitLab.Project)
+function treesha(::GitLabAPI, r::GitLab.Project, ref::AbstractString)
     url = cloneurl(r)
     return try
         mktempdir() do dir
             dest = joinpath(dir, r.name)
-            run(`git clone $url $dest`)
+            run(`git clone $url $dest --branch $ref`)
             match(r"tree (.*)", readchomp(`git -C $dest show HEAD --format=raw`))[1]
         end
     catch
@@ -348,7 +348,9 @@ function register(r::HTTP.Request)
     package = form["package"]
     isempty(package) && return html(400, "Package URL was not provided")
     occursin("://", package) || (package = "https://$package")
-    match(REPO_PATTERN, package) === nothing && return html(400, "Package URL is invalid")
+    match(r"://.*\..*/.*/.*", package) === nothing && return html(400, "Package URL is invalid")
+    ref = form["ref"]
+    isempty(ref) && return html(400, "Branch was not provided")
 
     # Get the repo, then check for authorization.
     owner, name = splitrepo(package)
@@ -357,7 +359,7 @@ function register(r::HTTP.Request)
     isauthorized(u, repo) || return html(400, "Unauthorized to release this package")
 
     # Get the Project.toml, and make sure it is valid.
-    toml = gettoml(u.forge, repo)
+    toml = gettoml(u.forge, repo, ref)
     toml === nothing && return html(400, "Project.toml was not found")
     project = try
         Pkg.Types.read_project(IOBuffer(toml))
@@ -371,7 +373,7 @@ function register(r::HTTP.Request)
     # Register the package,
     clone = cloneurl(repo)
     project = Pkg.Types.read_project(IOBuffer(toml))
-    tree = treesha(u.forge, repo)
+    tree = treesha(u.forge, repo, ref)
     tree === nothing && return html(500, "Looking up the tree hash failed")
     branch = Registrator.register(
         clone, project, tree;
