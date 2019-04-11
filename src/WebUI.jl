@@ -19,6 +19,8 @@ const ROUTE_CALLBACK = "/callback"
 const ROUTE_SELECT = "/select"
 const ROUTE_REGISTER = "/register"
 
+const DOCS = "https://github.com/JuliaComputing/Registrator.jl/blob/master/README.web.md#usage-for-package-maintainers"
+
 const TEMPLATE = """
     <!DOCTYPE html>
     <html>
@@ -38,14 +40,15 @@ const TEMPLATE = """
         a {
           color: inherit;
         }
-        h3 {
+        h3, h4 {
           color: #555;
         }
         </style>
       </head>
       <body>
         <h1><a href=$ROUTE_INDEX>Registrator</a></h1>
-        <h3>Registry URL: <a href="{{registry}}">{{registry}}</a></h3>
+        <h4>Registry URL: <a href="{{registry}}">{{registry}}</a></h3>
+        <h3>Click <a href="$DOCS">here</a> for usage instructions</h3>
         <br>
         {{body}}
       </body>
