@@ -20,8 +20,8 @@ function get_registry(registry::String; gitconfig::Dict=Dict())
         registry_temp = mktempdir(mkpath(reg_path()))
         try
             LibGit2.clone(registry, registry_temp)
-            reg = TOML.parsefile(joinpath(registry_temp, "Registry.toml"))
-            registry_uuid = REGISTRIES[registry] = UUID(reg["uuid"])
+            reg = parse_registry(joinpath(registry_temp, "Registry.toml"))
+            registry_uuid = REGISTRIES[registry] = reg.uuid
             registry_path = reg_path(registry_uuid)
             rm(registry_path, recursive=true, force=true)
             mv(registry_temp, registry_path)
@@ -94,48 +94,9 @@ struct RegBranch
     end
 end
 
-function write_registry(io::IO, data::Dict)
-    mandatory_keys = ("name", "uuid")
-    optional_keys = ("repo",)
-    reserved_keys = (mandatory_keys..., optional_keys..., "description", "packages")
-
-    extra_keys = filter(!in(reserved_keys), keys(data))
-
-    for key in mandatory_keys
-        println(io, "$key = ", repr(data[key]))
-    end
-
-    for key in optional_keys
-        if haskey(data, key)
-            println(io, "$key = ", repr(data[key]))
-        end
-    end
-
-    if haskey(data, "description")
-        println(io)
-        print(io, """
-            description = \"\"\"
-            $(data["description"])\"\"\"
-            """
-        )
-    end
-
-    for key in extra_keys
-        TOML.print(io, Dict(key => data["key"]), sorted=true)
-    end
-
-    println(io)
-    println(io, "[packages]")
-    if haskey(data, "packages")
-        for (uuid, data) in sort!(collect(data["packages"]), by=first)
-            println(io, uuid, " = { name = ", repr(data["name"]), ", path = ", repr(data["path"]), " }")
-        end
-    end
-end
-
-function write_registry(registry_path::String, data::Dict)
+function write_registry(registry_path::String, reg::RegistryData)
     open(registry_path, "w") do io
-        write_registry(io, data)
+        TOML.print(io, data)
     end
 end
 
@@ -208,11 +169,11 @@ function register(
         # find package in registry
         @debug("find package in registry")
         registry_file = joinpath(registry_path, "Registry.toml")
-        registry_data = TOML.parsefile(registry_file)
+        registry_data = parse_registry(registry_file)
 
         uuid = string(pkg.uuid)
-        if haskey(registry_data["packages"], uuid)
-            package_data = registry_data["packages"][uuid]
+        if haskey(registry_data.packages, uuid)
+            package_data = registry_data.packages[uuid]
             if (package_data["name"] != pkg.name)
                 err = "Changing package names not supported yet"
                 @debug(err)
@@ -221,7 +182,7 @@ function register(
             package_path = joinpath(registry_path, package_data["path"])
         else
             @debug("Package with UUID: $uuid not found in registry, checking if UUID was changed")
-            for (k, v) in registry_data["packages"]
+            for (k, v) in registry_data.packages
                 if v["name"] == pkg.name
                     err = "Changing UUIDs is not allowed"
                     @debug(err)
@@ -230,15 +191,11 @@ function register(
             end
 
             @debug("Creating directory for new package $(pkg.name)")
-            first_letter = uppercase(pkg.name[1])
-            package_relpath = joinpath("$first_letter", pkg.name)
-            package_path = joinpath(registry_path, package_relpath)
+            package_path = joinpath(registry_path, package_relpath(pkg))
             mkpath(package_path)
 
             @debug("Adding package UUID to registry")
-            registry_data["packages"][uuid] = Dict(
-                "name" => pkg.name, "path" => package_relpath
-            )
+            push!(reg, pkg)
             write_registry(registry_file, registry_data)
         end
 
@@ -282,16 +239,16 @@ function register(
 
         @debug("Verifying package name and uuid in deps")
         registry_deps_data = map(registry_deps_paths) do registry_path
-            TOML.parsefile(joinpath(registry_path, "Registry.toml"))
+            parse_registry(joinpath(registry_path, "Registry.toml"))
         end
         for (k, v) in pkg.deps
             u = string(v)
 
             uuid_found = false
             for _registry_data in [registry_data; registry_deps_data]
-                if haskey(_registry_data["packages"], u)
+                if haskey(_registry_data.packages, u)
                     uuid_found = true
-                    name_in_reg = _registry_data["packages"][u]["name"]
+                    name_in_reg = _registry_data.packages[u]["name"]
                     if name_in_reg != k
                         err = "Error in `[deps]`: UUID $u refers to package '$name_in_reg' in registry but deps file has '$k'"
                         break
