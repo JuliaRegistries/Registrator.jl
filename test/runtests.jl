@@ -6,3 +6,5 @@ include("server.jl")
 include("regedit.jl")
 
 end
+
+include("webui.jl")

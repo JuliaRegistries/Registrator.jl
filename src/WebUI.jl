@@ -60,6 +60,8 @@ const PAGE_SELECT = """
     </form>
     """
 
+const REPO_PATTERN = r"://.*\..*/.*/.*"
+
 # a supported provider whose hosted repositories can be registered.
 Base.@kwdef struct Provider{F <: GitForge.Forge}
     name::String
@@ -98,7 +100,7 @@ error_handler(f::Function) = r::HTTP.Request -> try
     f(r)
 catch e
     @error "Handler error" route=r.target exception=(e, catch_backtrace())
-    html("Server error, sorry!")
+    html(500, "Server error, sorry!")
 end
 
 # Run some GitForge function, warning on error but still returning the value.
@@ -136,11 +138,12 @@ function getcookie(r::HTTP.Request, key::AbstractString, default="")
 end
 
 # Return an HTML response.
-function html(body::AbstractString)
+html(body::AbstractString) = html(200, body)
+function html(status::Int, body::AbstractString)
     doc = TEMPLATE
     doc = replace(doc, "{{body}}" => body)
     doc = replace(doc, "{{registry}}" => REGISTRY[].url)
-    return HTTP.Response(200, ["Content-Type" => "text/html"]; body=doc)
+    return HTTP.Response(status, ["Content-Type" => "text/html"]; body=doc)
 end
 
 # Helpers specific to step 5
@@ -276,7 +279,7 @@ end
 function auth(r::HTTP.Request)
     provider = getquery(r, "provider")
     forge = get(PROVIDERS, provider, nothing)
-    forge === nothing && return html("Requested uknown OAuth provider")
+    forge === nothing && return html(400, "Requested uknown OAuth provider")
 
     # If the user has already authenticated, skip.
     state = getcookie(r, "state")
@@ -304,11 +307,11 @@ end
 # Step 3: OAuth callback.
 function callback(r::HTTP.Request)
     state = getcookie(r, "state")
-    (isempty(state) || state != getquery(r, "state")) && return html("Invalid state")
+    (isempty(state) || state != getquery(r, "state")) && return html(400, "Invalid state")
 
     provider = getquery(r, "provider")
     forge = get(PROVIDERS, provider, nothing)
-    forge === nothing && return html("Invalid callback URL")
+    forge === nothing && return html(400, "Invalid callback URL")
 
     query = Dict(
         :client_id => forge.client_id,
@@ -336,39 +339,40 @@ select(::HTTP.Request) = html(PAGE_SELECT)
 function register(r::HTTP.Request)
     state = getcookie(r, "state")
     if isempty(state) || !haskey(USERS, state)
-        return html("Missing or invalid state cookie")
+        return html(400, "Missing or invalid state cookie")
     end
     u = USERS[state]
 
     # Parse the form data.
     form = Dict(map(p -> map(HTTP.unescapeuri, split(p, "=")), split(String(r.body), "&")))
     package = form["package"]
-    isempty(package) && return html("Package URL was not provided")
+    isempty(package) && return html(400, "Package URL was not provided")
     occursin("://", package) || (package = "https://$package")
+    match(REPO_PATTERN, package) === nothing && return html(400, "Package URL is invalid")
 
     # Get the repo, then check for authorization.
     owner, name = splitrepo(package)
     repo = getrepo(u.forge, owner, name)
-    repo === nothing && return html("Repository was not found")
-    isauthorized(u, repo) || return html("Unauthorized to release this package")
+    repo === nothing && return html(400, "Repository was not found")
+    isauthorized(u, repo) || return html(400, "Unauthorized to release this package")
 
     # Get the Project.toml, and make sure it is valid.
     toml = gettoml(u.forge, repo)
-    toml === nothing && return html("Project.toml was not found")
+    toml === nothing && return html(400, "Project.toml was not found")
     project = try
         Pkg.Types.read_project(IOBuffer(toml))
     catch
-        return html("Project.toml is invalid")
+        return html(400, "Project.toml is invalid")
     end
     for k in [:name, :uuid, :version]
-        getfield(project, k) === nothing && return html("Package $k is invalid")
+        getfield(project, k) === nothing && return html(400, "Package $k is invalid")
     end
 
     # Register the package,
     clone = cloneurl(repo)
     project = Pkg.Types.read_project(IOBuffer(toml))
     tree = treesha(u.forge, repo)
-    tree === nothing && return html("Looking up the tree hash failed")
+    tree === nothing && return html(500, "Looking up the tree hash failed")
     branch = Registrator.register(
         clone, project, tree;
         registry=REGISTRY[].clone, push=true,
@@ -383,12 +387,12 @@ function register(r::HTTP.Request)
 
         # Make the PR.
         pr = @gf make_registration_request(REGISTRY[], branch.branch, title, body)
-        pr === nothing && return html("Registration failed: Making pull request failed")
+        pr === nothing && return html(500, "Registration failed: Making pull request failed")
 
         url = web_url(pr)
         html("""Registry PR successfully created, see it <a href="$url">here</a>!""")
     else
-        html("Registration failed: " * branch.error)
+        html(500, "Registration failed: " * branch.error)
     end
 end
 
@@ -400,8 +404,9 @@ HTTP.@register ROUTER "POST" ROUTE_REGISTER error_handler(register)
 
 # Entrypoint.
 
-function main()
+function init_providers()
     disabled = split(get(ENV, "DISABLED_PROVIDERS", ""))
+
     if !in("github", disabled)
         PROVIDERS["github"] = Provider(;
             name="GitHub",
@@ -416,6 +421,7 @@ function main()
             scope="public_repo",
         )
     end
+
     if !in("gitlab", disabled)
         PROVIDERS["gitlab"] = Provider(;
             name="GitLab",
@@ -432,9 +438,11 @@ function main()
             token_type=OAuth2Token,
         )
     end
-    haskey(ENV, "EXTRA_PROVIDERS") && include(ENV["EXTRA_PROVIDERS"])
 
-    # Look up the registry.
+    haskey(ENV, "EXTRA_PROVIDERS") && include(ENV["EXTRA_PROVIDERS"])
+end
+
+function init_registry()
     url = ENV["REGISTRY_URL"]
     k = get(ENV, "REGISTRY_PROVIDER") do
         if occursin("github", url)
@@ -449,7 +457,13 @@ function main()
     repo = @gf get_repo(forge, owner, name)
     repo === nothing && error("Registry lookup failed")
     REGISTRY[] = Registry(forge, repo, url, get(ENV, "REGISTRY_CLONE_URL", url))
+end
 
+function main(; init::Bool=true)
+    if init
+        init_providers()
+        init_registry()
+    end
     ip = ENV["IP"] == "localhost" ? Sockets.localhost : ENV["IP"]
     port = parse(Int, ENV["PORT"])
     @info "Serving" ip port
