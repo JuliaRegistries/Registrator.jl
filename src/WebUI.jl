@@ -189,6 +189,16 @@ function gettoml(::GitLabAPI, repo::GitLab.Project, ref::AbstractString)
     return fc === nothing ? nothing : String(base64decode(fc.content))
 end
 
+function getcommithash(f::GitHubAPI, repo::GitHub.Repo, ref::AbstractString)
+    commit = @gf get_commit(f, repo.owner.login, repo.name, ref)
+    return commit === nothing ? nothing : commit.sha
+end
+function getcommithash(f::GitLabAPI, repo::GitLab.Project, ref::AbstractString)
+    forge = PROVIDERS["gitlab"].client
+    commit = @gf get_commit(forge, repo.id, ref)
+    return commit === nothing ? nothing : commit.id
+end
+
 # Get a repo's clone URL.
 cloneurl(r::GitHub.Repo) = r.clone_url
 cloneurl(r::GitLab.Project) = r.http_url_to_repo
@@ -370,6 +380,9 @@ function register(r::HTTP.Request)
         getfield(project, k) === nothing && return html(400, "Package $k is invalid")
     end
 
+    commit = getcommithash(u.forge, repo, ref)
+    commit === nothing && return html(500, "Looking up the commit hash failed")
+
     # Register the package,
     clone = cloneurl(repo)
     project = Pkg.Types.read_project(IOBuffer(toml))
@@ -385,6 +398,8 @@ function register(r::HTTP.Request)
         body = """
             - Created by: $(display_user(u.user))
             - Repository: $(web_url(repo))
+            - Version: v$(project.version)
+            - Commit SHA: $commit
             """
 
         # Make the PR.

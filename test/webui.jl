@@ -17,6 +17,7 @@ const config = Dict(
     "IP" => "localhost",
     "PORT" => "4000",
     "SERVER_URL" => "http://localhost:4000",
+    "REGISTRY_CLONE_URL" => nothing,
 )
 
 @testset "Web UI" begin
