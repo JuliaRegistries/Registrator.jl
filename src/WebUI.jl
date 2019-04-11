@@ -470,7 +470,7 @@ function main()
 
     # Look up the registry.
     url = ENV["REGISTRY_URL"]
-    k = get(ENV, "REGISTRY_HOST") do
+    k = get(ENV, "REGISTRY_PROVIDER") do
         if occursin("github", url)
             "github"
         elseif occursin("gitlab", url)
