@@ -774,15 +774,23 @@ $enc_meta
     end
 
     cbody = """
-Registration pull request $msg: [$(repo)/$(pr.number)]($(pr.html_url))
+        Registration pull request $msg: [$(repo)/$(pr.number)]($(pr.html_url))
 
-After the above pull request is merged, it is recommended that you create
-a tag on this repository for the registered package version:
-```
-git tag -a v$(string(ver)) -m "<description of version>" $(pp.tree_sha)
-git push v$(string(ver))
-```
-"""
+        After the above pull request is merged, it is recommended that you create
+        a tag on this repository for the registered package version:
+        ```
+        git tag -a v$(string(ver)) -m "<description of version>" $(pp.tree_sha)
+        git push v$(string(ver))
+        ```
+        """
+
+    if rbrn.warning !== nothing
+        cbody += """
+            Also, note the warning: $(rbrn.warning)
+            This can be safely ignored. However, if you want to fix this you can do so. Call register() again after making the fix. This will update the Pull request.
+            """
+    end
+
     @debug(cbody)
     make_comment(rp.evt, cbody)
     return pr
@@ -839,11 +847,6 @@ function handle_register(rp::RequestParams, target_registry::Dict{String,Any})
             make_comment(rp.evt, msg)
             set_error_status(rp)
         else
-            if rbrn.warning !== nothing
-                msg = "Warning: $(rbrn.warning)"
-                @debug(msg)
-                make_comment(rp.evt, msg)
-            end
             make_pull_request(pp, rp, rbrn, target_registry)
             set_success_status(rp)
         end
