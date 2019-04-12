@@ -1,17 +1,16 @@
 module WebUI
 
-using ..Registrator
+using ..Registrator: RegEdit
 
 using Base64
 using Dates
 using GitForge, GitForge.GitHub, GitForge.GitLab
 using HTTP
 using JSON2
+using Mux
 using Pkg
 using Sockets
 using TimeToLive
-
-const ROUTER = HTTP.Router()
 
 const ROUTE_INDEX = "/"
 const ROUTE_AUTH = "/auth"
@@ -99,14 +98,6 @@ const USERS = TTL{String, User}(Hour(1))
 ###########
 # Helpers #
 ###########
-
-# Catch errors in route handlers.
-error_handler(f::Function) = r::HTTP.Request -> try
-    f(r)
-catch e
-    @error "Handler error" route=r.target exception=(e, catch_backtrace())
-    html(500, "Server error, sorry!")
-end
 
 # Run some GitForge function, warning on error but still returning the value.
 macro gf(ex::Expr)
@@ -395,7 +386,7 @@ function register(r::HTTP.Request)
     project = Pkg.Types.read_project(IOBuffer(toml))
     tree = treesha(u.forge, repo, ref)
     tree === nothing && return html(500, "Looking up the tree hash failed")
-    branch = Registrator.register(
+    branch = RegEdit.register(
         clone, project, tree;
         registry=REGISTRY[].clone, push=true,
     )
@@ -420,12 +411,6 @@ function register(r::HTTP.Request)
         html(500, "Registration failed: " * branch.error)
     end
 end
-
-HTTP.@register ROUTER "GET" ROUTE_INDEX error_handler(index)
-HTTP.@register ROUTER "GET" ROUTE_AUTH error_handler(auth)
-HTTP.@register ROUTER "GET" ROUTE_CALLBACK error_handler(callback)
-HTTP.@register ROUTER "GET" ROUTE_SELECT error_handler(select)
-HTTP.@register ROUTER "POST" ROUTE_REGISTER error_handler(register)
 
 ##############
 # Entrypoint #
@@ -486,16 +471,39 @@ function init_registry()
     REGISTRY[] = Registry(forge, repo, url, get(ENV, "REGISTRY_CLONE_URL", url))
 end
 
-start_server(server, ip::IPAddr, port::Int, verbose::Bool=false) =
-    HTTP.serve(ROUTER, ip, port; server=server, readtimeout=0, verbose=verbose)
+for f in [:index, :auth, :callback, :select, :register]
+    @eval $f(f::Function, r::HTTP.Request) = f($f(r))
+end
+
+error_handler(f::Function, r::HTTP.Request) = try
+    f(r)
+catch e
+    @error "Handler error" route=r.target exception=(e, catch_backtrace())
+    html(500, "Server error, sorry!")
+end
+
+pathmatch(p::AbstractString, f::Function) = branch(r -> first(split(r.target, "?")) == p, f)
+
+function start_server(ip::IPAddr, port::Int, verbose::Bool=false)
+    @app server = (
+        error_handler,
+        pathmatch(ROUTE_INDEX, index),
+        pathmatch(ROUTE_AUTH, auth),
+        pathmatch(ROUTE_CALLBACK, callback),
+        pathmatch(ROUTE_SELECT, select),
+        pathmatch(ROUTE_REGISTER, register),
+        r -> html(404, "Page not found"),
+    )
+    return serve(server, ip, port; readtimeout=0, verbose=verbose)
+end
 
 function main(; port::Int, ip::AbstractString="localhost", verbose::Bool=false)
     init_providers()
     init_registry()
     ip = ip == "localhost" ? Sockets.localhost : parse(IPAddr, ip)
-    server = Sockets.listen(Sockets.InetAddr(ip, port))
+    task = start_server(ip, port, verbose)
     @info "Serving" ip port
-    start_server(server, ip, port, verbose)
+    wait(task)
 end
 
 end

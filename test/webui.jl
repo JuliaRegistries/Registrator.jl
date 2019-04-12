@@ -83,9 +83,17 @@ const config = Dict(
         end
 
         # Start the server.
-        port = 4000
-        server = Sockets.listen(Sockets.InetAddr(Sockets.localhost, port))
-        @async UI.start_server(server, Sockets.localhost, port)
+        # TODO: Stop it when this test set is done.
+        task = UI.start_server(Sockets.localhost, 4000)
+
+        @testset "404s" begin
+            rs = [UI.ROUTE_INDEX, UI.ROUTE_AUTH, UI.ROUTE_CALLBACK, UI.ROUTE_SELECT, UI.ROUTE_REGISTER]
+            for r in rs
+                resp = HTTP.get(ENV["SERVER_URL"] * r * "/foo"; status_exception=false)
+                @test resp.status == 404
+                @test occursin("Page not found", String(resp.body))
+            end
+        end
 
         @testset "Route: /" begin
             # The response should contain the registry URL and authentication links.
@@ -151,8 +159,5 @@ const config = Dict(
             @test resp.status == 400
             @test occursin("Unauthorized to release this package", String(resp.body))
         end
-
-        # Stop the server.
-        close(server)
     end
 end
