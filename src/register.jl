@@ -159,7 +159,7 @@ function write_registry(registry_path::String, data::Dict)
     end
 end
 
-import Base: thismajor, thisminor, nextmajor, nextminor, thispatch, nextpatch
+import Base: thismajor, thisminor, nextmajor, nextminor, thispatch, nextpatch, lowerbound
 
 # Returns Tuple (error, warning)
 function check_version(existing::Vector{VersionNumber}, ver::VersionNumber)
