@@ -47,8 +47,8 @@ const TEMPLATE = """
       </head>
       <body>
         <h1><a href=$ROUTE_INDEX>Registrator</a></h1>
-        <h4>Registry URL: <a href="{{registry}}">{{registry}}</a></h3>
-        <h3>Click <a href="$DOCS">here</a> for usage instructions</h3>
+        <h4>Registry URL: <a href="{{registry}}" target="_blank">{{registry}}</a></h3>
+        <h3>Click <a href="$DOCS" target="_blank">here</a> for usage instructions</h3>
         <br>
         {{body}}
       </body>
@@ -410,7 +410,7 @@ function register(r::HTTP.Request)
         pr === nothing && return html(500, "Registration failed: Making pull request failed")
 
         url = web_url(pr)
-        html("""Registry PR successfully created, see it <a href="$url">here</a>!""")
+        html("""Registry PR successfully created, see it <a href="$url" target="_blank">here</a>!""")
     else
         html(500, "Registration failed: " * branch.error)
     end
