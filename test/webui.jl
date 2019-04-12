@@ -3,6 +3,7 @@ using Registrator.WebUI: @gf
 using GitForge: get_user
 using GitForge.GitHub: GitHub, GitHubAPI
 using HTTP: HTTP
+using Sockets: Sockets
 
 const UI = Registrator.WebUI
 
@@ -84,8 +85,8 @@ const config = Dict(
         end
 
         # Start the server.
-        # TODO: I have no idea how to stop it.
-        task = @async UI.main(; init=false)
+        server = Sockets.listen(Sockets.InetAddr(Sockets.localhost, parse(Int, ENV["PORT"])))
+        @async UI.main(; init=false, server=server)
 
         @testset "Route: /" begin
             # The response should contain the registry URL and authentication links.
@@ -151,5 +152,8 @@ const config = Dict(
             @test resp.status == 400
             @test occursin("Unauthorized to release this package", String(resp.body))
         end
+
+        # Stop the server.
+        close(server)
     end
 end

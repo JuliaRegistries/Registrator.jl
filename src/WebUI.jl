@@ -491,15 +491,18 @@ function init_registry()
     REGISTRY[] = Registry(forge, repo, url, get(ENV, "REGISTRY_CLONE_URL", url))
 end
 
-function main(; init::Bool=true)
+# server should be created with Sockets.listen if you want to be able to close it.
+# Most of the time you should only set either of these options in testing.
+function main(; init::Bool=true, server=nothing)
     if init
         init_providers()
         init_registry()
     end
-    ip = ENV["IP"] == "localhost" ? Sockets.localhost : ENV["IP"]
+    ip = ENV["IP"] == "localhost" ? Sockets.localhost : parse(IPAddr, ENV["IP"])
     port = parse(Int, ENV["PORT"])
+    server === nothing && (server = Sockets.serve(Sockets.InetAddr(ip, port)))
     @info "Serving" ip port
-    HTTP.serve(ROUTER, ip, port; readtimeout=0)
+    HTTP.serve(ROUTER, ip, port; server=server, readtimeout=0)
 end
 
 end
