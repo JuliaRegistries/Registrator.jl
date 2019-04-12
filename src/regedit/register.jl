@@ -7,19 +7,19 @@ function get_registry(registry::AbstractString; gitconfig::Dict=Dict())
         registry_uuid = REGISTRIES[registry]
         registry_path = reg_path(registry_uuid)
         if !ispath(registry_path)
-            run(`git clone $registry $registry_path`)
+            run(pipeline(`git clone $registry $registry_path`; stdout=devnull))
         else
             # this is really annoying/impossible to do with LibGit2
             git = gitcmd(registry_path, gitconfig)
-            run(`$git config remote.origin.url $registry`)
-            run(`$git checkout -f master`)
-            run(`$git fetch -P origin master`)
-            run(`$git reset --hard origin/master`)
+            run(pipeline(`$git config remote.origin.url $registry`; stdout=devnull))
+            run(pipeline(`$git checkout -f master`; stdout=devnull))
+            run(pipeline(`$git fetch -P origin master`; stdout=devnul))
+            run(pipeline(`$git reset --hard origin/master`; stdout=devnull))
         end
     else
         registry_temp = mktempdir(mkpath(reg_path()))
         try
-            run(`git clone $registry $registry_temp`)
+            run(pipeline(`git clone $registry $registry_temp`; stdout=devnull))
             reg = TOML.parsefile(joinpath(registry_temp, "Registry.toml"))
             registry_uuid = REGISTRIES[registry] = UUID(reg["uuid"])
             registry_path = reg_path(registry_uuid)
@@ -180,9 +180,9 @@ function register(
         # branch registry repo
         @debug("branch registry repo")
         git = gitcmd(registry_path, gitconfig)
-        run(`$git checkout -f master`)
-        run(`$git branch -f $branch`)
-        run(`$git checkout -f $branch`)
+        run(pipeline(`$git checkout -f master`; stdout=devnull))
+        run(pipeline(`$git branch -f $branch`; stdout=devnull))
+        run(pipeline(`$git checkout -f $branch`; stdout=devnull))
 
         # find package in registry
         @debug("find package in registry")
@@ -334,14 +334,14 @@ function register(
         Repo: $(package_repo)
         Tree: $(string(tree_hash))
         """
-        run(`$git add -- $package_path`)
-        run(`$git add -- $registry_file`)
-        run(`$git commit -m $message`)
+        run(pipeline(`$git add -- $package_path`; stdout=devnull))
+        run(pipeline(`$git add -- $registry_file`; stdout=devnull))
+        run(pipeline(`$git commit -m $message`; stdout=devnull))
 
         # push -f branch to remote
         if push
             @debug("push -f branch to remote")
-            run(`$git push -f -u origin $branch`)
+            run(pipeline(`$git push -f -u origin $branch`; stdout=devnull))
         else
             @debug("skipping git push")
         end
