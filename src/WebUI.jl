@@ -272,13 +272,8 @@ mention(u::GitLab.User) = "@$(u.username)"
 
 # Get a user's representation for a registry PR.
 # If the registry is from the same provider, mention the user, otherwise use the URL.
-function display_user(u::U) where U
-    return if parentmodule(typeof(REGISTRY[].repo)) === parentmodule(U)
-        mention(u)
-    else
-        web_url(u)
-    end
-end
+display_user(u::U) where U =
+    (parentmodule(typeof(REGISTRY[].repo)) === parentmodule(U) ? mention : web_url)(u)
 
 # Trim both whitespace and + characters, which indicate spaces in the browser input.
 stripform(s::AbstractString) = strip(strip(s), '+')
@@ -491,18 +486,16 @@ function init_registry()
     REGISTRY[] = Registry(forge, repo, url, get(ENV, "REGISTRY_CLONE_URL", url))
 end
 
-# server should be created with Sockets.listen if you want to be able to close it.
-# Most of the time you should only set either of these options in testing.
-function main(; init::Bool=true, server=nothing)
-    if init
-        init_providers()
-        init_registry()
-    end
-    ip = ENV["IP"] == "localhost" ? Sockets.localhost : parse(IPAddr, ENV["IP"])
-    port = parse(Int, ENV["PORT"])
-    server === nothing && (server = Sockets.serve(Sockets.InetAddr(ip, port)))
+start_server(server, ip::IPAddr, port::Int, verbose::Bool=false) =
+    HTTP.serve(ROUTER, ip, port; server=server, readtimeout=0, verbose=verbose)
+
+function main(; port::Int, ip::AbstractString="localhost", verbose::Bool=false)
+    init_providers()
+    init_registry()
+    ip = ip == "localhost" ? Sockets.localhost : parse(IPAddr, ip)
+    server = Sockets.listen(Sockets.InetAddr(ip, port))
     @info "Serving" ip port
-    HTTP.serve(ROUTER, ip, port; server=server, readtimeout=0)
+    start_server(server, ip, port, verbose)
 end
 
 end

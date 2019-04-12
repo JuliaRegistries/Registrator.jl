@@ -80,8 +80,6 @@ There are some that are required, and some that are optional.
 - `GIT{HUB,LAB}_API_TOKEN`: Your user's API key.
 - `GIT{HUB,LAB}_CLIENT_ID`: Your OAuth2 application's client ID.
 - `GIT{HUB,LAB}_CLIENT_SECRET`: Your OAuth2 application's client secret.
-- `IP`: Your web server's IP address.
-- `PORT`: The port to run the server on.
 - `SERVER_URL`: The URL at which your server is accessible.
   This could be something like `http://localhost:4000` for testing, or `https://example.com`.
 - `REGISTRY_URL`: Your registry repository's web URL, for example `https://github.com/foo/bar`.
@@ -174,15 +172,13 @@ It's not important to keep it intact, as it is synchronized before registering a
 
 Here's a general case of hosting a registry on GitHub and allowing package registrations from both GitHub and GitLab.
 The registry will be owned by `RegistryOwner` and the name will be `MyRegistry`.
-The web server will be hosted at `https://myregistrator.com`, and suppose our IP address is `1.2.3.4`.
+The web server will be hosted at `https://myregistrator.com`.
 
 The first thing we'll do is set up a `.env` file with some information we already have.
 
 ```sh
 #!/usr/bin/env sh
 
-export IP="1.2.3.4"
-export PORT="443"
 export SERVER_URL="https://myregistrator.com"
 export REGISTRY_URL="https://github.com/RegistryOwner/MyRegistry"
 ```
@@ -225,15 +221,16 @@ export REGISTRY_CLONE_URL="git@github.com:RegistryOwner/MyRegistry.git"
 
 Now that this is done, we're ready to run the server.
 
-Install Registrator, apply the environment variables, and run Julia:
+Install Registrator, apply the environment variables, and run Julia with the server on port 4000:
 
 ```sh
-source .env
 julia -e '
     using Pkg; 
-    Pkg.add("https://github.com/JuliaComputing/Registrator.jl");
+    Pkg.add("https://github.com/JuliaComputing/Registrator.jl")''
+source .env
+julia -e '
     using Registrator;
-    Registrator.WebUI.main()'
+    Registrator.WebUI.main(; port=4000)'
 ```
 
 <!-- TODO: I have no idea how domains, certificates, etc. work. -->
@@ -243,7 +240,7 @@ julia -e '
 This guide will be almost identical to the one above, but we'll set up a private, self-hosted registry and only allow packages from that provider.
 
 Let's assume we're running a GitLab instance at `https://git.corp.com`, and our repo is at `Registries/General`.
-We want to host our instance at `https://registrator.corp.com`, and our IP is again `1.2.3.4`.
+We want to host our instance at `https://registrator.corp.com`.
 
 First, let's again start off with a `.env` file.
 
@@ -256,8 +253,6 @@ export GITLAB_API_URL="https://git.corp.com/api/v4"
 export GITLAB_AUTH_URL="https://git.corp.com/oauth/authorize"
 export GITLAB_TOKEN_URL="https://git.corp.com/oauth/token"
 export REGISTRY_URL="https://git.corp.com/Registries/General"
-export IP="1.2.3.4"
-export PORT="443"
 export SERVER_URL="https://registrator.corp.com"
 ```
 

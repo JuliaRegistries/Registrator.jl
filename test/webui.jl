@@ -15,8 +15,6 @@ const config = Dict(
     "GITLAB_CLIENT_ID" => "abc",
     "GITLAB_CLIENT_SECRET" => "abc",
     "REGISTRY_URL" => "https://github.com/JuliaRegistries/General",
-    "IP" => "localhost",
-    "PORT" => "4000",
     "SERVER_URL" => "http://localhost:4000",
     "REGISTRY_CLONE_URL" => nothing,
 )
@@ -85,8 +83,9 @@ const config = Dict(
         end
 
         # Start the server.
-        server = Sockets.listen(Sockets.InetAddr(Sockets.localhost, parse(Int, ENV["PORT"])))
-        @async UI.main(; init=false, server=server)
+        port = 4000
+        server = Sockets.listen(Sockets.InetAddr(Sockets.localhost, port))
+        @async UI.start_server(server, Sockets.localhost, port)
 
         @testset "Route: /" begin
             # The response should contain the registry URL and authentication links.
