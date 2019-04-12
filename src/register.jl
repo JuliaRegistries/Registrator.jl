@@ -159,6 +159,35 @@ function write_registry(registry_path::String, data::Dict)
     end
 end
 
+import Base: thismajor, thisminor, nextmajor, nextminor, thispatch, nextpatch
+
+# Returns Tuple (error, warning)
+function check_version(existing::Vector{VersionNumber}, ver::VersionNumber)
+    if isempty(existing)
+        if all([lowerbound(v) <= ver <= v for v in [v"0.0.1", v"0.1", v"1"]])
+            return nothing, "This looks like a new registration that registers version $ver. Ideally, you should register an initial release with 0.0.1, 0.1.0 or 1.0.0 version numbers"
+        end
+    else
+        issorted(existing) || (existing = sort(existing))
+        idx = searchsortedlast(existing, ver)
+        if idx <= 0
+            return "Version $ver less than least existing version $(existing[1])", nothing
+        end
+
+        prv = existing[idx]
+        if ver == prv
+            return "Version $ver already exists", nothing
+        end
+        nxt = thismajor(ver) != thismajor(prv) ? nextmajor(prv) :
+              thisminor(ver) != thisminor(prv) ? nextminor(prv) : nextpatch(prv)
+        if ver > nxt
+            return nothing, "Version $ver skips over $nxt"
+        end
+    end
+
+    return nothing, nothing
+end
+
 """
 Register the package at `package_repo` / `tree_spect` in `registry`.
 """
@@ -247,19 +276,9 @@ function register(
         versions_data = isfile(versions_file) ? TOML.parsefile(versions_file) : Dict()
         versions = sort!([VersionNumber(v) for v in keys(versions_data)])
 
-        wa = nothing
-        if pkg.version in versions
-            return RegBranch(pkg, branch; er="Version $(pkg.version) already exists in registry")
-        else
-            try
-                Base.check_new_version(versions, pkg.version)
-            catch ex
-                if isa(ex, ErrorException)
-                    wa=ex.msg
-                else
-                    rethrow(ex)
-                end
-            end
+        err, wa = check_version(versions, pkg.version)
+        if err !== nothing
+            return RegBranch(pkg, branch; er=err)
         end
 
         version_info = Dict{String,Any}("git-tree-sha1" => string(tree_hash))
