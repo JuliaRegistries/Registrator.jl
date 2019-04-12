@@ -280,6 +280,9 @@ function display_user(u::U) where U
     end
 end
 
+# Trim both whitespace and + characters, which indicate spaces in the browser input.
+stripform(s::AbstractString) = strip(strip(s), '+')
+
 ##########
 # Routes #
 ##########
@@ -364,11 +367,11 @@ function register(r::HTTP.Request)
 
     # Parse the form data.
     form = Dict(map(p -> map(HTTP.unescapeuri, split(p, "=")), split(String(r.body), "&")))
-    package = form["package"]
+    package = stripform(form["package"])
     isempty(package) && return html(400, "Package URL was not provided")
     occursin("://", package) || (package = "https://$package")
-    match(r"://.*\..*/.*/.*", package) === nothing && return html(400, "Package URL is invalid")
-    ref = form["ref"]
+    match(r"https?://.*\..*/.*/.*", package) === nothing && return html(400, "Package URL is invalid")
+    ref = stripform(form["ref"])
     isempty(ref) && return html(400, "Branch was not provided")
 
     # Get the repo, then check for authorization.
@@ -407,6 +410,7 @@ function register(r::HTTP.Request)
         body = """
             - Created by: $(display_user(u.user))
             - Repository: $(web_url(repo))
+            - Branch: $ref
             - Version: v$(project.version)
             - Commit SHA: $commit
             """
