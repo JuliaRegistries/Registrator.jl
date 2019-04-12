@@ -28,21 +28,21 @@ const TEMPLATE = """
         <meta charset="utf-8">
         <title>Registrator</title>
         <style>
-        body {
-          background-color: #ddd;
-          text-align: center;
-          margin: auto;
-          max-width: 50em;
-          font-family: Helvetica, sans-serif;
-          line-height: 1.5;
-          color: #333;
-        }
-        a {
-          color: inherit;
-        }
-        h3, h4 {
-          color: #555;
-        }
+          body {
+            background-color: #ddd;
+            text-align: center;
+            margin: auto;
+            max-width: 50em;
+            font-family: Helvetica, sans-serif;
+            line-height: 1.5;
+            color: #333;
+          }
+          a {
+            color: inherit;
+          }
+          h3, h4 {
+            color: #555;
+          }
         </style>
       </head>
       <body>
@@ -65,7 +65,7 @@ const PAGE_SELECT = """
     </form>
     """
 
-# a supported provider whose hosted repositories can be registered.
+# A supported provider whose hosted repositories can be registered.
 Base.@kwdef struct Provider{F <: GitForge.Forge}
     name::String
     client::F
@@ -96,7 +96,9 @@ const PROVIDERS = Dict{String, Provider}()
 const REGISTRY = Ref{Registry}()
 const USERS = TTL{String, User}(Hour(1))
 
-# Helpers.
+###########
+# Helpers #
+###########
 
 # Catch errors in route handlers.
 error_handler(f::Function) = r::HTTP.Request -> try
@@ -149,7 +151,9 @@ function html(status::Int, body::AbstractString)
     return HTTP.Response(status, ["Content-Type" => "text/html"]; body=doc)
 end
 
-# Helpers specific to step 5
+##############################
+# Helpers specific to step 5 #
+##############################
 
 # Look up a repository.
 getrepo(::GitLabAPI, owner::AbstractString, name::AbstractString) =
@@ -276,7 +280,9 @@ function display_user(u::U) where U
     end
 end
 
-# Routes.
+##########
+# Routes #
+##########
 
 # Step 1: Home page prompts login.
 function index(::HTTP.Request)
@@ -422,7 +428,9 @@ HTTP.@register ROUTER "GET" ROUTE_CALLBACK error_handler(callback)
 HTTP.@register ROUTER "GET" ROUTE_SELECT error_handler(select)
 HTTP.@register ROUTER "POST" ROUTE_REGISTER error_handler(register)
 
-# Entrypoint.
+##############
+# Entrypoint #
+##############
 
 function init_providers()
     disabled = split(get(ENV, "DISABLED_PROVIDERS", ""))
