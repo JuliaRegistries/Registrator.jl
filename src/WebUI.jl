@@ -393,12 +393,16 @@ function register(r::HTTP.Request)
 
     return if branch.error === nothing
         title = "Register $(project.name): v$(project.version)"
+
+        # FYI: TagBot (github.com/apps/julia-tagbot) depends on the "Repository", "Version",
+        # and "Commit" fields. If you're going to change the format here, please ping
+        # @christopher-dG and make sure that Server.jl has also been updated.
         body = """
             - Created by: $(display_user(u.user))
             - Repository: $(web_url(repo))
             - Branch: $ref
             - Version: v$(project.version)
-            - Commit SHA: $commit
+            - Commit: $commit
             """
 
         # Make the PR.
