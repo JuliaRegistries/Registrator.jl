@@ -120,6 +120,10 @@ const config = Dict(
         end
 
         @testset "Route: /register (validation)" begin
+            resp = HTTP.get(ENV["SERVER_URL"] * UI.ROUTE_REGISTER; status_exception=false)
+            @test resp.status == 405
+            @test occursin("Method not allowed", String(resp.body))
+
             resp = HTTP.post(ENV["SERVER_URL"] * UI.ROUTE_REGISTER; status_exception=false)
             @test resp.status == 400
             @test occursin("Missing or invalid state cookie", String(resp.body))

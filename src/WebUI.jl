@@ -345,6 +345,8 @@ select(::HTTP.Request) = html(PAGE_SELECT)
 
 # Step 5: Register the package (maybe).
 function register(r::HTTP.Request)
+    r.method == "POST" || return html(405, "Method not allowed")
+
     state = getcookie(r, "state")
     if isempty(state) || !haskey(USERS, state)
         return html(400, "Missing or invalid state cookie")
