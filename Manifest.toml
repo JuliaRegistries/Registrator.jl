@@ -55,7 +55,7 @@ uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
 
 [[GitForge]]
 deps = ["Dates", "HTTP", "JSON2"]
-git-tree-sha1 = "311c43f4f27b488021b817c0ec46a7213ca097b8"
+git-tree-sha1 = "e5b3832070a3c85b66ee7d60a17407ae74ce67b2"
 repo-rev = "master"
 repo-url = "https://github.com/christopher-dG/GitForge.jl"
 uuid = "8f6bce27-0656-5410-875b-07a5572985df"
@@ -155,9 +155,9 @@ version = "0.7.0"
 
 [[OrderedCollections]]
 deps = ["Random", "Serialization", "Test"]
-git-tree-sha1 = "85619a3f3e17bb4761fe1b1fd47f0e979f964d5b"
+git-tree-sha1 = "c4c13474d23c60d20a67b217f1d7f22a40edf8f1"
 uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
-version = "1.0.2"
+version = "1.1.0"
 
 [[Parsers]]
 deps = ["Dates", "Mmap", "Test", "WeakRefStrings"]

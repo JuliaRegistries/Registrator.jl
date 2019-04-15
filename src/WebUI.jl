@@ -231,6 +231,7 @@ function make_registration_request(
         source_branch=branch,
         target_branch=r.repo.default_branch,
         title=title,
+        description=body,
     )
 end
 
@@ -285,15 +286,15 @@ end
 
 # Step 2: Redirect to provider.
 function auth(r::HTTP.Request)
-    provider = getquery(r, "provider")
-    forge = get(PROVIDERS, provider, nothing)
-    forge === nothing && return html(400, "Requested uknown OAuth provider")
+    pkey = getquery(r, "provider")
+    provider = get(PROVIDERS, pkey, nothing)
+    provider === nothing && return html(400, "Requested uknown OAuth provider")
 
     # If the user has already authenticated, skip.
     state = getcookie(r, "state")
     if !isempty(state) && haskey(USERS, state)
         F = typeof(USERS[state].forge)
-        if provider == "github" && F === GitHubAPI || provider == "gitlab" && F === GitLabAPI
+        if pkey == "github" && F === GitHubAPI || pkey == "gitlab" && F === GitLabAPI
             # TODO: This does not support custom providers.
             return HTTP.Response(307, ["Location" => ROUTE_SELECT])
         end
@@ -302,11 +303,11 @@ function auth(r::HTTP.Request)
     state = String(rand('a':'z', 32))
     return HTTP.Response(307, [
         "Set-Cookie" => String(HTTP.Cookie("state", state; path="/"), false),
-        "Location" => forge.auth_url * "?" * HTTP.escapeuri(Dict(
-            :response_type => :code,
-            :client_id => forge.client_id,
-            :redirect_uri => callback_url(provider),
-            :scope => forge.scope,
+        "Location" => provider.auth_url * "?" * HTTP.escapeuri(Dict(
+            :response_type => "code",
+            :client_id => provider.client_id,
+            :redirect_uri => callback_url(pkey),
+            :scope => provider.scope,
             :state => state,
         )),
     ])
@@ -317,26 +318,33 @@ function callback(r::HTTP.Request)
     state = getcookie(r, "state")
     (isempty(state) || state != getquery(r, "state")) && return html(400, "Invalid state")
 
-    provider = getquery(r, "provider")
-    forge = get(PROVIDERS, provider, nothing)
-    forge === nothing && return html(400, "Invalid callback URL")
+    pkey = getquery(r, "provider")
+    provider = get(PROVIDERS, pkey, nothing)
+    provider === nothing && return html(400, "Invalid callback URL")
 
     query = Dict(
-        :client_id => forge.client_id,
-        :client_secret => forge.client_secret,
-        :redirect_uri => callback_url(provider),
+        :client_id => provider.client_id,
+        :client_secret => provider.client_secret,
+        :redirect_uri => callback_url(pkey),
         :code => getquery(r, "code"),
         :grant_type => "authorization_code",
     )
-    forge.include_state && (query[:state] = state)
+    provider.include_state && (query[:state] = state)
+
     resp = HTTP.post(
-        forge.token_url;
+        provider.token_url;
         headers=["Accept" => "application/json", "User-Agent" => "Registrator.jl"],
         query=query,
     )
     token = JSON2.read(IOBuffer(resp.body)).access_token
-    client = typeof(forge.client)(; url=forge.client.url, token=forge.token_type(token))
+
+    client = typeof(provider.client)(;
+        url=GitForge.base_url(provider.client),
+        token=provider.token_type(token),
+        has_rate_limits=GitForge.has_rate_limits(provider.client, identity),
+    )
     USERS[state] = User(@gf(get_user(client)), client)
+
     return HTTP.Response(308, ["Location" => ROUTE_SELECT])
 end
 
@@ -431,6 +439,7 @@ function init_providers()
             client=GitHubAPI(;
                 url=get(ENV, "GITHUB_API_URL", GitHub.DEFAULT_URL),
                 token=Token(ENV["GITHUB_API_TOKEN"]),
+                has_rate_limits=get(ENV, "GITHUB_DISABLE_RATE_LIMITS", "") != "true",
             ),
             client_id=ENV["GITHUB_CLIENT_ID"],
             client_secret=ENV["GITHUB_CLIENT_SECRET"],
@@ -446,6 +455,7 @@ function init_providers()
             client=GitLabAPI(;
                 url=get(ENV, "GITLAB_API_URL", GitLab.DEFAULT_URL),
                 token=PersonalAccessToken(ENV["GITLAB_API_TOKEN"]),
+                has_rate_limits=get(ENV, "GITLAB_DISABLE_RATE_LIMITS", "") != "true",
             ),
             client_id=ENV["GITLAB_CLIENT_ID"],
             client_secret=ENV["GITLAB_CLIENT_SECRET"],

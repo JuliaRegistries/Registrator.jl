@@ -95,6 +95,8 @@ There are some that are required, and some that are optional.
   Only set this for self-hosted providers.
 - `GIT{HUB,LAB}_TOKEN_URL`: OAuth2 token exchange URL.p
   Only set this for self-hosted providers.
+- `GIT{HUB,LAB}_DISABLE_RATE_LIMITS`: Set to `true` to disable rate limit processing.
+  Only set this for self-hosted instances that don't use rate limiting.
 - `DISABLED_PROVIDERS`: A space-delimited list of providers to disable.
   If you disable a provider, then you don't need any of its prerequisites mentioned above.
   However, users won't be able to register packages from that provider.

@@ -1,6 +1,6 @@
 using Registrator: Registrator
 using Registrator.WebUI: @gf
-using GitForge: get_user
+using GitForge: GitForge, get_user
 using GitForge.GitHub: GitHub, GitHubAPI
 using HTTP: HTTP
 using Sockets: Sockets
@@ -27,9 +27,10 @@ const config = Dict(
             @test Set(collect(keys(UI.PROVIDERS))) == Set(["github", "gitlab"])
             empty!(UI.PROVIDERS)
 
-            withenv("DISABLED_PROVIDERS" => "github") do
+            withenv("DISABLED_PROVIDERS" => "github", "GITLAB_DISABLE_RATE_LIMITS" => "true") do
                 UI.init_providers()
                 @test collect(keys(UI.PROVIDERS)) == ["gitlab"]
+                @test !GitForge.has_rate_limits(UI.PROVIDERS["gitlab"].client, identity)
                 empty!(UI.PROVIDERS)
             end
 
