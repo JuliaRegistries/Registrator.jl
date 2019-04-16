@@ -59,7 +59,8 @@ struct RequestParams{T<:RequestTrigger}
         err = nothing
         report_error = false
 
-        action_name, action_args, action_kwargs = parse_submission_string(strip(phrase.captures[1], '`'))
+        command = strip(phrase.captures[1], [' ', '\n', '\r', '`'])
+        action_name, action_args, action_kwargs = parse_submission_string(command)
         target = get(action_kwargs, :target, nothing)
 
         if action_name == "register"
