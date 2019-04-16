@@ -10,6 +10,15 @@ using Pkg.Types: Project
 
 using Test
 
+const TEST_GITCONFIG = Dict(
+    "user.name" => "RegistratorTests",
+    "user.email" => "ci@juliacomputing.com",
+)
+const TEST_SIGNATURE = LibGit2.Signature(
+    TEST_GITCONFIG["user.name"],
+    TEST_GITCONFIG["user.email"],
+)
+
 @testset "RegEdit" begin
 
 @testset "Utilities" begin
@@ -38,7 +47,7 @@ end
         mktempdir(@__DIR__) do temp_cache_dir
             # test when registry is not in the cache and not downloaded
             cache = RegEdit.RegistryCache(temp_cache_dir)
-            repo = get_registry(DEFAULT_REGISTRY_URL, cache=cache)
+            repo = get_registry(DEFAULT_REGISTRY_URL, cache=cache, gitconfig=TEST_GITCONFIG)
             @test LibGit2.path(repo) == RegEdit.path(cache, DEFAULT_REGISTRY_URL)
             @test LibGit2.branch(repo) == "master"
             @test !LibGit2.isdirty(repo)
@@ -48,7 +57,7 @@ end
             registry_path = RegEdit.path(cache, DEFAULT_REGISTRY_URL)
             rm(registry_path, recursive=true, force=true)
             @test !ispath(registry_path)
-            repo = get_registry(DEFAULT_REGISTRY_URL, cache=cache)
+            repo = get_registry(DEFAULT_REGISTRY_URL, cache=cache, gitconfig=TEST_GITCONFIG)
             @test LibGit2.path(repo) == RegEdit.path(cache, DEFAULT_REGISTRY_URL)
             @test LibGit2.branch(repo) == "master"
             @test !LibGit2.isdirty(repo)
@@ -58,10 +67,15 @@ end
             orig_hash = LibGit2.GitHash()
             LibGit2.branch!(repo, "newbranch", force=true)
             LibGit2.remove!(repo, "Registry.toml")
-            LibGit2.commit(repo, "Removing Registry.toml in Registrator tests")
+            LibGit2.commit(
+                repo,
+                "Removing Registry.toml in Registrator tests";
+                author=TEST_SIGNATURE,
+                committer=TEST_SIGNATURE,
+            )
             @test LibGit2.GitObject(repo, "HEAD") != LibGit2.GitObject(repo, "master")
             @test ispath(registry_path)
-            repo = get_registry(DEFAULT_REGISTRY_URL, cache=cache)
+            repo = get_registry(DEFAULT_REGISTRY_URL, cache=cache, gitconfig=TEST_GITCONFIG)
             @test LibGit2.path(repo) == RegEdit.path(cache, DEFAULT_REGISTRY_URL)
             @test LibGit2.branch(repo) == "master"
             @test !LibGit2.isdirty(repo)
