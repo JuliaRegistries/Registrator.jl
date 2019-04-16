@@ -1,41 +1,7 @@
-"""
-Return a `GitRepo` object for an up-to-date copy of `registry`.
-"""
-function get_registry(registry::String; gitconfig::Dict=Dict())
-    reg_path(args...) = joinpath("registries", map(string, args)...)
-    if haskey(REGISTRIES, registry)
-        registry_uuid = REGISTRIES[registry]
-        registry_path = reg_path(registry_uuid)
-        if !ispath(registry_path)
-            LibGit2.clone(registry, registry_path, branch="master")
-        else
-            # this is really annoying/impossible to do with LibGit2
-            git = gitcmd(registry_path, gitconfig)
-            run(`$git config remote.origin.url $registry`)
-            run(`$git checkout -q -f master`)
-            run(`$git fetch -q -P origin master`)
-            run(`$git reset -q --hard origin/master`)
-        end
-    else
-        registry_temp = mktempdir(mkpath(reg_path()))
-        try
-            LibGit2.clone(registry, registry_temp)
-            reg = parse_registry(joinpath(registry_temp, "Registry.toml"))
-            registry_uuid = REGISTRIES[registry] = reg.uuid
-            registry_path = reg_path(registry_uuid)
-            rm(registry_path, recursive=true, force=true)
-            mv(registry_temp, registry_path)
-        finally
-            rm(registry_temp, recursive=true, force=true)
-        end
-    end
-    return GitRepo(registry_path)
-end
-
-"""
-Given a remote repo URL and a git tree spec, get a `Project` object
-for the project file in that tree and a hash string for the tree.
-"""
+# """
+# Given a remote repo URL and a git tree spec, get a `Project` object
+# for the project file in that tree and a hash string for the tree.
+# """
 # function get_project(remote_url::String, tree_spec::String)
 #     # TODO?: use raw file downloads for GitHub/GitLab
 #     mktempdir(mkpath("packages")) do tmp
@@ -130,11 +96,29 @@ function check_version(existing::Vector{VersionNumber}, ver::VersionNumber)
 end
 
 """
-Register the package at `package_repo` / `tree_spect` in `registry`.
+    register(package_repo, pkg, tree_hash; registry, registry_deps, push, gitconfig)
+
+Register the package at `package_repo` / `tree_hash` in `registry`.
+Returns a `RegEdit.RegBranch` which contains information about the registration and/or any
+errors or warnings that occurred.
+
+# Arguments
+
+* `package_repo::String`: the git repository URL for the package to be registered
+* `pkg::Pkt.Types.Project`: the parsed Project.toml file for the package to be registered
+* `tree_hash::String`: the tree hash (not commit hash) of the package revision to be registered
+
+# Keyword Arguments
+
+* `registry::String=$DEFAULT_REGISTRY_URL`: the git repository URL for the registry
+* `registry_deps::Vector{String}=[]`: the git repository URLs for any registries containing
+    packages depended on by `pkg`
+* `push::Bool=false`: whether to push a registration branch to `registry` for consideration
+* `gitconfig::Dict=Dict()`: dictionary of configuration options for the `git` command
 """
 function register(
     package_repo::String, pkg::Pkg.Types.Project, tree_hash::String;
-    registry::String = DEFAULT_REGISTRY,
+    registry::String = DEFAULT_REGISTRY_URL,
     registry_deps::Vector{String} = String[],
     push::Bool = false,
     gitconfig::Dict = Dict()
@@ -143,7 +127,7 @@ function register(
     @debug("get info from package registry")
     package_repo = GitTools.normalize_url(package_repo)
     #pkg, tree_hash = get_project(package_repo, tree_spec)
-    branch = "register/$(pkg.name)/v$(pkg.version)"
+    branch = registration_branch(pkg)
 
     # get up-to-date clone of registry
     @debug("get up-to-date clone of registry")

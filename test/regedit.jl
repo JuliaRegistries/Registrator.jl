@@ -1,10 +1,74 @@
-using Registrator.RegEdit: RegEdit, parse_registry
+using Registrator.RegEdit: RegEdit,
+    DEFAULT_REGISTRY_URL,
+    parse_registry,
+    showsafe,
+    registration_branch,
+    get_registry
+using LibGit2
 using Pkg.TOML
 using Pkg.Types: Project
 
 using Test
 
 @testset "RegEdit" begin
+
+@testset "Utilities" begin
+    @testset "showsafe" begin
+        @test string(showsafe(3)) == "3"
+        @test string(showsafe(nothing)) == "nothing"
+    end
+
+    @testset "registration_branch" begin
+        example = Project(Dict(
+            "name" => "Example", "version" => "1.10.2"
+        ))
+
+        @test registration_branch(example) == "register/Example/v1.10.2"
+
+        example = Project(Dict(
+            "name" => "Example", "version" => nothing
+        ))
+
+        @test_throws ArgumentError registration_branch(example)
+    end
+end
+
+@testset "RegistryCache" begin
+    @testset "get_registry" begin
+        mktempdir(@__DIR__) do temp_cache_dir
+            # test when registry is not in the cache and not downloaded
+            cache = RegEdit.RegistryCache(temp_cache_dir)
+            repo = get_registry(DEFAULT_REGISTRY_URL, cache=cache)
+            @test LibGit2.path(repo) == RegEdit.path(cache, DEFAULT_REGISTRY_URL)
+            @test LibGit2.branch(repo) == "master"
+            @test !LibGit2.isdirty(repo)
+            @test LibGit2.url(LibGit2.lookup_remote(repo, "origin")) == DEFAULT_REGISTRY_URL
+
+            # test when registry is in the cache but not downloaded
+            registry_path = RegEdit.path(cache, DEFAULT_REGISTRY_URL)
+            rm(registry_path, recursive=true, force=true)
+            @test !ispath(registry_path)
+            repo = get_registry(DEFAULT_REGISTRY_URL, cache=cache)
+            @test LibGit2.path(repo) == RegEdit.path(cache, DEFAULT_REGISTRY_URL)
+            @test LibGit2.branch(repo) == "master"
+            @test !LibGit2.isdirty(repo)
+            @test LibGit2.url(LibGit2.lookup_remote(repo, "origin")) == DEFAULT_REGISTRY_URL
+
+            # test when registry is in the cache, downloaded, but mutated
+            orig_hash = LibGit2.GitHash()
+            LibGit2.branch!(repo, "newbranch", force=true)
+            LibGit2.remove!(repo, "Registry.toml")
+            LibGit2.commit(repo, "Removing Registry.toml in Registrator tests")
+            @test LibGit2.GitObject(repo, "HEAD") != LibGit2.GitObject(repo, "master")
+            @test ispath(registry_path)
+            repo = get_registry(DEFAULT_REGISTRY_URL, cache=cache)
+            @test LibGit2.path(repo) == RegEdit.path(cache, DEFAULT_REGISTRY_URL)
+            @test LibGit2.branch(repo) == "master"
+            @test !LibGit2.isdirty(repo)
+            @test LibGit2.url(LibGit2.lookup_remote(repo, "origin")) == DEFAULT_REGISTRY_URL
+        end
+    end
+end
 
 @testset "RegistryData" begin
     blank = RegEdit.RegistryData("BlankRegistry", "d4e2f5cd-0f48-4704-9988-f1754e755b45")

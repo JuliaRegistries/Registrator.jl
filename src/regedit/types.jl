@@ -1,3 +1,68 @@
+"""
+    RegEdit.RegistryCache(path, registries=Dict())
+
+Represents a local cache of registry repositories rooted at `path`, where each registry is
+stored in a subdirectory corresponding to the registry's UUID.
+
+Maintains a dictionary `registries` which maps registry repository URLs to UUIDs.
+"""
+struct RegistryCache
+    path::String
+    registries::Dict{String, UUID}
+end
+
+RegistryCache(path) = RegistryCache(path, Dict())
+
+const REGISTRY_CACHE = RegistryCache("registries")
+
+path(cache::RegistryCache) = cache.path
+path(cache::RegistryCache, reg_uuid::UUID) = joinpath(path(cache), string(reg_uuid))
+function path(cache::RegistryCache, registry_url::AbstractString)
+    path(cache, cache.registries[registry_url])
+end
+
+"""
+    RegEdit.get_registry(registry_url)
+
+Return a `GitRepo` object for an up-to-date copy of `registry`.
+Update the existing copy if available.
+"""
+function get_registry(
+    registry_url::String;
+    gitconfig::Dict=Dict(),
+    cache::RegistryCache=REGISTRY_CACHE,
+)
+    if haskey(cache.registries, registry_url)
+        registry_path = path(cache, registry_url)
+
+        if !ispath(registry_path)
+            mkpath(path(cache))
+            LibGit2.clone(registry_url, registry_path, branch="master")
+        else
+            # this is really annoying/impossible to do with LibGit2
+            git = gitcmd(registry_path, gitconfig)
+            run(`$git config remote.origin.url $registry_url`)
+            run(`$git checkout -q -f master`)
+            run(`$git fetch -q -P origin master`)
+            run(`$git reset -q --hard origin/master`)
+        end
+    else
+        registry_temp = mktempdir(mkpath(path(cache)))
+        try
+            LibGit2.clone(registry_url, registry_temp)
+            reg = parse_registry(joinpath(registry_temp, "Registry.toml"))
+            registry_uuid = cache.registries[registry_url] = reg.uuid
+            registry_path = path(cache, registry_uuid)
+            rm(registry_path, recursive=true, force=true)
+            mv(registry_temp, registry_path)
+        finally
+            rm(registry_temp, recursive=true, force=true)
+        end
+    end
+
+    return LibGit2.GitRepo(registry_path)
+end
+
 @auto_hash_equals struct RegistryData
     name::String
     uuid::UUID

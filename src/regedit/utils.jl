@@ -17,3 +17,10 @@ function write_toml(file::String, data::Dict)
         TOML.print(io, data, sorted=true)
     end
 end
+
+"""
+    registration_branch(pkg::Pkg.Types.Project) -> String
+
+Generate the name for the registry branch used to register the package version.
+"""
+registration_branch(pkg::Pkg.Types.Project) = "register/$(pkg.name)/v$(pkg.version)"
