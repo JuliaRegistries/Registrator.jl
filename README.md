@@ -15,7 +15,7 @@ Registrator is a GitHub app that automates creation of registration pull request
 
 First, install the app on your package(s) as mentioned above.  The procedure for registering a new package is the same as for releasing a new version.
 
-Registrator will look for the project file in the master branch by default. To use a custom branch comment with:
+Registrator will look for the project file in the master branch by default, and will use the version set in the Project.toml file via, for example, `version = "0.1.0"`. To use a custom branch comment with:
 
 ```
 @JuliaRegistrator register(branch=name-of-your-branch)
