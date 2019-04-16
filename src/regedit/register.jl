@@ -110,7 +110,7 @@ errors or warnings that occurred.
 
 # Keyword Arguments
 
-* `registry::String=$DEFAULT_REGISTRY_URL`: the git repository URL for the registry
+* `registry::String="$DEFAULT_REGISTRY_URL"`: the git repository URL for the registry
 * `registry_deps::Vector{String}=[]`: the git repository URLs for any registries containing
     packages depended on by `pkg`
 * `push::Bool=false`: whether to push a registration branch to `registry` for consideration
