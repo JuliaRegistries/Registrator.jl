@@ -781,7 +781,7 @@ $enc_meta
         a tag on this repository for the registered package version:
         ```
         git tag -a v$(string(ver)) -m "<description of version>" $(pp.tree_sha)
-        git push v$(string(ver))
+        git push origin v$(string(ver))
         ```
         """
 
