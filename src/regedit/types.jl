@@ -43,7 +43,8 @@ function get_registry(
             git = gitcmd(registry_path, gitconfig)
             run(`$git config remote.origin.url $registry_url`)
             run(`$git checkout -q -f master`)
-            run(`$git fetch -q -P origin master`)
+            # uses config because git versions <2.17.0 did not have the -P option
+            run(`$git -c fetch.pruneTags fetch -q origin master`)
             run(`$git reset -q --hard origin/master`)
         end
     else
