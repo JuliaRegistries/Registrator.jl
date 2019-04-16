@@ -781,7 +781,7 @@ $enc_meta
         After the above pull request is merged, it is recommended that you create
         a tag on this repository for the registered package version:
         ```
-        git tag -a v$(string(ver)) -m "<description of version>" $(pp.tree_sha)
+        git tag -a v$(string(ver)) -m "<description of version>" $(pp.sha)
         git push origin v$(string(ver))
         ```
         """
