@@ -717,15 +717,21 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
                   "head"=>brn,
                   "maintainer_can_modify"=>true)
     ref = get_html_url(rp.evt.payload)
-    params["body"] = """
-| $name       |     $ver     |
-|-------------|--------------|
-| Proposed by | @$(creator)  |
-| Reviewed by | @$(reviewer) |
-| Reference   | [$ref]($ref) |
 
-$enc_meta
-"""
+    # FYI: TagBot (github.com/apps/julia-tagbot) depends on the "Repository", "Version",
+    # and "Commit" fields. If you're going to change the format here, please ping
+    # @christopher-dG and make sure that WebUI.jl has also been updated.
+    params["body"] = """
+        Registering: $name
+        Repository: $(rp.evt.repository.html_url)
+        Version: v$ver
+        Commit: $(pp.sha)
+        Proposed by: @$creator
+        Reviewed by: @$reviewer
+        Reference: [$ref]($ref)
+
+        $enc_meta
+        """
 
     pr = nothing
     repo = join(split(target_registry["repo"], "/")[end-1:end], "/")
