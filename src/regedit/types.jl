@@ -37,7 +37,7 @@ function get_registry(
 
         if !ispath(registry_path)
             mkpath(path(cache))
-            LibGit2.clone(registry_url, registry_path, branch="master")
+            run(`git clone $registry_url $registry_path --branch=master`)
         else
             # this is really annoying/impossible to do with LibGit2
             git = gitcmd(registry_path, gitconfig)
@@ -50,7 +50,7 @@ function get_registry(
     else
         registry_temp = mktempdir(mkpath(path(cache)))
         try
-            LibGit2.clone(registry_url, registry_temp)
+            run(`git clone $registry_url $registry_temp`)
             reg = parse_registry(joinpath(registry_temp, "Registry.toml"))
             registry_uuid = cache.registries[registry_url] = reg.uuid
             registry_path = path(cache, registry_uuid)
