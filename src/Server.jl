@@ -793,7 +793,7 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
         """
 
     if rbrn.warning !== nothing
-        cbody += """
+        cbody *= """
             Also, note the warning: $(rbrn.warning)
             This can be safely ignored. However, if you want to fix this you can do so. Call register() again after making the fix. This will update the Pull request.
             """
