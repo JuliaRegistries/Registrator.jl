@@ -62,7 +62,7 @@ end
 
 function write_registry(registry_path::String, reg::RegistryData)
     open(registry_path, "w") do io
-        TOML.print(io, data)
+        TOML.print(io, reg)
     end
 end
 
@@ -175,11 +175,11 @@ function register(
             end
 
             @debug("Creating directory for new package $(pkg.name)")
-            package_path = joinpath(registry_path, package_relpath(pkg))
+            package_path = joinpath(registry_path, package_relpath(registry_data, pkg))
             mkpath(package_path)
 
             @debug("Adding package UUID to registry")
-            push!(reg, pkg)
+            push!(registry_data, pkg)
             write_registry(registry_file, registry_data)
         end
 
