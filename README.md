@@ -17,21 +17,20 @@ First, install the app on your package(s) as mentioned above.  The procedure for
 
 Registrator will look for the project file in the master branch by default, and will use the version set in the Project.toml file via, for example, `version = "0.1.0"`. To use a custom branch comment with:
 
-```
-@JuliaRegistrator register(branch=name-of-your-branch)
-```
+@JuliaRegistrator `register(branch=name-of-your-branch)`
 
+Note that the `register` command is within backticks, but @JuliaRegistrator is not.
 
 ### If you are a collaborator on the repo
 
 Either:
 
-1. Open an issue and add ` @JuliaRegistrator register() ` as a comment.  You can re-trigger the registrator by commenting ` @JuliaRegistrator register() ` again (in case registrator reports an error or you wish to make changes).
-2. Add a comment to a commit and say ` @JuliaRegistrator register() `.
+1. Open an issue and add @JuliaRegistrator `register()` as a comment.  You can re-trigger the registrator by commenting @JuliaRegistrator `register() ` again (in case registrator reports an error or you wish to make changes).
+2. Add a comment to a commit and say  @JuliaRegistrator `register() `.
 
 ### If you are not a collaborator
 
-You can request a collaborator trigger registrator in a GitHub issue or a comment on a commit.
+You can ask a collaborator to trigger registrator in a GitHub issue or a comment on a commit.
 
 
 ## Approving pull requests on the registry
@@ -40,4 +39,4 @@ Currently, a registry maintainer will manually merge the pull request made by Re
 
 ## Note on git tags and GitHub releases
 
-The Julia package manager **does not** rely on git tags and GitHub releases. However, Registrator will generate a `git tag` command for you to optionally create a corresponding tag with your package version.
+The Julia package manager **does not** rely on git tags and GitHub releases. If you want to add a tag, you can do it manually (see https://git-scm.com/book/en/v2/Git-Basics-Tagging).
