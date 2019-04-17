@@ -288,7 +288,7 @@ function register(
         else
             compat_data = Dict()
         end
-        compat_data[pkg.version] = Dict{String,Any}(n=>Pkg.Types.semver_spec(v) for (n,v) in pkg.compat)
+        compat_data[pkg.version] = Dict{String,Any}(n=>[ver for ver in Pkg.Types.semver_spec(v).ranges] for (n,v) in pkg.compat)
         Pkg.Compress.save(compat_file, compat_data)
 
         # commit changes
