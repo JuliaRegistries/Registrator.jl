@@ -1,36 +1,135 @@
-import Registrator.RegEdit: write_registry
+using Registrator.RegEdit: RegEdit,
+    DEFAULT_REGISTRY_URL,
+    parse_registry,
+    showsafe,
+    registration_branch,
+    get_registry
+using LibGit2
 using Pkg.TOML
+using Pkg.Types: Project
 
 using Test
 
+const TEST_GITCONFIG = Dict(
+    "user.name" => "RegistratorTests",
+    "user.email" => "ci@juliacomputing.com",
+)
+const TEST_SIGNATURE = LibGit2.Signature(
+    TEST_GITCONFIG["user.name"],
+    TEST_GITCONFIG["user.email"],
+)
+
 @testset "RegEdit" begin
 
-@testset "write_registry" begin
-    registry = """
-        name = "General"
-        uuid = "23338594-aafe-5451-b93e-139f81909106"
-        repo = "https://github.com/JuliaRegistries/General.git"
+@testset "Utilities" begin
+    @testset "showsafe" begin
+        @test string(showsafe(3)) == "3"
+        @test string(showsafe(nothing)) == "nothing"
+    end
 
-        description = \"\"\"
-        Official general Julia package registry where people can
-        register any package they want without too much debate about
-        naming and without enforced standards on documentation or
-        testing. We nevertheless encourage documentation, testing and
-        some amount of consideration when choosing package names.
-        \"\"\"
+    @testset "registration_branch" begin
+        example = Project(Dict(
+            "name" => "Example", "version" => "1.10.2"
+        ))
 
-        [packages]
-        00701ae9-d1dc-5365-b64a-a3a3ebf5695e = { name = "BioAlignments", path = "B/BioAlignments" }
-        00718b61-6157-5045-8849-3d4c4093d022 = { name = "Convertible", path = "C/Convertible" }
-        0087ddc6-3964-5e57-817f-9937aefb0357 = { name = "MathOptInterfaceMosek", path = "M/MathOptInterfaceMosek" }
-        """
+        @test registration_branch(example) == "register/Example/v1.10.2"
 
-    registry_data = TOML.parse(registry)
-    written_registry = sprint(write_registry, registry_data)
-    written_registry_data = TOML.parse(written_registry)
+        example = Project(Dict(
+            "name" => "Example", "version" => nothing
+        ))
 
-    @test written_registry_data == registry_data
-    @test written_registry == registry
+        @test_throws ArgumentError registration_branch(example)
+    end
+end
+
+@testset "RegistryCache" begin
+    @testset "get_registry" begin
+        mktempdir(@__DIR__) do temp_cache_dir
+            # test when registry is not in the cache and not downloaded
+            cache = RegEdit.RegistryCache(temp_cache_dir)
+            repo = get_registry(DEFAULT_REGISTRY_URL, cache=cache, gitconfig=TEST_GITCONFIG)
+            @test LibGit2.path(repo) == RegEdit.path(cache, DEFAULT_REGISTRY_URL)
+            @test LibGit2.branch(repo) == "master"
+            @test !LibGit2.isdirty(repo)
+            @test LibGit2.url(LibGit2.lookup_remote(repo, "origin")) == DEFAULT_REGISTRY_URL
+
+            # test when registry is in the cache but not downloaded
+            registry_path = RegEdit.path(cache, DEFAULT_REGISTRY_URL)
+            rm(registry_path, recursive=true, force=true)
+            @test !ispath(registry_path)
+            repo = get_registry(DEFAULT_REGISTRY_URL, cache=cache, gitconfig=TEST_GITCONFIG)
+            @test LibGit2.path(repo) == RegEdit.path(cache, DEFAULT_REGISTRY_URL)
+            @test LibGit2.branch(repo) == "master"
+            @test !LibGit2.isdirty(repo)
+            @test LibGit2.url(LibGit2.lookup_remote(repo, "origin")) == DEFAULT_REGISTRY_URL
+
+            # test when registry is in the cache, downloaded, but mutated
+            orig_hash = LibGit2.GitHash()
+            LibGit2.branch!(repo, "newbranch", force=true)
+            LibGit2.remove!(repo, "Registry.toml")
+            LibGit2.commit(
+                repo,
+                "Removing Registry.toml in Registrator tests";
+                author=TEST_SIGNATURE,
+                committer=TEST_SIGNATURE,
+            )
+            @test LibGit2.GitObject(repo, "HEAD") != LibGit2.GitObject(repo, "master")
+            @test ispath(registry_path)
+            repo = get_registry(DEFAULT_REGISTRY_URL, cache=cache, gitconfig=TEST_GITCONFIG)
+            @test LibGit2.path(repo) == RegEdit.path(cache, DEFAULT_REGISTRY_URL)
+            @test LibGit2.branch(repo) == "master"
+            @test !LibGit2.isdirty(repo)
+            @test LibGit2.url(LibGit2.lookup_remote(repo, "origin")) == DEFAULT_REGISTRY_URL
+        end
+    end
+end
+
+@testset "RegistryData" begin
+    blank = RegEdit.RegistryData("BlankRegistry", "d4e2f5cd-0f48-4704-9988-f1754e755b45")
+
+    example = Project(Dict(
+        "name" => "Example", "uuid" => "7876af07-990d-54b4-ab0e-23690620f79a"
+    ))
+
+    @testset "I/O" begin
+        registry = """
+            name = "General"
+            uuid = "23338594-aafe-5451-b93e-139f81909106"
+            repo = "https://github.com/JuliaRegistries/General.git"
+
+            description = \"\"\"
+            Official general Julia package registry where people can
+            register any package they want without too much debate about
+            naming and without enforced standards on documentation or
+            testing. We nevertheless encourage documentation, testing and
+            some amount of consideration when choosing package names.
+            \"\"\"
+
+            [packages]
+            00701ae9-d1dc-5365-b64a-a3a3ebf5695e = { name = "BioAlignments", path = "B/BioAlignments" }
+            00718b61-6157-5045-8849-3d4c4093d022 = { name = "Convertible", path = "C/Convertible" }
+            0087ddc6-3964-5e57-817f-9937aefb0357 = { name = "MathOptInterfaceMosek", path = "M/MathOptInterfaceMosek" }
+            """
+
+        registry_data = parse_registry(IOBuffer(registry))
+        @test registry_data isa RegEdit.RegistryData
+        written_registry = sprint(TOML.print, registry_data)
+        written_registry_data = parse_registry(IOBuffer(written_registry))
+
+        @test written_registry_data == registry_data
+        @test written_registry == registry
+    end
+
+    @testset "Package Operations" begin
+        registry_data = copy(blank)
+
+        @test isempty(registry_data.packages)
+        @test push!(registry_data, example) == registry_data
+        @test length(registry_data.packages) == 1
+        @test haskey(registry_data.packages, string(example.uuid))
+        @test registry_data.packages[string(example.uuid)]["name"] == "Example"
+        @test registry_data.packages[string(example.uuid)]["path"] == joinpath("E", "Example")
+    end
 end
 
 end

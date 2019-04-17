@@ -1,41 +1,7 @@
-"""
-Return a `GitRepo` object for an up-to-date copy of `registry`.
-"""
-function get_registry(registry::String; gitconfig::Dict=Dict())
-    reg_path(args...) = joinpath("registries", map(string, args)...)
-    if haskey(REGISTRIES, registry)
-        registry_uuid = REGISTRIES[registry]
-        registry_path = reg_path(registry_uuid)
-        if !ispath(registry_path)
-            LibGit2.clone(registry, registry_path, branch="master")
-        else
-            # this is really annoying/impossible to do with LibGit2
-            git = gitcmd(registry_path, gitconfig)
-            run(`$git config remote.origin.url $registry`)
-            run(`$git checkout -q -f master`)
-            run(`$git fetch -q -P origin master`)
-            run(`$git reset -q --hard origin/master`)
-        end
-    else
-        registry_temp = mktempdir(mkpath(reg_path()))
-        try
-            LibGit2.clone(registry, registry_temp)
-            reg = TOML.parsefile(joinpath(registry_temp, "Registry.toml"))
-            registry_uuid = REGISTRIES[registry] = UUID(reg["uuid"])
-            registry_path = reg_path(registry_uuid)
-            rm(registry_path, recursive=true, force=true)
-            mv(registry_temp, registry_path)
-        finally
-            rm(registry_temp, recursive=true, force=true)
-        end
-    end
-    return GitRepo(registry_path)
-end
-
-"""
-Given a remote repo URL and a git tree spec, get a `Project` object
-for the project file in that tree and a hash string for the tree.
-"""
+# """
+# Given a remote repo URL and a git tree spec, get a `Project` object
+# for the project file in that tree and a hash string for the tree.
+# """
 # function get_project(remote_url::String, tree_spec::String)
 #     # TODO?: use raw file downloads for GitHub/GitLab
 #     mktempdir(mkpath("packages")) do tmp
@@ -94,48 +60,9 @@ struct RegBranch
     end
 end
 
-function write_registry(io::IO, data::Dict)
-    mandatory_keys = ("name", "uuid")
-    optional_keys = ("repo",)
-    reserved_keys = (mandatory_keys..., optional_keys..., "description", "packages")
-
-    extra_keys = filter(!in(reserved_keys), keys(data))
-
-    for key in mandatory_keys
-        println(io, "$key = ", repr(data[key]))
-    end
-
-    for key in optional_keys
-        if haskey(data, key)
-            println(io, "$key = ", repr(data[key]))
-        end
-    end
-
-    if haskey(data, "description")
-        println(io)
-        print(io, """
-            description = \"\"\"
-            $(data["description"])\"\"\"
-            """
-        )
-    end
-
-    for key in extra_keys
-        TOML.print(io, Dict(key => data["key"]), sorted=true)
-    end
-
-    println(io)
-    println(io, "[packages]")
-    if haskey(data, "packages")
-        for (uuid, data) in sort!(collect(data["packages"]), by=first)
-            println(io, uuid, " = { name = ", repr(data["name"]), ", path = ", repr(data["path"]), " }")
-        end
-    end
-end
-
-function write_registry(registry_path::String, data::Dict)
+function write_registry(registry_path::String, reg::RegistryData)
     open(registry_path, "w") do io
-        write_registry(io, data)
+        TOML.print(io, data)
     end
 end
 
@@ -169,11 +96,29 @@ function check_version(existing::Vector{VersionNumber}, ver::VersionNumber)
 end
 
 """
-Register the package at `package_repo` / `tree_spect` in `registry`.
+    register(package_repo, pkg, tree_hash; registry, registry_deps, push, gitconfig)
+
+Register the package at `package_repo` / `tree_hash` in `registry`.
+Returns a `RegEdit.RegBranch` which contains information about the registration and/or any
+errors or warnings that occurred.
+
+# Arguments
+
+* `package_repo::String`: the git repository URL for the package to be registered
+* `pkg::Pkt.Types.Project`: the parsed Project.toml file for the package to be registered
+* `tree_hash::String`: the tree hash (not commit hash) of the package revision to be registered
+
+# Keyword Arguments
+
+* `registry::String="$DEFAULT_REGISTRY_URL"`: the git repository URL for the registry
+* `registry_deps::Vector{String}=[]`: the git repository URLs for any registries containing
+    packages depended on by `pkg`
+* `push::Bool=false`: whether to push a registration branch to `registry` for consideration
+* `gitconfig::Dict=Dict()`: dictionary of configuration options for the `git` command
 """
 function register(
     package_repo::String, pkg::Pkg.Types.Project, tree_hash::String;
-    registry::String = DEFAULT_REGISTRY,
+    registry::String = DEFAULT_REGISTRY_URL,
     registry_deps::Vector{String} = String[],
     push::Bool = false,
     gitconfig::Dict = Dict()
@@ -182,7 +127,7 @@ function register(
     @debug("get info from package registry")
     package_repo = GitTools.normalize_url(package_repo)
     #pkg, tree_hash = get_project(package_repo, tree_spec)
-    branch = "register/$(pkg.name)/v$(pkg.version)"
+    branch = registration_branch(pkg)
 
     # get up-to-date clone of registry
     @debug("get up-to-date clone of registry")
@@ -208,11 +153,11 @@ function register(
         # find package in registry
         @debug("find package in registry")
         registry_file = joinpath(registry_path, "Registry.toml")
-        registry_data = TOML.parsefile(registry_file)
+        registry_data = parse_registry(registry_file)
 
         uuid = string(pkg.uuid)
-        if haskey(registry_data["packages"], uuid)
-            package_data = registry_data["packages"][uuid]
+        if haskey(registry_data.packages, uuid)
+            package_data = registry_data.packages[uuid]
             if (package_data["name"] != pkg.name)
                 err = "Changing package names not supported yet"
                 @debug(err)
@@ -221,7 +166,7 @@ function register(
             package_path = joinpath(registry_path, package_data["path"])
         else
             @debug("Package with UUID: $uuid not found in registry, checking if UUID was changed")
-            for (k, v) in registry_data["packages"]
+            for (k, v) in registry_data.packages
                 if v["name"] == pkg.name
                     err = "Changing UUIDs is not allowed"
                     @debug(err)
@@ -230,15 +175,11 @@ function register(
             end
 
             @debug("Creating directory for new package $(pkg.name)")
-            first_letter = uppercase(pkg.name[1])
-            package_relpath = joinpath("$first_letter", pkg.name)
-            package_path = joinpath(registry_path, package_relpath)
+            package_path = joinpath(registry_path, package_relpath(pkg))
             mkpath(package_path)
 
             @debug("Adding package UUID to registry")
-            registry_data["packages"][uuid] = Dict(
-                "name" => pkg.name, "path" => package_relpath
-            )
+            push!(reg, pkg)
             write_registry(registry_file, registry_data)
         end
 
@@ -282,16 +223,16 @@ function register(
 
         @debug("Verifying package name and uuid in deps")
         registry_deps_data = map(registry_deps_paths) do registry_path
-            TOML.parsefile(joinpath(registry_path, "Registry.toml"))
+            parse_registry(joinpath(registry_path, "Registry.toml"))
         end
         for (k, v) in pkg.deps
             u = string(v)
 
             uuid_found = false
             for _registry_data in [registry_data; registry_deps_data]
-                if haskey(_registry_data["packages"], u)
+                if haskey(_registry_data.packages, u)
                     uuid_found = true
-                    name_in_reg = _registry_data["packages"][u]["name"]
+                    name_in_reg = _registry_data.packages[u]["name"]
                     if name_in_reg != k
                         err = "Error in `[deps]`: UUID $u refers to package '$name_in_reg' in registry but deps file has '$k'"
                         break
