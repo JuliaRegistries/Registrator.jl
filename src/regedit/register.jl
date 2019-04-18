@@ -208,11 +208,8 @@ function register(
         version_info = Dict{String,Any}("git-tree-sha1" => string(tree_hash))
         versions_data[string(pkg.version)] = version_info
 
-        vnlist = sort([(VersionNumber(k), v) for (k, v) in versions_data])
-        vslist = [(string(k), v) for (k, v) in vnlist]
-
         open(versions_file, "w") do io
-            TOML.print(io, OrderedDict(vslist))
+            TOML.print(io, versions_data; sorted=true, by=x->VersionNumber(x))
         end
 
         # update package data: deps file
