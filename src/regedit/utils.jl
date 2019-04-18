@@ -10,15 +10,6 @@ function gitcmd(path::String, gitconfig::Dict)
 end
 
 """
-Write TOML data (with sorted keys).
-"""
-function write_toml(file::String, data::Dict)
-    open(file, "w") do io
-        TOML.print(io, data, sorted=true)
-    end
-end
-
-"""
     registration_branch(pkg::Pkg.Types.Project) -> String
 
 Generate the name for the registry branch used to register the package version.
