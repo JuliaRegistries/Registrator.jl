@@ -212,7 +212,7 @@ function register(
         vslist = [(string(k), v) for (k, v) in vnlist]
 
         open(versions_file, "w") do io
-            TOML.print(io, OrderedDict(vslist))
+            TOML.print(io, vslist; sorted=true, by=VersionNumber)
         end
 
         # update package data: deps file
