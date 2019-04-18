@@ -1,6 +1,6 @@
 module Registrator
 
-using UUIDs, LibGit2
+using UUIDs, LibGit2, DataStructures
 
 import Base: PkgId
 
