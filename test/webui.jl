@@ -1,14 +1,14 @@
 using Registrator: Registrator
 using Registrator.WebUI: @gf
 using GitForge: GitForge, get_user
-using GitForge.GitHub: GitHub, GitHubAPI
+using GitForge.GitHub: GitHub, GitHubAPI, NoToken, Token
 using HTTP: HTTP
 using Sockets: Sockets
 
 const UI = Registrator.WebUI
 
 const config = Dict(
-    "GITHUB_API_TOKEN" => "abc",
+    "GITHUB_API_TOKEN" => get(ENV, "GITHUB_API_TOKEN", "abc"),
     "GITHUB_CLIENT_ID" => "abc",
     "GITHUB_CLIENT_SECRET" => "abc",
     "GITLAB_API_TOKEN" => "abc",
@@ -58,10 +58,11 @@ const config = Dict(
         end
 
         # Patch the GitHub API client to avoid needing a real API key.
+        t = ENV["GITHUB_API_TOKEN"] == "abc" ? NoToken() : Token(ENV["GITHUB_API_TOKEN"])
         UI.init_providers()
         UI.PROVIDERS["github"] = UI.Provider(;
             name="GitHub",
-            client=GitHubAPI(),
+            client=GitHubAPI(; token=t),
             client_id=ENV["GITHUB_CLIENT_ID"],
             client_secret=ENV["GITHUB_CLIENT_SECRET"],
             auth_url="https://github.com/login/oauth/authorize",
