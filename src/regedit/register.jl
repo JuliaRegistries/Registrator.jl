@@ -105,7 +105,7 @@ errors or warnings that occurred.
 # Arguments
 
 * `package_repo::String`: the git repository URL for the package to be registered
-* `pkg::Pkt.Types.Project`: the parsed Project.toml file for the package to be registered
+* `pkg::Pkg.Types.Project`: the parsed Project.toml file for the package to be registered
 * `tree_hash::String`: the tree hash (not commit hash) of the package revision to be registered
 
 # Keyword Arguments
@@ -185,11 +185,14 @@ function register(
 
         # update package data: package file
         @debug("update package data: package file")
-        package_info = filter(((k,v),)->!(v isa Dict), Pkg.Types.destructure(pkg))
-        delete!(package_info, "version")
-        package_info["repo"] = package_repo
+        package_info = Dict("name" => pkg.name,
+                            "uuid" => string(pkg.uuid),
+                            "repo" => package_repo)
         package_file = joinpath(package_path, "Package.toml")
-        write_toml(package_file, package_info)
+        open(package_file, "w") do io
+            TOML.print(io, package_info; sorted=true,
+                by = x -> x == "name" ? 1 : x == "uuid" ? 2 : 3)
+        end
 
         # update package data: versions file
         @debug("update package data: versions file")
@@ -205,11 +208,8 @@ function register(
         version_info = Dict{String,Any}("git-tree-sha1" => string(tree_hash))
         versions_data[string(pkg.version)] = version_info
 
-        vnlist = sort([(VersionNumber(k), v) for (k, v) in versions_data])
-        vslist = [(string(k), v) for (k, v) in vnlist]
-
         open(versions_file, "w") do io
-            TOML.print(io, OrderedDict(vslist))
+            TOML.print(io, versions_data; sorted=true, by=x->VersionNumber(x))
         end
 
         # update package data: deps file
