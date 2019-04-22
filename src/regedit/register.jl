@@ -148,7 +148,8 @@ function register(
     registry::String = DEFAULT_REGISTRY_URL,
     registry_deps::Vector{String} = String[],
     push::Bool = false,
-    gitconfig::Dict = Dict()
+    gitconfig::Dict = Dict(),
+    compat_julia_pool=[v"0.7", v"1.0", v"1.1"]
 )
     # get info from package registry
     @debug("get info from package registry")
@@ -296,7 +297,6 @@ function register(
             compat_data = Dict()
         end
 
-        compat_julia_pool = map(VersionNumber, get(config["registrator"], "compat_julia_pool", ["0.7", "1.0", "1.1"]))
         d = Dict()
         for (n,v) in pkg.compat
             spec = Pkg.Types.semver_spec(v)

@@ -843,12 +843,14 @@ string(::RequestParams{ApprovalTrigger}) = "approval"
 function handle_register(rp::RequestParams, target_registry::Dict{String,Any})
     pp = ProcessedParams(rp)
 
+    compat_julia_pool = map(VersionNumber, get(config["registrator"], "compat_julia_pool", ["0.7", "1.0", "1.1"]))
     if pp.cparams.isvalid && pp.cparams.error == nothing
         rbrn = register(pp.cloneurl, Pkg.Types.read_project(copy(IOBuffer(pp.projectfile_contents))), pp.tree_sha;
             registry=target_registry["repo"],
             registry_deps=get(config["registrator"], "registry_deps", String[]),
             push=true,
-            gitconfig=Dict("user.name"=>config["github"]["user"], "user.email"=>config["github"]["email"]))
+            gitconfig=Dict("user.name"=>config["github"]["user"], "user.email"=>config["github"]["email"]),
+            compat_julia_pool=compat_julia_pool)
         if rbrn.error !== nothing
             msg = "Error while trying to register: $(rbrn.error)"
             @debug(msg)
