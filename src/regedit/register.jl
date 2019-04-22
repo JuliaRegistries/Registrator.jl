@@ -288,7 +288,26 @@ function register(
         else
             compat_data = Dict()
         end
-        compat_data[pkg.version] = Dict{String,Any}(n=>[ver for ver in Pkg.Types.semver_spec(v).ranges] for (n,v) in pkg.compat)
+
+        function version_list_of_package(dep::String)
+            pathofdep = registry_data.packages[string(pkg.deps[dep])]["path"]
+            versionsfileofdep = joinpath(registry_path, pathofdep, "Versions.toml")
+            map(VersionNumber, [keys(TOML.parsefile(versionsfileofdep))...])
+        end
+
+        d = Dict()
+        for (n,v) in pkg.compat
+            if n == "julia"
+                d[n] = v
+            else
+                spec = Pkg.Types.semver_spec(v)
+                pool = version_list_of_package(n)
+                ranges = compress_versions(pool, filter(in(spec), pool)).ranges
+                d[n] = length(ranges) == 1 ? string(ranges[1]) : map(string, ranges)
+            end
+        end
+        compat_data[pkg.version] = d
+
         Pkg.Compress.save(compat_file, compat_data)
 
         # commit changes
