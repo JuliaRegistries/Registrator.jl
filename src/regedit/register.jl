@@ -296,12 +296,13 @@ function register(
             compat_data = Dict()
         end
 
+        compat_julia_pool = map(VersionNumber, get(config["registrator"], "compat_julia_pool", ["0.7", "1.0", "1.1"]))
         d = Dict()
         for (n,v) in pkg.compat
+            spec = Pkg.Types.semver_spec(v)
             if n == "julia"
-                d[n] = v
+                ranges = compress_versions(compat_julia_pool, filter(in(spec), compat_julia_pool)).ranges
             else
-                spec = Pkg.Types.semver_spec(v)
                 if !haskey(pkg.deps, n)
                     err = "Package $n mentioned in `[compat]` but not found in `[deps]`"
                     @debug(err)
@@ -326,8 +327,8 @@ function register(
                 end
                 pool = map(VersionNumber, [keys(TOML.parsefile(versionsfileofdep))...])
                 ranges = compress_versions(pool, filter(in(spec), pool)).ranges
-                d[n] = length(ranges) == 1 ? string(ranges[1]) : map(string, ranges)
             end
+            d[n] = length(ranges) == 1 ? string(ranges[1]) : map(string, ranges)
         end
         compat_data[pkg.version] = d
 
