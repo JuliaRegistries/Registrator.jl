@@ -47,6 +47,8 @@
 #     end
 # end
 
+import Pkg.Types: compress_versions
+
 struct RegBranch
     name::String
     version::VersionNumber
@@ -93,6 +95,31 @@ function check_version(existing::Vector{VersionNumber}, ver::VersionNumber)
     end
 
     return nothing, nothing
+end
+
+findpackageerror(name::String, uuid::Base.UUID, regdata::Array{RegistryData}) =
+    findpackageerror(name, string(uuid), regdata)
+
+function findpackageerror(name::String, u::String, regdata::Array{RegistryData})
+    for _registry_data in regdata
+        if haskey(_registry_data.packages, u)
+            name_in_reg = _registry_data.packages[u]["name"]
+            if name_in_reg != name
+                return "Error in `[deps]`: UUID $u refers to package '$name_in_reg' in registry but deps file has '$name'"
+            end
+            return nothing
+        end
+    end
+
+    if haskey(BUILTIN_PKGS, name)
+        if BUILTIN_PKGS[name] != u
+            return "Error in `[deps]`: UUID $u for package $name should be $(BUILTIN_PKGS[k])"
+        end
+    else
+        return "Error in `[deps]`: Package '$name' with UUID: $u not found in registry or stdlib"
+    end
+
+    nothing
 end
 
 """
@@ -158,12 +185,18 @@ function register(
         uuid = string(pkg.uuid)
         if haskey(registry_data.packages, uuid)
             package_data = registry_data.packages[uuid]
-            if (package_data["name"] != pkg.name)
+            if package_data["name"] != pkg.name
                 err = "Changing package names not supported yet"
                 @debug(err)
                 return RegBranch(pkg, branch; er=err)
             end
             package_path = joinpath(registry_path, package_data["path"])
+            repo = TOML.parsefile(joinpath(package_path, "Package.toml"))["repo"]
+            if repo != package_repo
+                err = "Changing package repo URL not allowed"
+                @debug(err)
+                return RegBranch(pkg, branch; er=err)
+            end
         else
             @debug("Package with UUID: $uuid not found in registry, checking if UUID was changed")
             for (k, v) in registry_data.packages
@@ -225,37 +258,11 @@ function register(
         registry_deps_data = map(registry_deps_paths) do registry_path
             parse_registry(joinpath(registry_path, "Registry.toml"))
         end
+        regdata = [registry_data; registry_deps_data]
         for (k, v) in pkg.deps
-            u = string(v)
-
-            uuid_found = false
-            for _registry_data in [registry_data; registry_deps_data]
-                if haskey(_registry_data.packages, u)
-                    uuid_found = true
-                    name_in_reg = _registry_data.packages[u]["name"]
-                    if name_in_reg != k
-                        err = "Error in `[deps]`: UUID $u refers to package '$name_in_reg' in registry but deps file has '$k'"
-                        break
-                    end
-                    break
-                end
-            end
-
-            err !== nothing && break
-            uuid_found == true && continue
-
-            if haskey(BUILTIN_PKGS, k)
-                if BUILTIN_PKGS[k] != u
-                    err = "Error in `[deps]`: UUID $u for package $k should be $(BUILTIN_PKGS[k])"
-                    break
-                end
-            else
-                err = "Error in `[deps]`: Package '$k' with UUID: $u not found in registry or stdlib"
-                break
-            end
+            err = findpackageerror(k, v, regdata)
+            err !== nothing && return RegBranch(pkg, branch; er=err)
         end
-
-        err !== nothing && return RegBranch(pkg, branch; er=err)
 
         deps_data[pkg.version] = pkg.deps
         Pkg.Compress.save(deps_file, deps_data)
@@ -290,9 +297,6 @@ function register(
         end
 
         function version_list_of_package(dep::String)
-            pathofdep = registry_data.packages[string(pkg.deps[dep])]["path"]
-            versionsfileofdep = joinpath(registry_path, pathofdep, "Versions.toml")
-            map(VersionNumber, [keys(TOML.parsefile(versionsfileofdep))...])
         end
 
         d = Dict()
@@ -301,7 +305,29 @@ function register(
                 d[n] = v
             else
                 spec = Pkg.Types.semver_spec(v)
-                pool = version_list_of_package(n)
+                if !haskey(pkg.deps, n)
+                    err = "Package $n mentioned in `[compat]` but not found in `[deps]`"
+                    @debug(err)
+                    return RegBranch(pkg, branch; er=err)
+                end
+                uuidofdep = string(pkg.deps[n])
+
+                err = findpackageerror(n, uuidofdep, regdata)
+                if err !== nothing
+                    @debug(err)
+                    return RegBranch(pkg, branch; er=err)
+                end
+
+                regpaths = [registry_path; registry_deps_paths]
+                versionsfileofdep = nothing
+                for i=1:length(regdata)
+                    if haskey(regdata[i].packages, uuidofdep)
+                        pathofdep = regdata[i].packages[uuidofdep]["path"]
+                        versionsfileofdep = joinpath(regpaths[i], pathofdep, "Versions.toml")
+                        break
+                    end
+                end
+                pool = map(VersionNumber, [keys(TOML.parsefile(versionsfileofdep))...])
                 ranges = compress_versions(pool, filter(in(spec), pool)).ranges
                 d[n] = length(ranges) == 1 ? string(ranges[1]) : map(string, ranges)
             end
