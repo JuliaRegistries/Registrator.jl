@@ -296,9 +296,6 @@ function register(
             compat_data = Dict()
         end
 
-        function version_list_of_package(dep::String)
-        end
-
         d = Dict()
         for (n,v) in pkg.compat
             if n == "julia"
