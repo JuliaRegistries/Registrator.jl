@@ -736,13 +736,24 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
     pr = nothing
     repo = join(split(target_registry["repo"], "/")[end-1:end], "/")
     msg = ""
+    auth = get_user_auth()
     try
-        pr = create_pull_request(repo; auth=get_user_auth(), params=params)
+        pr = create_pull_request(repo; auth=auth, params=params)
         msg = "created"
         @debug("Pull request created")
     catch ex
         if is_pr_exists_exception(ex)
-            @debug("Pull request already exists, not creating")
+            @debug("Pull request already exists, trying to update body")
+            params = Dict(
+                "base" => target_registry["base_branch"],
+                "head" => split(repo, "/")[1] * ":" * brn,
+            )
+            prs = pull_request(repo; auth=auth, params=params)
+            if !isempty(params)
+                pr = prs[1]
+                params = Dict("body" => params["body"])
+                update_pull_request(repo, pr; auth=auth, params=params)
+            end
             msg = "updated"
         else
             rethrow(ex)
@@ -752,7 +763,6 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
     if pr == nothing
         # Look for pull request in last 10 pages, each page contains 15 PRs
         params = Dict("state"=>"open", "per_page"=>15)
-        auth = get_user_auth()
         prs, page_data = pull_requests(repo; auth=auth, params=params, page_limit=1)
         for p in prs
             if p.base.ref == target_registry["base_branch"] && p.head.ref == brn
