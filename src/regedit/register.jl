@@ -49,6 +49,8 @@
 
 import Pkg.Types: compress_versions
 
+const julia_uuid = "1222c4b2-2114-5bfd-aeef-88e4692bbb3e"
+
 struct RegBranch
     name::String
     version::VersionNumber
@@ -304,7 +306,7 @@ function register(
         for (n,v) in pkg.compat
             spec = Pkg.Types.semver_spec(v)
             if n == "julia"
-                ranges = compress_versions(compat_julia_pool, filter(in(spec), compat_julia_pool)).ranges
+                uuidofdep = julia_uuid
             else
                 if !haskey(pkg.deps, n)
                     err = "Package $n mentioned in `[compat]` but not found in `[deps]`"
@@ -318,19 +320,19 @@ function register(
                     @debug(err)
                     return RegBranch(pkg, branch; er=err)
                 end
-
-                regpaths = [registry_path; registry_deps_paths]
-                versionsfileofdep = nothing
-                for i=1:length(regdata)
-                    if haskey(regdata[i].packages, uuidofdep)
-                        pathofdep = regdata[i].packages[uuidofdep]["path"]
-                        versionsfileofdep = joinpath(regpaths[i], pathofdep, "Versions.toml")
-                        break
-                    end
-                end
-                pool = map(VersionNumber, [keys(TOML.parsefile(versionsfileofdep))...])
-                ranges = compress_versions(pool, filter(in(spec), pool)).ranges
             end
+
+            regpaths = [registry_path; registry_deps_paths]
+            versionsfileofdep = nothing
+            for i=1:length(regdata)
+                if haskey(regdata[i].packages, uuidofdep)
+                    pathofdep = regdata[i].packages[uuidofdep]["path"]
+                    versionsfileofdep = joinpath(regpaths[i], pathofdep, "Versions.toml")
+                    break
+                end
+            end
+            pool = map(VersionNumber, [keys(TOML.parsefile(versionsfileofdep))...])
+            ranges = compress_versions(pool, filter(in(spec), pool)).ranges
             d[n] = length(ranges) == 1 ? string(ranges[1]) : map(string, ranges)
         end
         compat_data[pkg.version] = d
