@@ -340,7 +340,7 @@ function register(
         # commit changes
         @debug("commit changes")
         message = """
-        New version: $(pkg.name) v$(pkg.version)
+        $(kind): $(pkg.name) v$(pkg.version)
 
         UUID: $(pkg.uuid)
         Repo: $(package_repo)
