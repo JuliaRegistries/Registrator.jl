@@ -11,6 +11,14 @@ Registrator is a GitHub app that automates creation of registration pull request
 
 [![install](https://img.shields.io/badge/-install%20app-blue.svg)](https://github.com/apps/juliaregistrar/installations/new)
 
+#### Permissions and subscribed events for the app
+
+You will need read-only permission for: Repository contents, Repository Metadata
+
+You will need read & write permission for: Issues, Pull Requests, Commit Statuses
+
+You will need to subscribe to the following events: Issue comment and commit comment
+
 ## How to Use
 
 First, install the app on your package(s) as mentioned above.  The procedure for registering a new package is the same as for releasing a new version.
@@ -26,24 +34,49 @@ Registrator will look for the project file in the master branch by default, and 
 @JuliaRegistrator register(branch=name-of-your-branch)
 ```
 
-More detailed information about the usage of Registrator can be found in the [full readme](full_readme.md)
+### Transitioning from REQUIRE to Project.toml
 
-### If you are a collaborator on the repo
+Download [gen_project.jl](), enter in your package directory and run `julia gen_project.jl`, resulting inv a `Project.toml` file. You may need to do minor modifications (license, current version, description, etc.) and then remove the REQUIRE file, since it is only used for packages supporting Julia 0.6 and is otherwise irrelevant now.
+
+### Details for triggering JuliaRegistrator (for step 2 above)
+
+1) Using a Pull Request:
+
+Create a pull request on the package repo with your project file changes. Add `` @JuliaRegistrator `register()` `` as the content body of the pull request if you are a collaboarator on the package repository. If you are not a collaborator ask someone who is to comment `` @JuliaRegistrator `register()` `` on the Pull Request. This will make Registrator add a pull request to General by looking at your pull request branch.
+
+2) Using an issue:
+
+Raise an issue in the package you wish to register. Add `` @JuliaRegistrator `register()` `` somewhere in the content of the issue if you are a collaborator to trigger Registrator. If you are not a collaborator ask someone who is to comment `` @JuliaRegistrator `register()` `` on the issue. This will make Registrator add a pull request to General with the appropriate changes. Registrator will look for the project file in the master branch by default. To use a custom branch comment with `` @JuliaRegistrator `register(name-of-your-branch)` ``.
+
+3) Using a commit comment:
+
+On GitHub click on a commit that you wish to register. In the comment section below say `` @JuliaRegistrator `register()` ``. Note that you must be a collaborator in order to do this.
+
+
+#### If you are a collaborator on the repo
 
 Either:
 
-1. Open an issue and add ` @JuliaRegistrator register() ` as a comment.  You can re-trigger the registrator by commenting ` @JuliaRegistrator register() ` again (in case registrator reports an error or you wish to make changes).
+1. Open an issue and add ` @JuliaRegistrator register() ` as a comment.  You can re-trigger the registrator by commenting ` @JuliaRegistrator register() ` again (in case registrator reports an error or to make changes).
 2. Add a comment to a commit and say ` @JuliaRegistrator register() `.
 
-### If you are not a collaborator
+#### If you are not a collaborator
 
 You can request a collaborator trigger registrator in a GitHub issue or a comment on a commit.
 
+### Note on git tags and GitHub releases
+
+The Julia package manager **does not** rely on git tags and GitHub releases. However, Registrator will generate a `git tag` command for you to optionally create a corresponding tag with your package version.
 
 ## Approving pull requests on the registry
 
 Currently, a registry maintainer will manually merge the pull request made by Registrator.  We will soon have a CI system to check and auto-merge without human intervention.
 
-## Note on git tags and GitHub releases
+#### For private packages and registries
 
-The Julia package manager **does not** rely on git tags and GitHub releases. However, Registrator will generate a `git tag` command for you to optionally create a corresponding tag with your package version.
+* Same [install](https://github.com/apps/registratortest/installations/new) step as above.
+* Add @JuliaRegistrator as a collaborator to your private Registry
+
+#### How to run
+
+See the `image` directory on how to build the docker image.
