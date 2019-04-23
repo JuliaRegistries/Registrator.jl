@@ -712,7 +712,7 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
                           "version"=> string(ver)))
     key = config["registrator"]["enc_key"]
     enc_meta = "<!-- " * bytes2hex(encrypt(MbedTLS.CIPHER_AES_128_CBC, key, meta, key)) * " -->"
-    params = Dict("title"=>"Register $name: $ver",
+    params = Dict("title"=>"$(rbrn.kind) $name: $ver",
                   "base"=>target_registry["base_branch"],
                   "head"=>brn,
                   "maintainer_can_modify"=>true)

@@ -56,9 +56,10 @@ struct RegBranch
 
     warning::Union{Nothing, String}
     error::Union{Nothing, String}
+    kind::String
 
-    function RegBranch(pkg::Pkg.Types.Project, branch::String; wa=nothing, er=nothing)
-        new(pkg.name, pkg.version, branch, wa, er)
+    function RegBranch(pkg::Pkg.Types.Project, branch::String; wa=nothing, er=nothing, kind="New version")
+        new(pkg.name, pkg.version, branch, wa, er, kind)
     end
 end
 
@@ -198,6 +199,7 @@ function register(
                 @debug(err)
                 return RegBranch(pkg, branch; er=err)
             end
+            kind = "New version"
         else
             @debug("Package with UUID: $uuid not found in registry, checking if UUID was changed")
             for (k, v) in registry_data.packages
@@ -215,6 +217,7 @@ function register(
             @debug("Adding package UUID to registry")
             push!(registry_data, pkg)
             write_registry(registry_file, registry_data)
+            kind = "New package"
         end
 
         # update package data: package file
@@ -352,7 +355,7 @@ function register(
         push && run(`$git push -q -f -u origin $branch`)
 
         clean_registry = false
-        return RegBranch(pkg, branch; wa=wa)
+        return RegBranch(pkg, branch; wa=wa, kind=kind)
     finally
         if clean_registry
             @debug("cleaning up possibly inconsistent registry", registry_path=showsafe(registry_path), err=showsafe(err))
