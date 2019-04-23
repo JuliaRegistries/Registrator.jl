@@ -71,16 +71,14 @@ function write_registry(registry_path::String, reg::RegistryData)
     end
 end
 
-import Base: thismajor, thisminor, nextmajor, nextminor, thispatch, nextpatch, lowerbound
-
 # Returns Tuple (error, warning)
 function check_version(existing::Vector{VersionNumber}, ver::VersionNumber)
+    @assert issorted(existing)
     if isempty(existing)
-        if all([lowerbound(v) <= ver <= v for v in [v"0.0.1", v"0.1", v"1"]])
+        if !(ver in [v"0.0.1", v"0.1", v"1"])
             return nothing, "This looks like a new registration that registers version $ver. Ideally, you should register an initial release with 0.0.1, 0.1.0 or 1.0.0 version numbers"
         end
     else
-        issorted(existing) || (existing = sort(existing))
         idx = searchsortedlast(existing, ver)
         if idx <= 0
             return "Version $ver less than least existing version $(existing[1])", nothing
@@ -90,8 +88,9 @@ function check_version(existing::Vector{VersionNumber}, ver::VersionNumber)
         if ver == prv
             return "Version $ver already exists", nothing
         end
-        nxt = thismajor(ver) != thismajor(prv) ? nextmajor(prv) :
-              thisminor(ver) != thisminor(prv) ? nextminor(prv) : nextpatch(prv)
+        nxt = ver.major != prv.major ? VersionNumber(prv.major+1, 0, 0) :
+              ver.minor != prv.minor ? VersionNumber(prv.major, prv.minor+1, 0) :
+              VersionNumber(prv.major, prv.minor, prv.patch+1)
         if ver > nxt
             return nothing, "Version $ver skips over $nxt"
         end
