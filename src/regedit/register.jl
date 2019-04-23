@@ -304,7 +304,7 @@ function register(
         for (n,v) in pkg.compat
             spec = Pkg.Types.semver_spec(v)
             if n == "julia"
-                ranges = compress_versions(compat_julia_pool, filter(in(spec), compat_julia_pool)).ranges
+                ranges = spec.ranges
             else
                 if !haskey(pkg.deps, n)
                     err = "Package $n mentioned in `[compat]` but not found in `[deps]`"
