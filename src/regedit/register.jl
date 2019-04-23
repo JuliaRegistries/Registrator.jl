@@ -345,6 +345,8 @@ function register(
         UUID: $(pkg.uuid)
         Repo: $(package_repo)
         Tree: $(string(tree_hash))
+
+        Registrator commit: $(LibGit2.head(Pkg.dir("Registrator")))
         """
         run(`$git add -- $package_path`)
         run(`$git add -- $registry_file`)
