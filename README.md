@@ -36,7 +36,7 @@ Registrator will look for the project file in the master branch by default, and 
 
 ### Transitioning from REQUIRE to Project.toml
 
-Download [gen_project.jl](), enter in your package directory and run `julia gen_project.jl`, resulting inv a `Project.toml` file. You may need to do minor modifications (license, current version, description, etc.) and then remove the REQUIRE file, since it is only used for packages supporting Julia 0.6 and is otherwise irrelevant now.
+Download [gen_project.jl](https://github.com/JuliaLang/Pkg.jl/blob/master/bin/gen_project.jl), enter in your package directory and run `julia gen_project.jl`, resulting in a `Project.toml` file. You may need to do minor modifications (license, current version, description, etc.) and then remove the REQUIRE file, since it is only used for packages supporting Julia 0.6 and is otherwise irrelevant now.
 
 ### Details for triggering JuliaRegistrator (for step 2 above)
 
