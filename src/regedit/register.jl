@@ -348,17 +348,28 @@ function register(
             if n == "julia"
                 uuidofdep = julia_uuid
             else
-                if !haskey(pkg.deps, n)
-                    err = "Package $n mentioned in `[compat]` but not found in `[deps]`"
+                indeps = haskey(pkg.deps, n)
+                inextras = haskey(pkg.extras, n)
+
+                if indeps
+                    uuidofdep = string(pkg.deps[n])
+                elseif inextras
+                    uuidofdep = string(pkg.extras[n])
+                else
+                    err = "Package $n mentioned in `[compat]` but not found in `[deps]` or `[extras]`"
                     @debug(err)
                     return RegBranch(pkg, branch; er=err)
                 end
-                uuidofdep = string(pkg.deps[n])
 
                 err = findpackageerror(n, uuidofdep, regdata)
                 if err !== nothing
                     @debug(err)
                     return RegBranch(pkg, branch; er=err)
+                end
+
+                if inextras && !indeps
+                    @debug("$n is a test-only dependency; omitting from Versions.toml")
+                    continue
                 end
             end
 
