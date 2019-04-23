@@ -513,7 +513,7 @@ function start_server(ip::IPAddr, port::Int, verbose::Bool=false)
     return serve(server, ip, port; readtimeout=0, verbose=verbose)
 end
 
-function main(; port::Int, ip::AbstractString="localhost", verbose::Bool=false)
+function main(; port::Int, ip::AbstractString="0.0.0.0", verbose::Bool=false)
     init_providers()
     init_registry()
     ip = ip == "localhost" ? Sockets.localhost : parse(IPAddr, ip)
