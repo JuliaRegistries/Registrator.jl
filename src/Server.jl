@@ -712,7 +712,7 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
                           "version"=> string(ver)))
     key = config["registrator"]["enc_key"]
     enc_meta = "<!-- " * bytes2hex(encrypt(MbedTLS.CIPHER_AES_128_CBC, key, meta, key)) * " -->"
-    params = Dict("title"=>"$(rbrn.kind) $name: $ver",
+    params = Dict("title"=>"$(get(rbrn.metadata, "kind", "")) $name: $ver",
                   "base"=>target_registry["base_branch"],
                   "head"=>brn,
                   "maintainer_can_modify"=>true)
@@ -792,9 +792,9 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
         ```
         """
 
-    if rbrn.warning !== nothing
+    if get(rbrn.metadata, "warning", nothing) !== nothing
         cbody *= """
-            Also, note the warning: $(rbrn.warning)
+            Also, note the warning: $(rbrn.metadata["warning"])
             This can be safely ignored. However, if you want to fix this you can do so. Call register() again after making the fix. This will update the Pull request.
             """
     end
@@ -851,8 +851,8 @@ function handle_register(rp::RequestParams, target_registry::Dict{String,Any})
             push=true,
             gitconfig=Dict("user.name"=>config["github"]["user"], "user.email"=>config["github"]["email"]),
             compat_julia_pool=compat_julia_pool)
-        if rbrn.error !== nothing
-            msg = "Error while trying to register: $(rbrn.error)"
+        if get(rbrn.metadata, "error", nothing) !== nothing
+            msg = "Error while trying to register: $(rbrn.metadata["error"])"
             @debug(msg)
             make_comment(rp.evt, msg)
             set_error_status(rp)
