@@ -740,6 +740,14 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
         pr = create_pull_request(repo; auth=get_user_auth(), params=params)
         msg = "created"
         @debug("Pull request created")
+        try # add labels
+            if get(rbrn.metadata, "labels", nothing) !== nothing
+                edit_issue(repo, pr; auth = get_user_auth(),
+                    params = Dict("labels"=>rbrn.metadata["labels"]))
+            end
+        catch
+            @debug "Failed to add labels, ignoring."
+        end
     catch ex
         if is_pr_exists_exception(ex)
             @debug("Pull request already exists, not creating")

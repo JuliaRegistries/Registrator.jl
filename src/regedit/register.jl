@@ -71,9 +71,11 @@ end
 
 # error in regbr.metadata["errors"]
 # warning in regbr.metadata["warning"]
+# version labels for the PR in in regbr.metadata["labels"]
 function check_version!(regbr::RegBranch, existing::Vector{VersionNumber}, ver::VersionNumber)
     @assert issorted(existing)
     if isempty(existing)
+        push!(get!(regbr.metadata, "labels", String[]), "new package")
         if !(ver in [v"0.0.1", v"0.1", v"1"])
             regbr.metadata["warning"] =
                 """This looks like a new registration that registers version $ver.
@@ -92,9 +94,16 @@ function check_version!(regbr::RegBranch, existing::Vector{VersionNumber}, ver::
             regbr.metadata["error"] = "Version $ver already exists"
             return regbr
         end
-        nxt = ver.major != prv.major ? VersionNumber(prv.major+1, 0, 0) :
-              ver.minor != prv.minor ? VersionNumber(prv.major, prv.minor+1, 0) :
-              VersionNumber(prv.major, prv.minor, prv.patch+1)
+        nxt = if ver.major != prv.major
+            push!(get!(regbr.metadata, "labels", String[]), "major release")
+            VersionNumber(prv.major+1, 0, 0)
+        elseif ver.minor != prv.minor
+            push!(get!(regbr.metadata, "labels", String[]), "minor release")
+            VersionNumber(prv.major, prv.minor+1, 0)
+        else
+            push!(get!(regbr.metadata, "labels", String[]), "patch release")
+            VersionNumber(prv.major, prv.minor, prv.patch+1)
+        end
         if ver > nxt
             regbr.metadata["warning"] = "Version $ver skips over $nxt"
             return regbr
