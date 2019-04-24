@@ -122,13 +122,15 @@ function findpackageerror(name::String, u::String, regdata::Array{RegistryData})
     nothing
 end
 
-import Pkg.Types: VersionRange, VersionBound, VersionSpec
+import Pkg.Types: VersionRange, VersionBound, VersionSpec, compress_versions
 
 function versionrange(lo::VersionBound, hi::VersionBound)
     lo.n < hi.n && lo.t == hi.t && (lo = hi)
     return VersionRange(lo, hi)
 end
 
+# monkey patch existing compress_versions function
+# (the same in more recent versions of Julia)
 """
     compress_versions(pool::Vector{VersionNumber}, subset::Vector{VersionNumber})
 Given `pool` as the pool of available versions (of some package) and `subset` as some
