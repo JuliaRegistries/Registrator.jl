@@ -47,8 +47,6 @@
 #     end
 # end
 
-import Pkg.Types: compress_versions
-
 const julia_uuid = "1222c4b2-2114-5bfd-aeef-88e4692bbb3e"
 
 struct RegBranch
@@ -122,6 +120,47 @@ function findpackageerror(name::String, u::String, regdata::Array{RegistryData})
     end
 
     nothing
+end
+
+import Pkg.Types: VersionRange, VersionBound, VersionSpec
+
+function versionrange(lo::VersionBound, hi::VersionBound)
+    lo.n < hi.n && lo.t == hi.t && (lo = hi)
+    return VersionRange(lo, hi)
+end
+
+"""
+    compress_versions(pool::Vector{VersionNumber}, subset::Vector{VersionNumber})
+Given `pool` as the pool of available versions (of some package) and `subset` as some
+subset of the pool of available versions, this function computes a `VersionSpec` which
+includes all versions in `subset` and none of the versions in its complement.
+"""
+function compress_versions(pool::Vector{VersionNumber}, subset::Vector{VersionNumber})
+    subset = sort(subset) # must copy, we mutate this
+    complement = sort!(setdiff(pool, subset))
+    ranges = VersionRange[]
+    @label again
+    isempty(subset) && return VersionSpec(ranges)
+    a = first(subset)
+    for b in reverse(subset)
+        a.major == b.major || continue
+        for m = 1:3
+            lo = VersionBound((a.major, a.minor, a.patch)[1:m]...)
+            for n = 1:3
+                hi = VersionBound((b.major, b.minor, b.patch)[1:n]...)
+                r = versionrange(lo, hi)
+                if !any(v in r for v in complement)
+                    filter!(!in(r), subset)
+                    push!(ranges, r)
+                    @goto again
+                end
+            end
+        end
+    end
+end
+
+function compress_versions(pool::Vector{VersionNumber}, subset)
+    compress_versions(pool, filter(in(subset), pool))
 end
 
 """
