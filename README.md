@@ -38,6 +38,8 @@ Registrator will look for the project file in the master branch by default, and 
 
 Download [gen_project.jl](https://github.com/JuliaLang/Pkg.jl/blob/master/bin/gen_project.jl), enter in your package directory and run `julia gen_project.jl`, resulting in a `Project.toml` file. You may need to do minor modifications (license, current version, description, etc.) and then remove the REQUIRE file, since it is only used for packages supporting Julia 0.6 and is otherwise irrelevant now.
 
+Check that your package conforms to the required `Project.toml` structure found in the [general package guidelines](https://julialang.github.io/Pkg.jl/v1/creating-packages/).
+
 ### Details for triggering JuliaRegistrator (for step 2 above)
 
 1) Using a Pull Request:
@@ -74,7 +76,7 @@ Currently, a registry maintainer will manually merge the pull request made by Re
 
 #### For private packages and registries
 
-* Same [install](https://github.com/apps/registratortest/installations/new) step as above.
+* Same [install](https://github.com/apps/juliaregistrar/installations/new) step as above.
 * Add @JuliaRegistrator as a collaborator to your private Registry
 
 #### How to run
