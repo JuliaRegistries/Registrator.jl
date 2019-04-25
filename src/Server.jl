@@ -762,32 +762,14 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
     end
 
     if pr == nothing
-        # Look for pull request in last 10 pages, each page contains 15 PRs
-        prs, page_data = pull_requests(repo; auth=auth,
-                                       params=Dict("state"=>"open", "per_page"=>15),
-                                       page_limit=1)
-        for p in prs
-            if p.base.ref == target_registry["base_branch"] && p.head.ref == brn
-                @debug("PR found")
-                pr = p
-                break
-            end
-        end
-
-        if pr == nothing
-            i = 1
-            while i < 10
-                prs, page_data = pull_requests(repo; auth=auth, page_limit=1, start_page=page_data["next"]);
-                for p in prs
-                    if p.base.ref == target_registry["base_branch"] && p.head.ref == brn
-                        @debug("PR found")
-                        pr = p
-                        break
-                    end
-                end
-                pr == nothing || break
-                i += 1
-            end
+        prs, _ = pull_requests(repo; auth=auth, params=Dict(
+            "state" => "open",
+            "base" => params["base"],
+            "head" => string(split(repo, "/")[1], ":", params["head"]),
+        ))
+        if !isempty(prs)
+            @debug("PR found")
+            pr = prs[1]
         end
 
         if pr == nothing
