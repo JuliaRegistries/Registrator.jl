@@ -768,6 +768,7 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
             "head" => string(split(repo, "/")[1], ":", params["head"]),
         ))
         if !isempty(prs)
+            @assert length(prs) == 1 "PR lookup should only contain one result"
             @debug("PR found")
             pr = prs[1]
         end
