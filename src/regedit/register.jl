@@ -105,7 +105,7 @@ function findpackageerror(name::String, u::String, regdata::Array{RegistryData})
         if haskey(_registry_data.packages, u)
             name_in_reg = _registry_data.packages[u]["name"]
             if name_in_reg != name
-                return "Error in `[deps]`: UUID $u refers to package '$name_in_reg' in registry but deps file has '$name'"
+                return "Error in Project.toml: UUID $u refers to package '$name_in_reg' in registry but Project.toml has '$name'"
             end
             return nothing
         end
@@ -113,10 +113,10 @@ function findpackageerror(name::String, u::String, regdata::Array{RegistryData})
 
     if haskey(BUILTIN_PKGS, name)
         if BUILTIN_PKGS[name] != u
-            return "Error in `[deps]`: UUID $u for package $name should be $(BUILTIN_PKGS[k])"
+            return "Error in Project.toml: UUID $u for package $name should be $(BUILTIN_PKGS[k])"
         end
     else
-        return "Error in `[deps]`: Package '$name' with UUID: $u not found in registry or stdlib"
+        return "Error in Project.toml: Package '$name' with UUID: $u not found in registry or stdlib"
     end
 
     nothing
@@ -368,7 +368,7 @@ function register(
                 end
 
                 if inextras && !indeps
-                    @debug("$n is a test-only dependency; omitting from Versions.toml")
+                    @debug("$n is a test-only dependency; omitting from Compat.toml")
                     continue
                 end
             end
