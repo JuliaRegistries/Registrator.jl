@@ -763,8 +763,9 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
 
     if pr == nothing
         # Look for pull request in last 10 pages, each page contains 15 PRs
-        params = Dict("state"=>"open", "per_page"=>15)
-        prs, page_data = pull_requests(repo; auth=auth, params=params, page_limit=1)
+        prs, page_data = pull_requests(repo; auth=auth,
+                                       params=Dict("state"=>"open", "per_page"=>15),
+                                       page_limit=1)
         for p in prs
             if p.base.ref == target_registry["base_branch"] && p.head.ref == brn
                 @debug("PR found")
