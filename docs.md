@@ -35,6 +35,7 @@ You will need to subscribe to the following events: Issue comment and commit com
 Do not install the public Registrator on your private packages and Registries. Please host your own Registrator for this.
 
 If you do host your own Registrator, you can set it up on your private package:
+* Set `disable_private_registrations` to `false` in the configuration.
 * Add the GitHub user that you mention in the configuration file as a collaborator to the private Registry and package.
 * Install the GitHub app on the repository.
 

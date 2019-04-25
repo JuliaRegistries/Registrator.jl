@@ -63,7 +63,10 @@ struct RequestParams{T<:RequestTrigger}
         action_name, action_args, action_kwargs = parse_submission_string(command)
         target = get(action_kwargs, :target, nothing)
 
-        if action_name == "register"
+        if evt.payload["repository"]["private"] && get(config["registrator"], "disable_private_registrations", true)
+            err = "Private registration request recieved, ignoring"
+            @debug(err)
+        elseif action_name == "register"
             if endswith(reponame, ".jl")
                 comment_by_collaborator = is_comment_by_collaborator(evt)
                 if comment_by_collaborator
