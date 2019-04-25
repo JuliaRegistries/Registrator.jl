@@ -11,14 +11,6 @@ Registrator is a GitHub app that automates creation of registration pull request
 
 [![install](https://img.shields.io/badge/-install%20app-blue.svg)](https://github.com/apps/juliaregistrar/installations/new)
 
-#### Permissions and subscribed events for the app
-
-You will need read-only permission for: Repository contents, Repository Metadata
-
-You will need read & write permission for: Issues, Pull Requests, Commit Statuses
-
-You will need to subscribe to the following events: Issue comment and commit comment
-
 ## How to Use
 
 First, install the app on your package(s) as mentioned above.  The procedure for registering a new package is the same as for releasing a new version.
