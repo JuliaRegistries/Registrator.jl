@@ -58,6 +58,9 @@ disable_approval_process = false    # If set to true this will enable the approv
                                 # to the repository on which it is installed. Read more
                                 # about the approved() call in docs.md
 
+disable_private_registrations = true    # If set to false this will enable private packages
+                                # to be registered.
+
 # Additional registries to look into for `[deps]` and `[compat]`
 registry_deps = ["https://github.com/JuliaRegistries/General"]
 
