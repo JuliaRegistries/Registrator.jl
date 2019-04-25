@@ -743,15 +743,7 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
         @debug("Pull request created")
     catch ex
         if is_pr_exists_exception(ex)
-            @debug("Pull request already exists, trying to update body")
-            prs = pull_requests(repo; auth=auth, params=Dict(
-                "base" => params["base"],
-                "head" => split(repo, "/")[1] * ":" * params["head"],
-            ))
-            if !isempty(prs)
-                pr = prs[1]
-                update_pull_request(repo, pr; auth=auth, params=Dict("body" => params["body"]))
-            end
+            @debug("Pull request already exists, not creating")
             msg = "updated"
         else
             rethrow(ex)
@@ -786,7 +778,11 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
             end
         end
 
-        pr == nothing && error("Registration PR already exists but unable to find it")
+        if pr == nothing
+            error("Registration PR already exists but unable to find it")
+        else
+            update_pull_request(repo, pr.number; auth=auth, params=Dict("body" => params["body"]))
+        end
     end
 
     cbody = """
