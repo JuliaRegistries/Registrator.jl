@@ -119,7 +119,7 @@ function findpackageerror(name::String, u::String, regdata::Array{RegistryData})
         if haskey(_registry_data.packages, u)
             name_in_reg = _registry_data.packages[u]["name"]
             if name_in_reg != name
-                return "Error in `[deps]`: UUID $u refers to package '$name_in_reg' in registry but deps file has '$name'"
+                return "Error in Project.toml: UUID $u refers to package '$name_in_reg' in registry but Project.toml has '$name'"
             end
             return nothing
         end
@@ -127,10 +127,10 @@ function findpackageerror(name::String, u::String, regdata::Array{RegistryData})
 
     if haskey(BUILTIN_PKGS, name)
         if BUILTIN_PKGS[name] != u
-            return "Error in `[deps]`: UUID $u for package $name should be $(BUILTIN_PKGS[k])"
+            return "Error in Project.toml: UUID $u for package $name should be $(BUILTIN_PKGS[k])"
         end
     else
-        return "Error in `[deps]`: Package '$name' with UUID: $u not found in registry or stdlib"
+        return "Error in Project.toml: Package '$name' with UUID: $u not found in registry or stdlib"
     end
 
     nothing
@@ -373,19 +373,30 @@ function register(
             if n == "julia"
                 uuidofdep = julia_uuid
             else
-                if !haskey(pkg.deps, n)
-                    err = "Package $n mentioned in `[compat]` but not found in `[deps]`"
+                indeps = haskey(pkg.deps, n)
+                inextras = haskey(pkg.extras, n)
+
+                if indeps
+                    uuidofdep = string(pkg.deps[n])
+                elseif inextras
+                    uuidofdep = string(pkg.extras[n])
+                else
+                    err = "Package $n mentioned in `[compat]` but not found in `[deps]` or `[extras]`"
                     @debug(err)
                     regbr.metadata["error"] = err
                     return regbr
                 end
-                uuidofdep = string(pkg.deps[n])
 
                 err = findpackageerror(n, uuidofdep, regdata)
                 if err !== nothing
                     @debug(err)
                     regbr.metadata["error"] = err
                     return regbr
+                end
+
+                if inextras && !indeps
+                    @debug("$n is a test-only dependency; omitting from Compat.toml")
+                    continue
                 end
             end
 
