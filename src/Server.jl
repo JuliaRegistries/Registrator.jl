@@ -746,7 +746,7 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
             @debug("Pull request already exists, trying to update body")
             prs = pull_requests(repo; auth=auth, params=Dict(
                 "base" => params["base"],
-                "head" => split(repo, "/")[1] * ":" * brn,
+                "head" => split(repo, "/")[1] * ":" * params["head"],
             ))
             if !isempty(prs)
                 pr = prs[1]
