@@ -744,7 +744,7 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
     catch ex
         if is_pr_exists_exception(ex)
             @debug("Pull request already exists, trying to update body")
-            prs = pull_request(repo; auth=auth, params=Dict(
+            prs = pull_requests(repo; auth=auth, params=Dict(
                 "base" => target_registry["base_branch"],
                 "head" => split(repo, "/")[1] * ":" * brn,
             ))
