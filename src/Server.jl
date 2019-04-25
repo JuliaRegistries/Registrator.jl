@@ -749,7 +749,7 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
                 "head" => split(repo, "/")[1] * ":" * brn,
             )
             prs = pull_request(repo; auth=auth, params=params)
-            if !isempty(params)
+            if !isempty(prs)
                 pr = prs[1]
                 params = Dict("body" => params["body"])
                 update_pull_request(repo, pr; auth=auth, params=params)
