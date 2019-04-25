@@ -52,3 +52,9 @@ The Julia package manager **does not** rely on git tags and GitHub releases. How
 ## Approving pull requests on the registry
 
 Currently, a registry maintainer will manually merge the pull request made by Registrator.  We will soon have a CI system to check and auto-merge without human intervention.
+
+## Private packages and registries
+
+Private packages will be ignored by the current running instance of Registrator. Please see [docs.md](https://github.com/JuliaComputing/Registrator.jl/blob/master/docs.md) on how to host your own Registrator for private packages.
+
+For more info on running your own instance of Registrator, see the documentation in [docs.md](https://github.com/JuliaComputing/Registrator.jl/blob/master/docs.md)
