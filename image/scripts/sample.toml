@@ -2,34 +2,67 @@
 # Remove http_port to make the server use ENV["PORT"]. Heroku users must do this.
 http_port = 8001
 http_ip = "0.0.0.0"
-stop_file = "/tmp/stopregistrator"
+stop_file = "/tmp/stopregistrator"    # `touch` this file to stop Registrator
 log_level = "debug"
 
 [github]
-user = ""
-email = ""
-name = ""
-token = ""
-secret = ""
-app_id = 12345
-priv_pem = "private-key.pem"
+user = ""       # A GitHub user ID
 
-[targets.qux]
+email = ""      # The email associated with the above ID, this is
+                # required for creating the registry commit
+
+token = ""      # An access token for the above user ID, this is
+                # required for pushing the commit to the remote registry
+
+secret = ""     # This is the webhook secret that you configure when
+                # you setup an app in GitHub. See
+                # https://developer.github.com/apps/building-github-apps/creating-a-github-app/
+                # for instructions on how to create an app.
+
+app_id = 12345  # The app ID for your GitHub app. This can be found in
+                # the first webhook payload that your app sends just
+                # after it is created. See the "Advanced" section in
+                # your app's settings page.
+
+priv_pem = "private-key.pem"    # The private key file of your GitHub app
+
+[targets.qux]   # You can define additional targets as [targets.baz], [targets.foo] etc.
 repo = "https://github.com/your_github_id/QuxRegistry"
 base_branch = "master"
 
 [registrator]
-trigger = "quxregister"
-report_issue = false
+trigger = "@JuliaRegistrator"   # The comment that should trigger Registrator. Typically
+                                # keep this the same as your GitHub user (with `@` prefixed)
+
 issue_repo = "JuliaComputing/Registrator.jl"
-reply_comment = true
-set_status = true
-enc_key = "1234567890123456"
-disable_pull_request_trigger = false
-disable_approval_process = false
+report_issue = false            # If set to true any unhandled error will be reported as
+                                # an issue to the above repository
+
+reply_comment = true            # If set to false Registrator will not reply with comments.
+                                # Useful when testing.
+
+set_status = true               # If set to true Registrator will post pending and success
+                                # status markers to the issue on which register() is called.
+
+enc_key = "1234567890123456"    # The encryption key to use to encrypt PR metadata. This is
+                                # decrypted and used by Registrator for the approved() call.
+
+disable_pull_request_trigger = false    # If set to true this will enable register()ing from
+                                # Pull requests. This is not recommended as Pull requests
+                                # need to be merged for the registration process to be
+                                # complete. This can be ensured if you use the approval
+                                # process. (See below)
+
+disable_approval_process = false    # If set to true this will enable the approved() call.
+                                # Note that this requires your App to have write access
+                                # to the repository on which it is installed. Read more
+                                # about the approved() call in docs.md
+
+# Additional registries to look into for `[deps]` and `[compat]`
 registry_deps = ["https://github.com/JuliaRegistries/General"]
 
 [slack]
-alert = false
+alert = false    # If set to true this will make Registrator post to the below slack
+                 # channel whenever it runs into unhandled exceptions
 token = "xxxx"
 channel = "xxxx"
