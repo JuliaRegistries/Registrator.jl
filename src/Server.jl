@@ -736,8 +736,9 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
     pr = nothing
     repo = join(split(target_registry["repo"], "/")[end-1:end], "/")
     msg = ""
+    auth = get_user_auth()
     try
-        pr = create_pull_request(repo; auth=get_user_auth(), params=params)
+        pr = create_pull_request(repo; auth=auth, params=params)
         msg = "created"
         @debug("Pull request created")
         try # add labels
@@ -760,7 +761,6 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
     if pr == nothing
         # Look for pull request in last 10 pages, each page contains 15 PRs
         params = Dict("state"=>"open", "per_page"=>15)
-        auth = get_user_auth()
         prs, page_data = pull_requests(repo; auth=auth, params=params, page_limit=1)
         for p in prs
             if p.base.ref == target_registry["base_branch"] && p.head.ref == brn
@@ -786,7 +786,11 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
             end
         end
 
-        pr == nothing && error("Registration PR already exists but unable to find it")
+        if pr == nothing
+            error("Registration PR already exists but unable to find it")
+        else
+            update_pull_request(repo, pr.number; auth=auth, params=Dict("body" => params["body"]))
+        end
     end
 
     cbody = """
