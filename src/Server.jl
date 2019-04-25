@@ -172,7 +172,7 @@ function handle_approval(rp::RequestParams{ApprovalTrigger})
     auth = get_access_token(rp.evt)
     d = get_metadata_from_pr_body(rp, auth)
 
-    if d == nothing
+    if d === nothing
         return "Unable to get registration metdata for this PR"
     end
 
@@ -285,7 +285,7 @@ struct ProcessedParams
     cparams::CommonParams
 
     function ProcessedParams(rp::RequestParams)
-        if rp.cparams.error != nothing
+        if rp.cparams.error !== nothing
             @debug("Pre-check failed, not processing RequestParams: $(rp.cparams.error)")
             return ProcessedParams(nothing, nothing, copy(rp.cparams))
         end
@@ -308,7 +308,7 @@ struct ProcessedParams
 
         cloneurl, sha, err = get_cloneurl_and_sha(rp, auth)
 
-        if err == nothing && sha != nothing
+        if err === nothing && sha !== nothing
             projectfile_contents, tree_sha, projectfile_found, projectfile_valid, err = verify_projectfile_from_sha(rp.reponame, sha; auth = auth)
             if !projectfile_found
                 err = "Project file not found on branch `$(rp.trigger_src.branch)`"
@@ -368,7 +368,7 @@ end
 function get_sha_from_branch(reponame, brn; auth = GitHub.AnonymousAuth())
     try
         b = branch(reponame, Branch(brn); auth=auth)
-        sha = b.sha != nothing ? b.sha : b.commit.sha
+        sha = b.sha !== nothing ? b.sha : b.commit.sha
         return sha, nothing
     catch ex
         d = parse_github_exception(ex)
@@ -640,14 +640,14 @@ end
 
 function handle_comment_event(event::WebhookEvent, phrase::RegexMatch)
     rp = RequestParams(event, phrase)
-    isa(rp.trigger_src, EmptyTrigger) && rp.cparams.error == nothing && return
+    isa(rp.trigger_src, EmptyTrigger) && rp.cparams.error === nothing && return
 
-    if rp.cparams.isvalid && rp.cparams.error == nothing
+    if rp.cparams.isvalid && rp.cparams.error === nothing
         print_entry_log(rp)
 
         push!(event_queue, rp)
         set_pending_status(rp)
-    elseif rp.cparams.error != nothing
+    elseif rp.cparams.error !== nothing
         @info("Error while processing event: $(rp.cparams.error)")
         if rp.cparams.report_error
             msg = "Error while trying to register: $(rp.cparams.error)"
@@ -672,7 +672,7 @@ function is_pr_exists_exception(ex)
     d = parse_github_exception(ex)
 
     if d["Status Code"] == "422" &&
-       match(r"A pull request already exists", d["Errors"]) != nothing
+       match(r"A pull request already exists", d["Errors"]) !== nothing
         return true
     end
 
@@ -761,7 +761,7 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
         end
     end
 
-    if pr == nothing
+    if pr === nothing
         prs, _ = pull_requests(repo; auth=auth, params=Dict(
             "state" => "open",
             "base" => params["base"],
@@ -772,7 +772,7 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
             pr = prs[1]
         end
 
-        if pr == nothing
+        if pr === nothing
             error("Registration PR already exists but unable to find it")
         else
             update_pull_request(repo, pr.number; auth=auth, params=Dict("body" => params["body"]))
@@ -821,7 +821,7 @@ function handle_events(rp::RequestParams{ApprovalTrigger})
     @info("Processing approval event", reponame=rp.reponame, rp.trigger_src.prid)
     try
         err = handle_approval(rp)
-        if err != nothing
+        if err !== nothing
             @debug(err)
             make_comment(rp.evt, "Error in approval process: $err")
         end
@@ -841,7 +841,7 @@ string(::RequestParams{ApprovalTrigger}) = "approval"
 function handle_register(rp::RequestParams, target_registry::Dict{String,Any})
     pp = ProcessedParams(rp)
 
-    if pp.cparams.isvalid && pp.cparams.error == nothing
+    if pp.cparams.isvalid && pp.cparams.error === nothing
         rbrn = register(pp.cloneurl, Pkg.Types.read_project(copy(IOBuffer(pp.projectfile_contents))), pp.tree_sha;
             registry=target_registry["repo"],
             registry_deps=get(config["registrator"], "registry_deps", String[]),
@@ -856,7 +856,7 @@ function handle_register(rp::RequestParams, target_registry::Dict{String,Any})
             make_pull_request(pp, rp, rbrn, target_registry)
             set_success_status(rp)
         end
-    elseif pp.cparams.error != nothing
+    elseif pp.cparams.error !== nothing
         @info("Error while processing event: $(pp.cparams.error)")
         if pp.cparams.report_error
             msg = "Error while trying to register: $(pp.cparams.error)"
