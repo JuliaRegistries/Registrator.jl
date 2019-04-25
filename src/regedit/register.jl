@@ -205,8 +205,7 @@ function register(
     registry::String = DEFAULT_REGISTRY_URL,
     registry_deps::Vector{String} = String[],
     push::Bool = false,
-    gitconfig::Dict = Dict(),
-    compat_julia_pool=[v"0.7", v"1.0", v"1.1"]
+    gitconfig::Dict = Dict()
 )
     # get info from package registry
     @debug("get info from package registry")
