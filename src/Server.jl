@@ -401,11 +401,11 @@ function is_comment_by_org_owner_or_member(event)
 end
 
 function has_release_rights(event)
-  if is_owned_by_organization(event)
-    return is_comment_by_org_owner_or_member(event)
-  else
-    return is_comment_by_collaborator(event)
-  end
+    if is_comment_by_collaborator(event)
+        return true
+    else
+        return is_owned_by_organization(event) && is_comment_by_org_owner_or_member(event)
+    end
 end
 
 function is_pull_request(payload)
