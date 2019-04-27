@@ -397,8 +397,7 @@ function is_comment_by_org_owner_or_member(event)
     org = event.repository.owner.login
     user = get_user_login(event.payload)
     userorgs = orgs(user)
-    any(userorgs.=org)
-    return any(userorgs.=org)
+    return any(userorgs.==org)
 end
 
 function has_release_rights(event)
