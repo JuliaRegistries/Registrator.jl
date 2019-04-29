@@ -54,6 +54,7 @@ struct RequestParams{T<:RequestTrigger}
 
     function RequestParams(evt::WebhookEvent, phrase::RegexMatch)
         reponame = evt.repository.full_name
+        user = get_user_login(evt.payload)
         trigger_src = EmptyTrigger()
         commenter_can_release = false
         err = nothing
@@ -91,6 +92,12 @@ struct RequestParams{T<:RequestTrigger}
                 else
                     err = "Commenter doesn't have release rights"
                     @debug(err)
+                    if is_owned_by_organization(evt)
+                        org = evt.repository.owner.login
+                        make_comment(evt, "**Register Failed**\n@$(user), it looks like you are not a publicly listed member/owner in the parent organization ($(org)).\nIf you are a member/owner, you will need to change your membership to public. See [GitHub Help](https://help.github.com/en/articles/publicizing-or-hiding-organization-membership)")
+                    else
+                        make_comment(evt, "**Register Failed**\n@$(user), it looks like you don't have collaborator status on this repository.")
+                    end
                 end
                 @debug("Comment is on a pull request")
             else
