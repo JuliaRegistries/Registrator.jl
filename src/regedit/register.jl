@@ -417,6 +417,16 @@ function register(
 
         Pkg.Compress.save(compat_file, compat_data)
 
+        reg_pkgs = filter(x -> x.name == "Registrator", Pkg.Display.status(Pkg.Types.Context()))
+        if length(reg_pkgs) == 0
+            reg_commit = "unknown"
+        else
+            reg_commit = reg_pkgs[1].new.hash
+            if reg_commit === nothing    # Registrator is dev'd
+                reg_commit = LibGit2.head(Pkg.dir("Registrator"))
+            end
+        end
+
         # commit changes
         @debug("commit changes")
         message = """
@@ -426,7 +436,7 @@ function register(
         Repo: $(package_repo)
         Tree: $(string(tree_hash))
 
-        Registrator commit: $(LibGit2.head(Pkg.dir("Registrator")))
+        Registrator commit: $(reg_commit)
         """
         run(`$git add -- $package_path`)
         run(`$git add -- $registry_file`)
