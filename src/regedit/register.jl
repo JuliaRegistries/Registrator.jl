@@ -417,7 +417,9 @@ function register(
 
         Pkg.Compress.save(compat_file, compat_data)
 
-        reg_pkgs = filter(x -> x.name == "Registrator", Pkg.Display.status(Pkg.Types.Context()))
+        reg_pkgs = Pkg.Display.status(Pkg.Types.Context(),
+                                      [PackageSpec("Registrator",
+                                                   Base.UUID("4418983a-e44d-11e8-3aec-9789530b3b3e"))])
         if length(reg_pkgs) == 0
             reg_commit = "unknown"
         else
