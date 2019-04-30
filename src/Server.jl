@@ -43,6 +43,15 @@ end
 struct EmptyTrigger <: RequestTrigger
 end
 
+function release_rights_error(evt, user)
+    if is_owned_by_organization(evt)
+        org = evt.repository.owner.login
+        return "**Register Failed**\n@$(user), it looks like you are not a publicly listed member/owner in the parent organization ($(org)).\nIf you are a member/owner, you will need to change your membership to public. See [GitHub Help](https://help.github.com/en/articles/publicizing-or-hiding-organization-membership)"
+    else
+        return "**Register Failed**\n@$(user), it looks like you don't have collaborator status on this repository."
+    end
+end
+
 struct RequestParams{T<:RequestTrigger}
     evt::WebhookEvent
     phrase::RegexMatch
@@ -90,14 +99,9 @@ struct RequestParams{T<:RequestTrigger}
                         trigger_src = IssueTrigger(brn)
                     end
                 else
-                    err = "Commenter doesn't have release rights"
+                    err = release_rights_error(evt, user)
                     @debug(err)
-                    if is_owned_by_organization(evt)
-                        org = evt.repository.owner.login
-                        make_comment(evt, "**Register Failed**\n@$(user), it looks like you are not a publicly listed member/owner in the parent organization ($(org)).\nIf you are a member/owner, you will need to change your membership to public. See [GitHub Help](https://help.github.com/en/articles/publicizing-or-hiding-organization-membership)")
-                    else
-                        make_comment(evt, "**Register Failed**\n@$(user), it looks like you don't have collaborator status on this repository.")
-                    end
+                    report_error = true
                 end
                 @debug("Comment is on a pull request")
             else
@@ -120,8 +124,9 @@ struct RequestParams{T<:RequestTrigger}
                             trigger_src = ApprovalTrigger(prid)
                         end
                     else
-                        err = "Commenter doesn't have release rights"
+                        err = release_rights_error(evt, user)
                         @debug(err)
+                        report_error = true
                     end
                 else
                     @debug("Approval comment not made on a valid registry")
