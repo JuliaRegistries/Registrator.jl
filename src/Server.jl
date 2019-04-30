@@ -43,19 +43,29 @@ end
 struct EmptyTrigger <: RequestTrigger
 end
 
+function register_rights_error(evt, user)
+    if is_owned_by_organization(evt)
+        org = evt.repository.owner.login
+        return "**Register Failed**\n@$(user), it looks like you are not a publicly listed member/owner in the parent organization ($(org)).\nIf you are a member/owner, you will need to change your membership to public. See [GitHub Help](https://help.github.com/en/articles/publicizing-or-hiding-organization-membership)"
+    else
+        return "**Register Failed**\n@$(user), it looks like you don't have collaborator status on this repository."
+    end
+end
+
 struct RequestParams{T<:RequestTrigger}
     evt::WebhookEvent
     phrase::RegexMatch
     reponame::String
     trigger_src::T
-    comment_by_collaborator::Bool
+    commenter_can_register::Bool
     target::Union{Nothing,String}
     cparams::CommonParams
 
     function RequestParams(evt::WebhookEvent, phrase::RegexMatch)
         reponame = evt.repository.full_name
+        user = get_user_login(evt.payload)
         trigger_src = EmptyTrigger()
-        comment_by_collaborator = false
+        commenter_can_register = false
         err = nothing
         report_error = false
 
@@ -68,9 +78,9 @@ struct RequestParams{T<:RequestTrigger}
             @debug(err)
         elseif action_name == "register"
             if endswith(reponame, ".jl")
-                comment_by_collaborator = is_comment_by_collaborator(evt)
-                if comment_by_collaborator
-                    @debug("Comment is by collaborator")
+                commenter_can_register = has_register_rights(evt)
+                if commenter_can_register
+                    @debug("Commenter has registration rights")
                     if is_pull_request(evt.payload)
                         if config["registrator"]["disable_pull_request_trigger"]
                             make_comment(evt, "Pull request comments will not trigger Registrator as it is disabled. Please trying using a commit or issue comment.")
@@ -89,8 +99,9 @@ struct RequestParams{T<:RequestTrigger}
                         trigger_src = IssueTrigger(brn)
                     end
                 else
-                    err = "Comment not made by collaborator"
+                    err = register_rights_error(evt, user)
                     @debug(err)
+                    report_error = true
                 end
                 @debug("Comment is on a pull request")
             else
@@ -105,16 +116,17 @@ struct RequestParams{T<:RequestTrigger}
                 registry_repos = [join(split(r["repo"], "/")[end-1:end], "/") for (n, r) in config["targets"]]
                 if reponame in registry_repos
                     @debug("Recieved approval comment")
-                    comment_by_collaborator = is_comment_by_collaborator(evt)
-                    if comment_by_collaborator
-                        @debug("Comment is by collaborator")
+                    commenter_can_register = has_register_rights(evt)
+                    if commenter_can_register
+                        @debug("Commenter has register rights")
                         if is_pull_request(evt.payload)
                             prid = get_prid(evt.payload)
                             trigger_src = ApprovalTrigger(prid)
                         end
                     else
-                        err = "Comment not made by collaborator"
+                        err = register_rights_error(evt, user)
                         @debug(err)
+                        report_error = true
                     end
                 else
                     @debug("Approval comment not made on a valid registry")
@@ -126,11 +138,11 @@ struct RequestParams{T<:RequestTrigger}
             report_error = true
         end
 
-        isvalid = comment_by_collaborator
+        isvalid = commenter_can_register
         @debug("Event pre-check validity: $isvalid")
 
         return new{typeof(trigger_src)}(evt, phrase, reponame, trigger_src,
-                                        comment_by_collaborator, target,
+                                        commenter_can_register, target,
                                         CommonParams(isvalid, err, report_error))
     end
 end
@@ -316,7 +328,7 @@ struct ProcessedParams
             end
         end
 
-        isvalid = rp.comment_by_collaborator && projectfile_found && projectfile_valid
+        isvalid = rp.commenter_can_register && projectfile_found && projectfile_valid
         @debug("Event validity: $(isvalid)")
 
         new(projectfile_contents, projectfile_found, projectfile_valid, sha, tree_sha, cloneurl,
@@ -382,11 +394,28 @@ function get_sha_from_branch(reponame, brn; auth = GitHub.AnonymousAuth())
     return nothing, nothing
 end
 
+function is_owned_by_organization(event)
+  return event.repository.owner.typ == "Organization"
+end
+
 function is_comment_by_collaborator(event)
     @debug("Checking if comment is by collaborator")
     user = get_user_login(event.payload)
     return iscollaborator(event.repository, user; auth=get_access_token(event))
 end
+
+function is_comment_by_org_owner_or_member(event)
+    @debug("Checking if comment is by repository parent organization owner or member")
+    org = event.repository.owner.login
+    user = get_user_login(event.payload)
+    if get(config["registrator"], "check_private_membership", false)
+        return GitHub.check_membership(org, user; auth=get_user_auth())
+    else
+        return GitHub.check_membership(org, user; public_only=true)
+    end
+end
+
+has_register_rights(event) = is_comment_by_collaborator(event) || is_owned_by_organization(event) && is_comment_by_org_owner_or_member(event)
 
 function is_pull_request(payload)
     haskey(payload, "pull_request") || haskey(payload, "issue") && haskey(payload["issue"], "pull_request")

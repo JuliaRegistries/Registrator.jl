@@ -39,6 +39,11 @@ If you do host your own Registrator, you can set it up on your private package:
 * Add the GitHub user that you mention in the configuration file as a collaborator to the private Registry and package.
 * Install the GitHub app on the repository.
 
+## Allow private organization members to register
+
+* Set `check_private_membership` to `true` in the configuration file
+* Add the GitHub user that you mention in the configuration file as a member to the organization(s)
+
 ## The approved() call
 
 The approved() call is a comment you make on a Registry PR. This is *disabled* on the public Registrator as it requires write access to the repository. It does the following:
