@@ -408,8 +408,11 @@ function is_comment_by_org_owner_or_member(event)
     @debug("Checking if comment is by repository parent organization owner or member")
     org = event.repository.owner.login
     user = get_user_login(event.payload)
-    userorgs = orgs(user)
-    return any(userorgs.==org)
+    if get(config["registrator"], "check_private_membership", false)
+        return GitHub.check_membership(org, user; auth=get_user_auth())
+    else
+        return GitHub.check_membership(org, user; public_only=true)
+    end
 end
 
 has_release_rights(event) = is_comment_by_collaborator(event) || is_owned_by_organization(event) && is_comment_by_org_owner_or_member(event)

@@ -61,6 +61,11 @@ disable_approval_process = false    # If set to true this will enable the approv
 disable_private_registrations = true    # If set to false this will enable private packages
                                 # to be registered.
 
+check_private_membership = false    # If set to true Registrator will allow private members
+                                # of the organization of the package to register. Note that
+                                # for this to work the `user` mentioned above must be a
+                                # member of the organization.
+
 # Additional registries to look into for `[deps]` and `[compat]`
 registry_deps = ["https://github.com/JuliaRegistries/General"]
 
