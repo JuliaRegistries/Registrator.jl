@@ -43,7 +43,7 @@ end
 struct EmptyTrigger <: RequestTrigger
 end
 
-function release_rights_error(evt, user)
+function register_rights_error(evt, user)
     if is_owned_by_organization(evt)
         org = evt.repository.owner.login
         return "**Register Failed**\n@$(user), it looks like you are not a publicly listed member/owner in the parent organization ($(org)).\nIf you are a member/owner, you will need to change your membership to public. See [GitHub Help](https://help.github.com/en/articles/publicizing-or-hiding-organization-membership)"
@@ -57,7 +57,7 @@ struct RequestParams{T<:RequestTrigger}
     phrase::RegexMatch
     reponame::String
     trigger_src::T
-    commenter_can_release::Bool
+    commenter_can_register::Bool
     target::Union{Nothing,String}
     cparams::CommonParams
 
@@ -65,7 +65,7 @@ struct RequestParams{T<:RequestTrigger}
         reponame = evt.repository.full_name
         user = get_user_login(evt.payload)
         trigger_src = EmptyTrigger()
-        commenter_can_release = false
+        commenter_can_register = false
         err = nothing
         report_error = false
 
@@ -78,9 +78,9 @@ struct RequestParams{T<:RequestTrigger}
             @debug(err)
         elseif action_name == "register"
             if endswith(reponame, ".jl")
-                commenter_can_release = has_release_rights(evt)
-                if commenter_can_release
-                    @debug("Commenter has release rights")
+                commenter_can_register = has_register_rights(evt)
+                if commenter_can_register
+                    @debug("Commenter has registration rights")
                     if is_pull_request(evt.payload)
                         if config["registrator"]["disable_pull_request_trigger"]
                             make_comment(evt, "Pull request comments will not trigger Registrator as it is disabled. Please trying using a commit or issue comment.")
@@ -99,7 +99,7 @@ struct RequestParams{T<:RequestTrigger}
                         trigger_src = IssueTrigger(brn)
                     end
                 else
-                    err = release_rights_error(evt, user)
+                    err = register_rights_error(evt, user)
                     @debug(err)
                     report_error = true
                 end
@@ -116,15 +116,15 @@ struct RequestParams{T<:RequestTrigger}
                 registry_repos = [join(split(r["repo"], "/")[end-1:end], "/") for (n, r) in config["targets"]]
                 if reponame in registry_repos
                     @debug("Recieved approval comment")
-                    commenter_can_release = has_release_rights(evt)
-                    if commenter_can_release
-                        @debug("Commenter has release rights")
+                    commenter_can_register = has_register_rights(evt)
+                    if commenter_can_register
+                        @debug("Commenter has register rights")
                         if is_pull_request(evt.payload)
                             prid = get_prid(evt.payload)
                             trigger_src = ApprovalTrigger(prid)
                         end
                     else
-                        err = release_rights_error(evt, user)
+                        err = register_rights_error(evt, user)
                         @debug(err)
                         report_error = true
                     end
@@ -138,11 +138,11 @@ struct RequestParams{T<:RequestTrigger}
             report_error = true
         end
 
-        isvalid = commenter_can_release
+        isvalid = commenter_can_register
         @debug("Event pre-check validity: $isvalid")
 
         return new{typeof(trigger_src)}(evt, phrase, reponame, trigger_src,
-                                        commenter_can_release, target,
+                                        commenter_can_register, target,
                                         CommonParams(isvalid, err, report_error))
     end
 end
@@ -328,7 +328,7 @@ struct ProcessedParams
             end
         end
 
-        isvalid = rp.commenter_can_release && projectfile_found && projectfile_valid
+        isvalid = rp.commenter_can_register && projectfile_found && projectfile_valid
         @debug("Event validity: $(isvalid)")
 
         new(projectfile_contents, projectfile_found, projectfile_valid, sha, tree_sha, cloneurl,
@@ -415,7 +415,7 @@ function is_comment_by_org_owner_or_member(event)
     end
 end
 
-has_release_rights(event) = is_comment_by_collaborator(event) || is_owned_by_organization(event) && is_comment_by_org_owner_or_member(event)
+has_register_rights(event) = is_comment_by_collaborator(event) || is_owned_by_organization(event) && is_comment_by_org_owner_or_member(event)
 
 function is_pull_request(payload)
     haskey(payload, "pull_request") || haskey(payload, "issue") && haskey(payload["issue"], "pull_request")
