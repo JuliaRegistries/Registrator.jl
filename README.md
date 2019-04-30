@@ -34,16 +34,14 @@ Check that your package conforms to the required `Project.toml` structure found 
 
 ### Details for triggering JuliaRegistrator (for step 2 above)
 
-#### If you are a collaborator on the repo
-
 Either:
 
 1. Open an issue and add ` @JuliaRegistrator register() ` as a comment.  You can re-trigger the registrator by commenting ` @JuliaRegistrator register() ` again (in case registrator reports an error or to make changes).
 2. Add a comment to a commit and say ` @JuliaRegistrator register() `.
 
-#### If you are not a collaborator
+*Note*: Only *collaborators* on the package repository and *public members* on the organization the package is under are allowed to register. If you are not a collaborator, you can request a collaborator trigger registrator in a GitHub issue or a comment on a commit.
 
-You can request a collaborator trigger registrator in a GitHub issue or a comment on a commit.
+If you want to register as a private member you should host your own instance of Registrator, see [docs.md](https://github.com/JuliaComputing/Registrator.jl/blob/master/docs.md)
 
 ### Note on git tags and GitHub releases
 
