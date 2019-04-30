@@ -412,13 +412,7 @@ function is_comment_by_org_owner_or_member(event)
     return any(userorgs.==org)
 end
 
-function has_release_rights(event)
-    if is_comment_by_collaborator(event)
-        return true
-    else
-        return is_owned_by_organization(event) && is_comment_by_org_owner_or_member(event)
-    end
-end
+has_release_rights(event) = is_comment_by_collaborator(event) || is_owned_by_organization(event) && is_comment_by_org_owner_or_member(event)
 
 function is_pull_request(payload)
     haskey(payload, "pull_request") || haskey(payload, "issue") && haskey(payload["issue"], "pull_request")
