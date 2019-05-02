@@ -421,11 +421,11 @@ function register(
                                       [Pkg.PackageSpec("Registrator",
                                                        Base.UUID("4418983a-e44d-11e8-3aec-9789530b3b3e"))])
         if length(reg_pkgs) == 0
-            reg_commit = "unknown"
+            regtreesha = "unknown"
         else
-            reg_commit = reg_pkgs[1].new.hash
-            if reg_commit === nothing    # Registrator is dev'd
-                reg_commit = LibGit2.head(Pkg.dir("Registrator"))
+            regtreesha = reg_pkgs[1].new.hash
+            if regtreesha === nothing    # Registrator is dev'd
+                regtreesha = LibGit2.head(Pkg.dir("Registrator"))
             end
         end
 
@@ -438,7 +438,7 @@ function register(
         Repo: $(package_repo)
         Tree: $(string(tree_hash))
 
-        Registrator commit: $(reg_commit)
+        Registrator tree SHA: $(regtreesha)
         """
         run(`$git add -- $package_path`)
         run(`$git add -- $registry_file`)
