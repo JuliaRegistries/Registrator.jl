@@ -139,7 +139,7 @@ end
 import Pkg.Types: VersionRange, VersionBound, VersionSpec, compress_versions
 
 function versionrange(lo::VersionBound, hi::VersionBound)
-    lo.n < hi.n && lo.t == hi.t && (lo = hi)
+    lo.t == hi.t && (lo = hi)
     return VersionRange(lo, hi)
 end
 
@@ -416,8 +416,10 @@ function register(
                     break
                 end
             end
-            pool = map(VersionNumber, [keys(TOML.parsefile(versionsfileofdep))...])
-            ranges = compress_versions(pool, filter(in(spec), pool)).ranges
+            # the call to map(versionrange, ) can be removed
+            # once Pkg is updated to a version including
+            # https://github.com/JuliaLang/Pkg.jl/pull/1181
+            ranges = map(r->versionrange(r.lower, r.upper), spec.ranges)
             d[n] = length(ranges) == 1 ? string(ranges[1]) : map(string, ranges)
         end
         compat_data[pkg.version] = d
