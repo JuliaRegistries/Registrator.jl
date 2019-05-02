@@ -482,13 +482,9 @@ function is_pfile_nuv(c)
             return false, err
         end
     catch ex
-        if isa(ex, ArgumentError)
-            err = "Error reading Project.toml: $(ex.msg)"
-            @debug(err)
-            return false, err
-        else
-            rethrow(ex)
-        end
+        err = "Error reading Project.toml: $(ex.msg)"
+        @debug(err)
+        return false, err
     end
 
     return true, nothing
