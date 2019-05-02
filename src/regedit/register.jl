@@ -312,6 +312,13 @@ function register(
 
         # update package data: deps file
         @debug("update package data: deps file")
+        if pkg.name in keys(pkg.deps)
+            err = "Package $(pkg.name) mentions itself in `[deps]`"
+            @debug(err)
+            regbr.metadata["error"] = err
+            return regbr
+        end
+
         deps_file = joinpath(package_path, "Deps.toml")
         if isfile(deps_file)
             deps_data = Pkg.Compress.load(deps_file)
