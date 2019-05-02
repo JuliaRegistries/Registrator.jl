@@ -432,7 +432,7 @@ function register(
         else
             regtreesha = reg_pkgs[1].new.hash
             if regtreesha === nothing    # Registrator is dev'd
-                regtreesha = LibGit2.head(Pkg.dir("Registrator"))
+                regtreesha = LibGit2.head(abspath(joinpath(pathof(Main.Registrator), "..", "..")))
             end
         end
 
