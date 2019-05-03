@@ -14,6 +14,8 @@ using Test
     @test parse_submission_string("register(target=qux)") == ("register", String[], Dict(:target=>"qux"))
     @test parse_submission_string("register(target=qux, branch=baz)") == ("register", String[], Dict(:branch=>"baz",:target=>"qux"))
     @test parse_submission_string("register(qux, baz, target=foo, branch=bar)") == ("register", ["qux", "baz"], Dict(:branch=>"bar",:target=>"foo"))
+
+    @test parse_submission_string("register(branch=\"release-1.0\")") == ("register", String[], Dict(:branch=>"release-1.0"))
 end
 
 end
