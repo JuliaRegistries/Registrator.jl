@@ -420,6 +420,7 @@ function register(
             # once Pkg is updated to a version including
             # https://github.com/JuliaLang/Pkg.jl/pull/1181
             ranges = map(r->versionrange(r.lower, r.upper), spec.ranges)
+            ranges = VersionSpec(ranges).ranges # this combines joinable ranges
             d[n] = length(ranges) == 1 ? string(ranges[1]) : map(string, ranges)
         end
         compat_data[pkg.version] = d
