@@ -4,5 +4,6 @@ using Test
 
 include("server.jl")
 include("regedit.jl")
+include("webui.jl")
 
 end

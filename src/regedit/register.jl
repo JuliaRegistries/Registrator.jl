@@ -1,7 +1,41 @@
-# """
-# Given a remote repo URL and a git tree spec, get a `Project` object
-# for the project file in that tree and a hash string for the tree.
-# """
+"""
+Return a `GitRepo` object for an up-to-date copy of `registry`.
+"""
+function get_registry(registry::AbstractString; gitconfig::Dict=Dict())
+    reg_path(args...) = joinpath("registries", map(string, args)...)
+    if haskey(REGISTRIES, registry)
+        registry_uuid = REGISTRIES[registry]
+        registry_path = reg_path(registry_uuid)
+        if !ispath(registry_path)
+            run(pipeline(`git clone $registry $registry_path`; stdout=devnull))
+        else
+            # this is really annoying/impossible to do with LibGit2
+            git = gitcmd(registry_path, gitconfig)
+            run(pipeline(`$git config remote.origin.url $registry`; stdout=devnull))
+            run(pipeline(`$git checkout -f master`; stdout=devnull))
+            run(pipeline(`$git fetch -P origin master`; stdout=devnul))
+            run(pipeline(`$git reset --hard origin/master`; stdout=devnull))
+        end
+    else
+        registry_temp = mktempdir(mkpath(reg_path()))
+        try
+            run(pipeline(`git clone $registry $registry_temp`; stdout=devnull))
+            reg = TOML.parsefile(joinpath(registry_temp, "Registry.toml"))
+            registry_uuid = REGISTRIES[registry] = UUID(reg["uuid"])
+            registry_path = reg_path(registry_uuid)
+            rm(registry_path, recursive=true, force=true)
+            mv(registry_temp, registry_path)
+        finally
+            rm(registry_temp, recursive=true, force=true)
+        end
+    end
+    return GitRepo(registry_path)
+end
+
+"""
+Given a remote repo URL and a git tree spec, get a `Project` object
+for the project file in that tree and a hash string for the tree.
+"""
 # function get_project(remote_url::String, tree_spec::String)
 #     # TODO?: use raw file downloads for GitHub/GitLab
 #     mktempdir(mkpath("packages")) do tmp
@@ -201,9 +235,9 @@ errors or warnings that occurred.
 * `gitconfig::Dict=Dict()`: dictionary of configuration options for the `git` command
 """
 function register(
-    package_repo::String, pkg::Pkg.Types.Project, tree_hash::String;
+    package_repo::AbstractString, pkg::Pkg.Types.Project, tree_hash::AbstractString;
     registry::String = DEFAULT_REGISTRY_URL,
-    registry_deps::Vector{String} = String[],
+    registry_deps::Vector{<:AbstractString} = String[],
     push::Bool = false,
     gitconfig::Dict = Dict()
 )
@@ -233,9 +267,9 @@ function register(
         # branch registry repo
         @debug("branch registry repo")
         git = gitcmd(registry_path, gitconfig)
-        run(`$git checkout -qf master`)
-        run(`$git branch -qf $branch`)
-        run(`$git checkout -qf $branch`)
+        run(pipeline(`$git checkout -f master`; stdout=devnull))
+        run(pipeline(`$git branch -f $branch`; stdout=devnull))
+        run(pipeline(`$git checkout -f $branch`; stdout=devnull))
 
         # find package in registry
         @debug("find package in registry")
@@ -450,13 +484,17 @@ function register(
 
         Registrator tree SHA: $(regtreesha)
         """
-        run(`$git add -- $package_path`)
-        run(`$git add -- $registry_file`)
-        run(`$git commit -qm $message`)
+        run(pipeline(`$git add -- $package_path`; stdout=devnull))
+        run(pipeline(`$git add -- $registry_file`; stdout=devnull))
+        run(pipeline(`$git commit -m $message`; stdout=devnull))
 
         # push -f branch to remote
-        @debug("push -f branch to remote")
-        push && run(`$git push -q -f -u origin $branch`)
+        if push
+            @debug("push -f branch to remote")
+            run(pipeline(`$git push -f -u origin $branch`; stdout=devnull))
+        else
+            @debug("skipping git push")
+        end
 
         clean_registry = false
         return regbr
