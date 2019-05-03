@@ -23,7 +23,7 @@ First, install the app on your package(s) as mentioned above.  The procedure for
 Registrator will look for the project file in the master branch by default, and will use the version set in the Project.toml file via, for example, `version = "0.1.0"`. To use a custom branch comment with:
 
 ```
-@JuliaRegistrator register(branch=name-of-your-branch)
+@JuliaRegistrator register(branch="name-of-your-branch")
 ```
 
 ### Transitioning from REQUIRE to Project.toml
