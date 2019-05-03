@@ -6,7 +6,6 @@ using Base64
 using Dates
 using GitForge, GitForge.GitHub, GitForge.GitLab
 using HTTP
-using JSON2
 using Mux
 using Pkg
 using Sockets
@@ -336,7 +335,7 @@ function callback(r::HTTP.Request)
         headers=["Accept" => "application/json", "User-Agent" => "Registrator.jl"],
         query=query,
     )
-    token = JSON2.read(IOBuffer(resp.body)).access_token
+    token = JSON.parse(String(resp.body))["access_token"]
 
     client = typeof(provider.client)(;
         url=GitForge.base_url(provider.client),

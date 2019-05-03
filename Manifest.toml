@@ -15,10 +15,10 @@ version = "0.2.0"
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 
 [[BinaryProvider]]
-deps = ["Libdl", "Pkg", "SHA", "Test"]
-git-tree-sha1 = "055eb2690182ebc31087859c3dd8598371d3ef9e"
+deps = ["Libdl", "SHA"]
+git-tree-sha1 = "c7361ce8a2129f20b0e05a89f7070820cfed6648"
 uuid = "b99e7846-7c00-51b0-8f62-c81ae34c0232"
-version = "0.5.3"
+version = "0.5.4"
 
 [[CSTParser]]
 deps = ["LibGit2", "Test", "Tokenize"]
@@ -55,9 +55,7 @@ uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
 
 [[GitForge]]
 deps = ["Dates", "HTTP", "JSON2"]
-git-tree-sha1 = "e5b3832070a3c85b66ee7d60a17407ae74ce67b2"
-repo-rev = "master"
-repo-url = "https://github.com/christopher-dG/GitForge.jl"
+git-tree-sha1 = "5ae8a43266447e6105d14811655a839539f09e12"
 uuid = "8f6bce27-0656-5410-875b-07a5572985df"
 version = "0.1.0"
 
@@ -96,12 +94,12 @@ uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 version = "0.20.0"
 
 [[JSON2]]
-deps = ["Dates", "Parsers", "Test"]
-git-tree-sha1 = "3d3b46d6a88837c258b85245f53bca14468dd528"
+deps = ["Dates", "Parsers"]
+git-tree-sha1 = "36180793e9b043af9d07966482eb3a16f903649f"
 repo-rev = "cdg/options"
 repo-url = "https://github.com/christopher-dG/JSON2.jl"
 uuid = "2535ab7d-5cd8-5a07-80ac-9b1792aadce3"
-version = "0.2.4+"
+version = "0.3.0"
 
 [[Lazy]]
 deps = ["Compat", "MacroTools", "Test"]
@@ -138,12 +136,6 @@ git-tree-sha1 = "2d94286a9c2f52c63a16146bb86fd6cdfbf677c6"
 uuid = "739be429-bea8-5141-9913-cc70e7f3736d"
 version = "0.6.8"
 
-[[Missings]]
-deps = ["Dates", "InteractiveUtils", "SparseArrays", "Test"]
-git-tree-sha1 = "d1d2585677f2bd93a97cfeb8faa7a0de0f982042"
-uuid = "e1d29d7a-bbdc-5cf2-9ac0-f12de2c33e28"
-version = "0.4.0"
-
 [[Mmap]]
 uuid = "a63ad114-7e13-5084-954f-fe012c677804"
 
@@ -160,10 +152,10 @@ uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 version = "1.1.0"
 
 [[Parsers]]
-deps = ["Dates", "Mmap", "Test", "WeakRefStrings"]
-git-tree-sha1 = "d4e634c9cab597f0ec8f5a1d62c0787e98602c55"
+deps = ["Dates", "Test"]
+git-tree-sha1 = "6eae3454d1fd3097b1e5d81dbe11db849225cb8b"
 uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
-version = "0.2.22"
+version = "0.3.2"
 
 [[Pidfile]]
 deps = ["FileWatching", "Test"]
@@ -230,12 +222,6 @@ uuid = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 
 [[Unicode]]
 uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
-
-[[WeakRefStrings]]
-deps = ["Missings", "Random", "Test"]
-git-tree-sha1 = "960639a12ffd223ee463e93392aeb260fa325566"
-uuid = "ea10d353-3f73-51f8-a26c-33c1cb351aa5"
-version = "0.5.8"
 
 [[WebSockets]]
 deps = ["Base64", "Dates", "Distributed", "HTTP", "Logging", "Random", "Sockets", "Test"]
