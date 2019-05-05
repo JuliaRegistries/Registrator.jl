@@ -77,38 +77,32 @@ struct RequestParams{T<:RequestTrigger}
             err = "Private registration request recieved, ignoring"
             @debug(err)
         elseif action_name == "register"
-            if endswith(reponame, ".jl")
-                commenter_can_register = has_register_rights(evt)
-                if commenter_can_register
-                    @debug("Commenter has registration rights")
-                    if is_pull_request(evt.payload)
-                        if config["registrator"]["disable_pull_request_trigger"]
-                            make_comment(evt, "Pull request comments will not trigger Registrator as it is disabled. Please trying using a commit or issue comment.")
-                        else
-                            @debug("Comment is on a pull request")
-                            prid = get_prid(evt.payload)
-                            trigger_src = PullRequestTrigger(prid)
-                        end
-                    elseif is_commit_comment(evt.payload)
-                        @debug("Comment is on a commit")
-                        trigger_src = CommitCommentTrigger()
+            commenter_can_register = has_register_rights(evt)
+            if commenter_can_register
+                @debug("Commenter has registration rights")
+                if is_pull_request(evt.payload)
+                    if config["registrator"]["disable_pull_request_trigger"]
+                        make_comment(evt, "Pull request comments will not trigger Registrator as it is disabled. Please trying using a commit or issue comment.")
                     else
-                        @debug("Comment is on an issue")
-                        brn = get(action_kwargs, :branch, "master")
-                        @debug("Will use branch", brn)
-                        trigger_src = IssueTrigger(brn)
+                        @debug("Comment is on a pull request")
+                        prid = get_prid(evt.payload)
+                        trigger_src = PullRequestTrigger(prid)
                     end
+                elseif is_commit_comment(evt.payload)
+                    @debug("Comment is on a commit")
+                    trigger_src = CommitCommentTrigger()
                 else
-                    err = register_rights_error(evt, user)
-                    @debug(err)
-                    report_error = true
+                    @debug("Comment is on an issue")
+                    brn = get(action_kwargs, :branch, "master")
+                    @debug("Will use branch", brn)
+                    trigger_src = IssueTrigger(brn)
                 end
-                @debug("Comment is on a pull request")
             else
-                err = "Package name does not end with '.jl'"
+                err = register_rights_error(evt, user)
                 @debug(err)
                 report_error = true
             end
+            @debug("Comment is on a pull request")
         elseif action_name == "approved"
             if config["registrator"]["disable_approval_process"]
                 make_comment(evt, "The `approved()` command is disabled.")
@@ -805,7 +799,7 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
         Registration pull request $msg: [$(repo)/$(pr.number)]($(pr.html_url))
 
         After the above pull request is merged, it is recommended that a tag is created on this repository for the registered package version.
-    
+
         This will be done automatically if [Julia TagBot](https://github.com/apps/julia-tagbot) is installed, or can be done manually through the github interface, or via:
         ```
         git tag -a v$(string(ver)) -m "<description of version>" $(pp.sha)
