@@ -159,11 +159,11 @@ const config = Dict(
             @test resp.status == 400
             @test occursin("Repository was not found", String(resp.body))
 
-            # This is an actual repository, it hasn't been touched for >5 years.
-            body = "package=http://github.com/foo/ii&ref=master"
-            resp = HTTP.post(url; body=body, cookies=cookies, status_exception=false)
-            @test resp.status == 400
-            @test occursin("Unauthorized to release this package", String(resp.body))
+            # # This is an actual repository, it hasn't been touched for >5 years.
+            # body = "package=http://github.com/foo/ii&ref=master"
+            # resp = HTTP.post(url; body=body, cookies=cookies, status_exception=false)
+            # @test resp.status == 400
+            # @test occursin("Unauthorized to release this package", String(resp.body))
         end
     end
 end
