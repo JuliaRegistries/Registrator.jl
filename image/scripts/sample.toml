@@ -34,7 +34,7 @@ base_branch = "master"
 trigger = "@JuliaRegistrator"   # The comment that should trigger Registrator. Typically
                                 # keep this the same as your GitHub user (with `@` prefixed)
 
-issue_repo = "JuliaComputing/Registrator.jl"
+issue_repo = "JuliaRegistries/Registrator.jl"
 report_issue = false            # If set to true any unhandled error will be reported as
                                 # an issue to the above repository
 

@@ -17,7 +17,7 @@ const ROUTE_CALLBACK = "/callback"
 const ROUTE_SELECT = "/select"
 const ROUTE_REGISTER = "/register"
 
-const DOCS = "https://github.com/JuliaComputing/Registrator.jl/blob/master/README.web.md#usage-for-package-maintainers"
+const DOCS = "https://github.com/JuliaRegistries/Registrator.jl/blob/master/README.web.md#usage-for-package-maintainers"
 
 const TEMPLATE = """
     <!DOCTYPE html>
