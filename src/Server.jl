@@ -56,6 +56,7 @@ struct RequestParams{T<:RequestTrigger}
     evt::WebhookEvent
     phrase::RegexMatch
     reponame::String
+    patch_notes::String
     trigger_src::T
     commenter_can_register::Bool
     target::Union{Nothing,String}
@@ -65,6 +66,7 @@ struct RequestParams{T<:RequestTrigger}
         reponame = evt.repository.full_name
         user = get_user_login(evt.payload)
         trigger_src = EmptyTrigger()
+        patch_notes = ""
         commenter_can_register = false
         err = nothing
         report_error = false
@@ -74,9 +76,14 @@ struct RequestParams{T<:RequestTrigger}
         target = get(action_kwargs, :target, nothing)
 
         if evt.payload["repository"]["private"] && get(config["registrator"], "disable_private_registrations", true)
-            err = "Private registration request recieved, ignoring"
+            err = "Private registration request received, ignoring"
             @debug(err)
         elseif action_name == "register"
+            # TODO:
+            # - The syntax with which users declare their patch notes is still undecided.
+            # - This assumes that patch notes appear last in the body. Is that fair?
+            patch_match = match(r"Patch notes:(.*)"s, body = get_body(evt.payload))
+            patch_notes = patch_match === nothing ? "" : strip(patch_match[1])
             commenter_can_register = has_register_rights(evt)
             if commenter_can_register
                 @debug("Commenter has registration rights")
@@ -135,7 +142,7 @@ struct RequestParams{T<:RequestTrigger}
         isvalid = commenter_can_register
         @debug("Event pre-check validity: $isvalid")
 
-        return new{typeof(trigger_src)}(evt, phrase, reponame, trigger_src,
+        return new{typeof(trigger_src)}(evt, phrase, reponame, patch_notes, trigger_src,
                                         commenter_can_register, target,
                                         CommonParams(isvalid, err, report_error))
     end
@@ -694,7 +701,7 @@ function is_pr_exists_exception(ex)
     return false
 end
 
-function get_user_login(payload)
+function get_user_login(payload::Dict{<:AbstractString})
     if haskey(payload, "comment")
         return payload["comment"]["user"]["login"]
     elseif haskey(payload, "issue")
@@ -703,6 +710,18 @@ function get_user_login(payload)
         return payload["pull_request"]["user"]["login"]
     else
         error("Don't know how to get user login")
+    end
+end
+
+function get_body(payload)
+    if haskey(payload, "comment")
+        return payload["comment"]["body"]
+    elseif haskey(payload, "issue")
+        return payload["issue"]["body"]
+    elseif haskey(payload, "pull_request")
+        return payload["pull_request"]["body"]
+    else
+        error("Don't know how to get body")
     end
 end
 
@@ -737,8 +756,8 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
     ref = get_html_url(rp.evt.payload)
 
     # FYI: TagBot (github.com/apps/julia-tagbot) depends on the "Repository", "Version",
-    # and "Commit" fields. If you're going to change the format here, please ping
-    # @christopher-dG and make sure that WebUI.jl has also been updated.
+    # "Commit", and "Patch notes" fields. If you're going to change the format here,
+    # please ping @christopher-dG and make sure that WebUI.jl has also been updated.
     params["body"] = """
         Registering: $name
         Repository: $(rp.evt.repository.html_url)
@@ -747,6 +766,10 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
         Proposed by: @$creator
         Reviewed by: @$reviewer
         Reference: [$ref]($ref)
+        Patch notes: $(isempty(rp.patch_notes) ? "none" : "")
+        <!-- BEGIN PATCH NOTES -->
+        $(rp.patch_notes)
+        <!-- END PATCH NOTES -->
 
         $enc_meta
         """
