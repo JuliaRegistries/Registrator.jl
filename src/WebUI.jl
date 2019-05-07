@@ -6,6 +6,7 @@ using Base64
 using Dates
 using GitForge, GitForge.GitHub, GitForge.GitLab
 using HTTP
+using JSON
 using Mux
 using Pkg
 using Sockets
@@ -400,7 +401,7 @@ function register(r::HTTP.Request)
         registry=REGISTRY[].clone, push=true,
     )
 
-    return if branch.error === nothing
+    return if get(branch.metadata, "error", nothing) === nothing
         title = "Register $(project.name): v$(project.version)"
 
         # FYI: TagBot (github.com/apps/julia-tagbot) depends on the "Repository", "Version",
@@ -421,7 +422,7 @@ function register(r::HTTP.Request)
         url = web_url(pr)
         html("""Registry PR successfully created, see it <a href="$url" target="_blank">here</a>!""")
     else
-        html(500, "Registration failed: " * branch.error)
+        html(500, "Registration failed: " * branch.metadata["error"])
     end
 end
 
