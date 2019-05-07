@@ -241,7 +241,7 @@ end
 
 # ---- End of code copied from Pkg
 
-function find_package_in_registry(pkg::Pkg.Type.Project,
+function find_package_in_registry(pkg::Pkg.Types.Project,
                                   registry_file::String,
                                   registry_data::RegistryData,
                                   regbr::RegBranch)
