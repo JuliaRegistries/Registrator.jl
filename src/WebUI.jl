@@ -18,6 +18,12 @@ const ROUTE_CALLBACK = "/callback"
 const ROUTE_SELECT = "/select"
 const ROUTE_REGISTER = "/register"
 
+if haskey(ENV, "ROUTE_PREFIX")
+    for x in [:ROUTE_INDEX, :ROUTE_AUTH, :ROUTE_CALLBACK, :ROUTE_SELECT, :ROUTE_REGISTER]
+        @eval const $x = ENV["ROUTE_PREFIX"] * $x
+    end
+end
+
 const DOCS = "https://github.com/JuliaRegistries/Registrator.jl/blob/master/README.web.md#usage-for-package-maintainers"
 
 const TEMPLATE = """
