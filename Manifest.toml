@@ -226,3 +226,9 @@ deps = ["Base64", "Dates", "Distributed", "HTTP", "Logging", "Random", "Sockets"
 git-tree-sha1 = "13f763d38c7a05688938808b49cb29b18b60c8c8"
 uuid = "104b5d7c-a370-577a-8038-80a2059c5097"
 version = "1.5.2"
+
+[[ZMQ]]
+deps = ["BinaryProvider", "FileWatching", "Libdl", "Sockets", "Test"]
+git-tree-sha1 = "34e7ac2d1d59d19d0e86bde99f1f02262bfa1613"
+uuid = "c2297ded-f4af-51ae-bb23-16f91089e4e1"
+version = "1.0.0"

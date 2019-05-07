@@ -10,8 +10,8 @@ RUN useradd -ms /bin/bash registrator
 USER registrator
 WORKDIR /home/registrator
 
-RUN julia -e "using Pkg; Pkg.add(PackageSpec(url=\"https://github.com/JuliaRegistries/Registrator.jl\"))"
-ADD scripts /home/registrator
+RUN julia -e 'using Pkg; pkg"add Registrator#master; precompile"'
+ADD run /home/registrator
 
 # Comment out ENTRYPOINT and uncomment the CMD line if you are using Heroku.
 ENTRYPOINT ["/bin/bash", "run.sh"]

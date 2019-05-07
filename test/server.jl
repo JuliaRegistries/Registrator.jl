@@ -1,4 +1,4 @@
-import Registrator.RegServer: accept_regex, parse_submission_string
+import Registrator.CommentBot: accept_regex, parse_submission_string
 
 using Test
 

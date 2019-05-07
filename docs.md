@@ -4,23 +4,33 @@ This document describes how you can host your own instance of Registrator.
 
 ## Running the Registrator server
 
-The server is run with `Registrator.RegServer.main()`. This can be run as a standalone server or as a docker container. See the `image` directory for instructions on how to build the docker image.
+There are three components:
+1) Comment Bot: A GitHub comment listener bot
+2) WebUI: A web UI
+3) Registration service: A backend service to which the above components talk to.
 
-You must provide the configuration file as the argument:
+This can be run as a standalone server or as a docker container. See `build.md` directory for instructions on how to build the docker image.
 
-```
-julia -e 'using Registrator; Registrator.RegServer.main()' conf.toml
-```
+You can use `make` to control the components of registrator. The `Makefile` can be found in the `run` directory. Commands:
 
-To safely stop the Registrator server, `touch` the file mentioned as `stop_file` in the config. By default it is `/tmp/stopregistrator`:
+1) `make start-all`
+2) `make start-regservice`
+3) `make start-commentbot`
+4) `make start-webui`
 
-```
-touch /tmp/stopregistrator
-```
+5) `make stop-all`
+6) `make stop-regservice`
+7) `make stop-commentbot`
+8) `make stop-webui`
+
+8) `make restart-all`
+9) `make restart-regservice`
+10) `make restart-commentbot`
+11) `make restart-webui`
 
 ## Config file
 
-See `image/scripts/sample.toml` for description of entries in the config file.
+See `run/sample.toml` for description of entries in the config file.
 
 ## GitHub permissions and subscribed events for the app
 

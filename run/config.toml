@@ -1,38 +1,20 @@
-[server]
-# Remove http_port to make the server use ENV["PORT"]. Heroku users must do this.
-http_port = 8001
-http_ip = "0.0.0.0"
-stop_file = "/tmp/stopregistrator"    # `touch` this file to stop Registrator
+[regservice]
+stop_file = "/tmp/stopregservice"    # `touch` this file to stop the registration service
 log_level = "debug"
-
-[github]
-user = ""       # A GitHub user ID
-
+user = ""
 email = ""      # The email associated with the above ID, this is
                 # required for creating the registry commit
 
-token = ""      # An access token for the above user ID, this is
-                # required for pushing the commit to the remote registry
+[commentbot]
+# Remove http_port to make the server use ENV["PORT"]. Heroku users must do this.
+http_port = 8001
+http_ip = "0.0.0.0"
+log_level = "debug"
 
-secret = ""     # This is the webhook secret that you configure when
-                # you setup an app in GitHub. See
-                # https://developer.github.com/apps/building-github-apps/creating-a-github-app/
-                # for instructions on how to create an app.
-
-app_id = 12345  # The app ID for your GitHub app. This can be found in
-                # the first webhook payload that your app sends just
-                # after it is created. See the "Advanced" section in
-                # your app's settings page.
-
-priv_pem = "private-key.pem"    # The private key file of your GitHub app
-
-[targets.qux]   # You can define additional targets as [targets.baz], [targets.foo] etc.
-repo = "https://github.com/your_github_id/QuxRegistry"
-base_branch = "master"
-
-[registrator]
 trigger = "@JuliaRegistrator"   # The comment that should trigger Registrator. Typically
                                 # keep this the same as your GitHub user (with `@` prefixed)
+
+stop_file = "/tmp/stopcommentbot" # `touch` this file to stop the comment bot
 
 issue_repo = "JuliaRegistries/Registrator.jl"
 report_issue = false            # If set to true any unhandled error will be reported as
@@ -69,7 +51,29 @@ check_private_membership = false    # If set to true Registrator will allow priv
 # Additional registries to look into for `[deps]` and `[compat]`
 registry_deps = ["https://github.com/JuliaRegistries/General"]
 
-[slack]
+[commentbot.github]
+user = ""       # A GitHub user ID, can be same as that set for [regservice]
+
+token = ""      # An access token for the above user ID, this is
+                # required for pushing the commit to the remote registry
+
+secret = ""     # This is the webhook secret that you configure when
+                # you setup an app in GitHub. See
+                # https://developer.github.com/apps/building-github-apps/creating-a-github-app/
+                # for instructions on how to create an app.
+
+app_id = 12345  # The app ID for your GitHub app. This can be found in
+                # the first webhook payload that your app sends just
+                # after it is created. See the "Advanced" section in
+                # your app's settings page.
+
+priv_pem = "private-key.pem"    # The private key file of your GitHub app
+
+[commentbot.targets.qux]   # You can define additional targets as [targets.baz], [targets.foo] etc.
+repo = "https://github.com/your_github_id/QuxRegistry"
+base_branch = "master"
+
+[commentbot.slack]
 alert = false    # If set to true this will make Registrator post to the below slack
                  # channel whenever it runs into unhandled exceptions
 token = "xxxx"
