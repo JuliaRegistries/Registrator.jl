@@ -12,53 +12,14 @@ using Pkg
 using Sockets
 using TimeToLive
 
-const ROUTE_INDEX = "/"
-const ROUTE_AUTH = "/auth"
-const ROUTE_CALLBACK = "/callback"
-const ROUTE_SELECT = "/select"
-const ROUTE_REGISTER = "/register"
-
-if haskey(ENV, "ROUTE_PREFIX")
-    for x in [:ROUTE_INDEX, :ROUTE_AUTH, :ROUTE_CALLBACK, :ROUTE_SELECT, :ROUTE_REGISTER]
-        @eval const $x = ENV["ROUTE_PREFIX"] * $x
-    end
-end
+# Not const since they can be changed if $ROUTE_PREFIX is set.
+ROUTE_INDEX = "/"
+ROUTE_AUTH = "/auth"
+ROUTE_CALLBACK = "/callback"
+ROUTE_SELECT = "/select"
+ROUTE_REGISTER = "/register"
 
 const DOCS = "https://github.com/JuliaRegistries/Registrator.jl/blob/master/README.web.md#usage-for-package-maintainers"
-
-const TEMPLATE = """
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <meta charset="utf-8">
-        <title>Registrator</title>
-        <style>
-          body {
-            background-color: #ddd;
-            text-align: center;
-            margin: auto;
-            max-width: 50em;
-            font-family: Helvetica, sans-serif;
-            line-height: 1.5;
-            color: #333;
-          }
-          a {
-            color: inherit;
-          }
-          h3, h4 {
-            color: #555;
-          }
-        </style>
-      </head>
-      <body>
-        <h1><a href=$ROUTE_INDEX>Registrator</a></h1>
-        <h4>Registry URL: <a href="{{registry}}" target="_blank">{{registry}}</a></h3>
-        <h3>Click <a href="$DOCS" target="_blank">here</a> for usage instructions</h3>
-        <br>
-        {{body}}
-      </body>
-    </html>
-    """
 
 const PAGE_SELECT = """
     <form action="$ROUTE_REGISTER" method="post">
@@ -142,9 +103,40 @@ end
 # Return an HTML response.
 html(body::AbstractString) = html(200, body)
 function html(status::Int, body::AbstractString)
-    doc = TEMPLATE
-    doc = replace(doc, "{{body}}" => body)
-    doc = replace(doc, "{{registry}}" => REGISTRY[].url)
+    registry = REGISTRY[].url
+    doc = """
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <title>Registrator</title>
+            <style>
+              body {
+                background-color: #ddd;
+                text-align: center;
+                margin: auto;
+                max-width: 50em;
+                font-family: Helvetica, sans-serif;
+                line-height: 1.5;
+                color: #333;
+              }
+              a {
+                color: inherit;
+              }
+              h3, h4 {
+                color: #555;
+              }
+            </style>
+          </head>
+          <body>
+            <h1><a href=$ROUTE_INDEX>Registrator</a></h1>
+            <h4>Registry URL: <a href="$registry" target="_blank">$registry</a></h3>
+            <h3>Click <a href="$DOCS" target="_blank">here</a> for usage instructions</h3>
+            <br>
+            $body
+          </body>
+        </html>
+        """
     return HTTP.Response(status, ["Content-Type" => "text/html"]; body=doc)
 end
 
@@ -520,6 +512,11 @@ function start_server(ip::IPAddr, port::Int, verbose::Bool=false)
 end
 
 function main(; port::Int, ip::AbstractString="0.0.0.0", verbose::Bool=false)
+    if haskey(ENV, "ROUTE_PREFIX")
+        for r in [:ROUTE_INDEX, :ROUTE_AUTH, :ROUTE_CALLBACK, :ROUTE_SELECT, :ROUTE_REGISTER]
+            @eval $r = ENV["ROUTE_PREFIX"] * $r
+        end
+    end
     init_providers()
     init_registry()
     ip = ip == "localhost" ? Sockets.localhost : parse(IPAddr, ip)
