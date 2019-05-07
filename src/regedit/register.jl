@@ -243,6 +243,7 @@ end
 
 function find_package_in_registry(pkg::Pkg.Types.Project,
                                   registry_file::String,
+                                  registry_path::String,
                                   registry_data::RegistryData,
                                   regbr::RegBranch)
     uuid = string(pkg.uuid)
@@ -521,7 +522,8 @@ function register(
         @debug("find package in registry")
         registry_file = joinpath(registry_path, "Registry.toml")
         registry_data = parse_registry(registry_file)
-        package_path, regbr = find_package_in_registry(pkg, registry_file, registry_data, regbr)
+        package_path, regbr = find_package_in_registry(pkg, registry_file, registry_path,
+                                                       registry_data, regbr)
         package_path === nothing && return regbr
 
         # update package data: package file
