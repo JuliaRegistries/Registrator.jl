@@ -33,7 +33,7 @@ const TEMPLATE = """
             margin: auto;
             max-width: 50em;
             font-family: Helvetica, sans-serif;
-            line-height: 1.5;
+            line-height: 1.8;
             color: #333;
           }
           a {
@@ -59,6 +59,10 @@ const PAGE_SELECT = """
     URL of package to register: <input type="text" size="50" name="package">
     <br>
     Branch to register: <input type="text" size="20" name="ref" value="master">
+    <br>
+    Patch notes (optional):
+    <br>
+    <textarea cols="80" rows="10" name="notes"></textarea>
     <br>
     <input type="submit" value="Submit">
     </form>
@@ -267,8 +271,12 @@ mention(u::GitLab.User) = "@$(u.username)"
 display_user(u::U) where U =
     (parentmodule(typeof(REGISTRY[].repo)) === parentmodule(U) ? mention : web_url)(u)
 
-# Trim both whitespace and + characters, which indicate spaces in the browser input.
-stripform(s::AbstractString) = strip(strip(s), '+')
+# Parse an HTML form.
+function parseform(s::AbstractString)
+    # In forms, '+' represents a space.
+    pairs = split(replace(s, "+" => " "), "&")
+    return Dict(map(p -> map(strip ∘ HTTP.unescapeuri, split(p, "=")), pairs))
+end
 
 ##########
 # Routes #
@@ -361,14 +369,15 @@ function register(r::HTTP.Request)
     end
     u = USERS[state]
 
-    # Parse the form data.
-    form = Dict(map(p -> map(HTTP.unescapeuri, split(p, "=")), split(String(r.body), "&")))
-    package = stripform(form["package"])
+    # Extract the form data.
+    form = parseform(String(r.body))
+    package = get(form, "package", "")
     isempty(package) && return html(400, "Package URL was not provided")
     occursin("://", package) || (package = "https://$package")
     match(r"https?://.*\..*/.*/.*", package) === nothing && return html(400, "Package URL is invalid")
-    ref = stripform(form["ref"])
+    ref = get(form, "ref", "")
     isempty(ref) && return html(400, "Branch was not provided")
+    notes = get(form, "notes", "")
 
     # Get the repo, then check for authorization.
     owner, name = splitrepo(package)
@@ -405,14 +414,18 @@ function register(r::HTTP.Request)
         title = "Register $(project.name): v$(project.version)"
 
         # FYI: TagBot (github.com/apps/julia-tagbot) depends on the "Repository", "Version",
-        # and "Commit" fields. If you're going to change the format here, please ping
-        # @christopher-dG and make sure that Server.jl has also been updated.
+        # "Commit", and "Patch notes" fields. If you're going to change the format here,
+        # please ping @christopher-dG and make sure that Server.jl has also been updated.
         body = """
             - Created by: $(display_user(u.user))
             - Repository: $(web_url(repo))
             - Branch: $ref
             - Version: v$(project.version)
             - Commit: $commit
+            - Patch notes: $(isempty(notes) ? "none" : "")
+            <!-- BEGIN PATCH NOTES -->
+            $notes
+            <!-- END PATCH NOTES -->
             """
 
         # Make the PR.
