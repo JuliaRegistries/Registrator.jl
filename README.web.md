@@ -228,7 +228,7 @@ Install Registrator, apply the environment variables, and run Julia with the ser
 ```sh
 julia -e '
     using Pkg; 
-    Pkg.add("https://github.com/JuliaComputing/Registrator.jl")''
+    Pkg.add("https://github.com/JuliaRegistries/Registrator.jl")''
 source .env
 julia -e '
     using Registrator;
