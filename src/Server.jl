@@ -414,15 +414,15 @@ end
 
 has_register_rights(event) = is_comment_by_collaborator(event) || is_owned_by_organization(event) && is_comment_by_org_owner_or_member(event)
 
-function is_pull_request(payload)
+function is_pull_request(payload::Dict{<:AbstractString})
     haskey(payload, "pull_request") || haskey(payload, "issue") && haskey(payload["issue"], "pull_request")
 end
 
-function is_commit_comment(payload)
+function is_commit_comment(payload::Dict{<:AbstractString})
     haskey(payload, "comment") && !haskey(payload, "issue")
 end
 
-function get_prid(payload)
+function get_prid(payload::Dict{<:AbstractString})
     if haskey(payload, "pull_request")
         return payload["pull_request"]["number"]
     elseif haskey(payload, "issue")
@@ -558,7 +558,7 @@ function make_comment(evt::WebhookEvent, body::String)
     end
 end
 
-function get_html_url(payload)
+function get_html_url(payload::Dict{<:AbstractString})
     if haskey(payload, "pull_request")
         return payload["pull_request"]["html_url"]
     elseif haskey(payload, "issue")
@@ -713,7 +713,7 @@ function get_user_login(payload::Dict{<:AbstractString})
     end
 end
 
-function get_body(payload)
+function get_body(payload::Dict{<:AbstractString})
     if haskey(payload, "comment")
         return payload["comment"]["body"]
     elseif haskey(payload, "issue")
