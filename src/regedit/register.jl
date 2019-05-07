@@ -170,15 +170,15 @@ function findpackageerror(name::String, u::String, regdata::Array{RegistryData})
     nothing
 end
 
-import Pkg.Types: VersionRange, VersionBound, VersionSpec, compress_versions
+import Pkg.Types: VersionRange, VersionBound, VersionSpec
 
 function versionrange(lo::VersionBound, hi::VersionBound)
     lo.t == hi.t && (lo = hi)
     return VersionRange(lo, hi)
 end
 
-# monkey patch existing compress_versions function
-# (the same in more recent versions of Julia)
+# Code copied from Pkg found in dev julia (Current version is 1.1)
+# TODO: Remove after moving to julia 1.2
 """
     compress_versions(pool::Vector{VersionNumber}, subset::Vector{VersionNumber})
 Given `pool` as the pool of available versions (of some package) and `subset` as some
@@ -212,6 +212,34 @@ end
 function compress_versions(pool::Vector{VersionNumber}, subset)
     compress_versions(pool, filter(in(subset), pool))
 end
+
+import Pkg.Compress.load_versions
+
+function compress(path::String, uncompressed::Dict,
+    versions::Vector{VersionNumber} = load_versions(path))
+    inverted = Dict()
+    for (ver, data) in uncompressed, (key, val) in data
+        val isa TOML.TYPE || (val = string(val))
+        push!(get!(inverted, key => val, VersionNumber[]), ver)
+    end
+    compressed = Dict()
+    for ((k, v), vers) in inverted
+        for r in compress_versions(versions, sort!(vers)).ranges
+            get!(compressed, string(r), Dict{String,Any}())[k] = v
+        end
+    end
+    return compressed
+end
+
+function save(path::String, uncompressed::Dict,
+    versions::Vector{VersionNumber} = load_versions(path))
+    compressed = compress(path, uncompressed)
+    open(path, write=true) do io
+        TOML.print(io, compressed, sorted=true)
+    end
+end
+
+# ---- End of code copied from Pkg
 
 """
     register(package_repo, pkg, tree_hash; registry, registry_deps, push, gitconfig)
@@ -375,7 +403,7 @@ function register(
         end
 
         deps_data[pkg.version] = pkg.deps
-        Pkg.Compress.save(deps_file, deps_data)
+        save(deps_file, deps_data)
 
         # update package data: compat file
         @debug("check compat section")
@@ -459,7 +487,7 @@ function register(
         end
         compat_data[pkg.version] = d
 
-        Pkg.Compress.save(compat_file, compat_data)
+        save(compat_file, compat_data)
 
         reg_pkgs = Pkg.Display.status(Pkg.Types.Context(),
                                       [Pkg.PackageSpec("Registrator",
