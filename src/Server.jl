@@ -317,7 +317,7 @@ struct ProcessedParams
         if err === nothing && sha !== nothing
             projectfile_contents, tree_sha, projectfile_found, projectfile_valid, err = verify_projectfile_from_sha(rp.reponame, sha; auth = auth)
             if !projectfile_found
-                err = "Project file not found on branch `$(rp.trigger_src.branch)`"
+                err = "File Project.toml not found"
                 @debug(err)
             end
         end
