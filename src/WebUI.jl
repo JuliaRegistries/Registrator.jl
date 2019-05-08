@@ -170,10 +170,10 @@ end
 function isauthorized(u::User{GitLab.User}, repo::GitLab.Project)
     repo.visibility == "private" && return false
     forge = PROVIDERS["gitlab"].client
-    hasauth = @gf if repo.namespace == "user"
-        is_member(forge, repo.namespace.full_path, u.user.id)
-    else
+    hasauth = @gf if repo.namespace.kind == "user"
         is_collaborator(forge, repo.owner.username, repo.name, u.user.id)
+    else
+        is_member(forge, repo.namespace.full_path, u.user.id)
     end
     return something(hasauth, false)
 end
