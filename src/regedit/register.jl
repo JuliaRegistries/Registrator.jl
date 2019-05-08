@@ -451,7 +451,7 @@ errors or warnings that occurred.
 function register(
     package_repo::AbstractString, pkg::Pkg.Types.Project, tree_hash::AbstractString;
     registry::AbstractString = DEFAULT_REGISTRY_URL,
-    registry_deps::Vector{<:AbstractString} = String[],
+    registry_deps::Vector{<:AbstractString} = [],
     push::Bool = false,
     gitconfig::Dict = Dict()
 )

@@ -108,8 +108,9 @@ There are some that are required, and some that are optional.
   You should only set this if provider is one you added yourself or has a URL that does not contain `github` or `gitlab`.
   For GitHub, the value should be `github`, and for GitLab, it should be `gitlab`.
   For any other provider, it should be whatever key you used in your extra providers file.
+- `REGISTRY_DEPS`: The URLs (space-delimited) of any registries that packages in your target registry depend on.
 - `ROUTE_PREFIX`: Base route for the server.
-  Ex: set `ROUTE_PREFIX=/registrator` to serve the UI on `<your-hostname>/registrator/`.
+  For example, use `/registrator` to serve the UI on `<your-hostname>/registrator/`.
   
 ## Adding Extra Providers
 

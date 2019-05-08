@@ -54,6 +54,7 @@ struct Registry{F <: GitForge.Forge, R}
     repo::R
     url::String
     clone::String
+    deps::Vector{String}
 end
 
 # U is a User type, e.g. GitHub.User.
@@ -405,7 +406,7 @@ function register(r::HTTP.Request)
     tree === nothing && return html(500, "Looking up the tree hash failed")
     branch = RegEdit.register(
         clone, project, tree;
-        registry=REGISTRY[].clone, push=true,
+        registry=REGISTRY[].clone, registry_deps=REGISTRY[].deps, push=true,
     )
 
     return if get(branch.metadata, "error", nothing) === nothing
@@ -489,7 +490,9 @@ function init_registry()
     owner, name = splitrepo(url)
     repo = @gf get_repo(forge, owner, name)
     repo === nothing && error("Registry lookup failed")
-    REGISTRY[] = Registry(forge, repo, url, get(ENV, "REGISTRY_CLONE_URL", url))
+    clone = get(ENV, "REGISTRY_CLONE_URL", url)
+    deps = Vector{String}(split(get(ENV, "REGISTRY_DEPS", "")))
+    REGISTRY[] = Registry(forge, repo, url, clone, deps)
 end
 
 for f in [:index, :auth, :callback, :select, :register]
