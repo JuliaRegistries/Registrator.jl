@@ -138,7 +138,13 @@ html(body::AbstractString) = html(200, body)
 function html(status::Int, body::AbstractString)
     doc = TEMPLATE
     doc = replace(doc, "{{body}}" => body)
-    doc = replace(doc, "{{registry}}" => REGISTRY[].url)
+    if occursin('@', REGISTRY[].url)
+        http_uri = HTTP.URI(REGISTRY[].url)
+        registry = http_uri.scheme * "://" * http_uri.host * http_uri.path
+    else
+        registry = REGISTRY[].url
+    end
+    doc = replace(doc, "{{registry}}" => registry)
     return HTTP.Response(status, ["Content-Type" => "text/html"]; body=doc)
 end
 
