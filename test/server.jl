@@ -1,11 +1,11 @@
-import Registrator.RegServer: parse_submission_string
+import Registrator.RegServer: accept_regex, parse_submission_string
 
 using Test
 
 @testset "Server" begin
 
 @testset "accept_regex" begin
-    r = Regex("@JuliaRegistrator $(Registrator.RegServer.accept_regex)")
+    r = Regex("@JuliaRegistrator $accept_regex")
     @test match(r, "@JuliaRegistrator register()")[1] == "register()"
     @test match(r, "@JuliaRegistrator register()\r\n\r\n")[1] == "register()"
     @test match(r, """@JuliaRegistrator register()
