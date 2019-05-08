@@ -16,6 +16,8 @@ import ..Registrator: post_on_slack_channel
 import ..RegEdit: register, RegBranch
 import Base: string
 
+const accept_regex = "([^\\r\\n]*)(\\n|\\r)*.*"
+
 struct CommonParams
     isvalid::Bool
     error::Union{Nothing, String}
@@ -967,7 +969,7 @@ end
 
 function github_webhook(http_ip=config["server"]["http_ip"], http_port=get(config["server"], "http_port", parse(Int, get(ENV, "PORT", "8001"))))
     auth = get_jwt_auth()
-    trigger = Regex("@$(config["registrator"]["trigger"]) (.*?)(\\n|\\r)*\$")
+    trigger = Regex("@$(config["registrator"]["trigger"]) $accept_regex")
     listener = GitHub.CommentListener(comment_handler, trigger; check_collab=false, auth=auth, secret=config["github"]["secret"])
     httpsock[] = Sockets.listen(IPv4(http_ip), http_port)
 
