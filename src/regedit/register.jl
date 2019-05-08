@@ -353,7 +353,7 @@ function update_deps_file(pkg::Pkg.Types.Project,
     end
 
     deps_data[pkg.version] = pkg.deps
-    Pkg.Compress.save(deps_file, deps_data)
+    save(deps_file, deps_data)
     nothing
 end
 
@@ -441,7 +441,7 @@ function update_compat_file(pkg::Pkg.Types.Project,
     end
     compat_data[pkg.version] = d
 
-    Pkg.Compress.save(compat_file, compat_data)
+    save(compat_file, compat_data)
     nothing
 end
 
