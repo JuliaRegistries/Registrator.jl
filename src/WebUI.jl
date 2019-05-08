@@ -409,22 +409,16 @@ function register(r::HTTP.Request)
     )
 
     return if get(branch.metadata, "error", nothing) === nothing
-        title = "Register $(project.name): v$(project.version)"
-
-        # FYI: TagBot (github.com/apps/julia-tagbot) depends on the "Repository", "Version",
-        # "Commit", and "Patch notes" fields. If you're going to change the format here,
-        # please ping @christopher-dG and make sure that Server.jl has also been updated.
-        body = """
-            - Created by: $(display_user(u.user))
-            - Repository: $(web_url(repo))
-            - Branch: $ref
-            - Version: v$(project.version)
-            - Commit: $commit
-            - Patch notes: $(isempty(notes) ? "none" : "")
-            <!-- BEGIN PATCH NOTES -->
-            $notes
-            <!-- END PATCH NOTES -->
-            """
+        title, body = pull_request_contents(;
+            registration_type=get(branch.metadata, "kind", ""),
+            package=project.name,
+            repo=web_url(repo),
+            user=display_user(u.user),
+            branch=ref,
+            version=project.version,
+            commit=commit,
+            patch_notes=notes,
+        )
 
         # Make the PR.
         pr = @gf make_registration_request(REGISTRY[], branch.branch, title, body)

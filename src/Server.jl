@@ -751,30 +751,24 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
                           "version"=> string(ver)))
     key = config["registrator"]["enc_key"]
     enc_meta = "<!-- " * bytes2hex(encrypt(MbedTLS.CIPHER_AES_128_CBC, key, meta, key)) * " -->"
-    params = Dict("title"=>"$(get(rbrn.metadata, "kind", "")) $name: $ver",
-                  "base"=>target_registry["base_branch"],
+    params = Dict("base"=>target_registry["base_branch"],
                   "head"=>brn,
                   "maintainer_can_modify"=>true)
     ref = get_html_url(rp.evt.payload)
 
-    # FYI: TagBot (github.com/apps/julia-tagbot) depends on the "Repository", "Version",
-    # "Commit", and "Patch notes" fields. If you're going to change the format here,
-    # please ping @christopher-dG and make sure that WebUI.jl has also been updated.
-    params["body"] = """
-        Registering: $name
-        Repository: $(rp.evt.repository.html_url)
-        Version: v$ver
-        Commit: $(pp.sha)
-        Proposed by: @$creator
-        Reviewed by: @$reviewer
-        Reference: [$ref]($ref)
-        Patch notes: $(isempty(rp.patch_notes) ? "none" : "")
-        <!-- BEGIN PATCH NOTES -->
-        $(rp.patch_notes)
-        <!-- END PATCH NOTES -->
-
-        $enc_meta
-        """
+    params["title"], params["body"] = pull_request_contents(;
+        registration_type=get(rbrn.metadata, "kind", ""),
+        package=name,
+        repo=rp.evt.repository.html_url,
+        user="@$creator",
+        branch=brn,
+        version=ver,
+        commit=pp.sha,
+        patch_notes=rp.patch_notes,
+        reviewer="@$reviewer",
+        reference=ref,
+        meta=enc_meta,
+    )
 
     pr = nothing
     repo = join(split(target_registry["repo"], "/")[end-1:end], "/")
