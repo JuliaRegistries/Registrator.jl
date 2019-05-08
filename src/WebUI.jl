@@ -1,6 +1,6 @@
 module WebUI
 
-using ..Registrator: RegEdit
+using ..Registrator: RegEdit, pull_request_contents
 
 using Base64
 using Dates
