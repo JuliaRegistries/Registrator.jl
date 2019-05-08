@@ -108,6 +108,8 @@ There are some that are required, and some that are optional.
   You should only set this if provider is one you added yourself or has a URL that does not contain `github` or `gitlab`.
   For GitHub, the value should be `github`, and for GitLab, it should be `gitlab`.
   For any other provider, it should be whatever key you used in your extra providers file.
+- `SERVER_PORT`: The port number on which the server should run.
+  Default is 4000.
   
 ## Adding Extra Providers
 
