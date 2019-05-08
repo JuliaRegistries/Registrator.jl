@@ -242,6 +242,7 @@ end
 # ---- End of code copied from Pkg
 
 function find_package_in_registry(pkg::Pkg.Types.Project,
+                                  package_repo::String,
                                   registry_file::String,
                                   registry_path::String,
                                   registry_data::RegistryData,
@@ -522,7 +523,8 @@ function register(
         @debug("find package in registry")
         registry_file = joinpath(registry_path, "Registry.toml")
         registry_data = parse_registry(registry_file)
-        package_path, regbr = find_package_in_registry(pkg, registry_file, registry_path,
+        package_path, regbr = find_package_in_registry(pkg, package_repo,
+                                                       registry_file, registry_path,
                                                        registry_data, regbr)
         package_path === nothing && return regbr
 
