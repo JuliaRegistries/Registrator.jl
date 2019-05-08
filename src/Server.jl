@@ -16,6 +16,8 @@ import ..Registrator: post_on_slack_channel
 import ..RegEdit: register, RegBranch
 import Base: string
 
+const accept_regex = "([^\\r\\n]*)(\\n|\\r)*.*"
+
 struct CommonParams
     isvalid::Bool
     error::Union{Nothing, String}
@@ -56,6 +58,7 @@ struct RequestParams{T<:RequestTrigger}
     evt::WebhookEvent
     phrase::RegexMatch
     reponame::String
+    patch_notes::String
     trigger_src::T
     commenter_can_register::Bool
     target::Union{Nothing,String}
@@ -65,6 +68,7 @@ struct RequestParams{T<:RequestTrigger}
         reponame = evt.repository.full_name
         user = get_user_login(evt.payload)
         trigger_src = EmptyTrigger()
+        patch_notes = ""
         commenter_can_register = false
         err = nothing
         report_error = false
@@ -74,12 +78,17 @@ struct RequestParams{T<:RequestTrigger}
         target = get(action_kwargs, :target, nothing)
 
         if evt.payload["repository"]["private"] && get(config["registrator"], "disable_private_registrations", true)
-            err = "Private registration request recieved, ignoring"
+            err = "Private registration request received, ignoring"
             @debug(err)
         elseif action_name == "register"
             commenter_can_register = has_register_rights(evt)
             if commenter_can_register
                 @debug("Commenter has registration rights")
+                # TODO:
+                # - The syntax with which users declare their patch notes is still undecided.
+                # - This assumes that patch notes appear last in the body. Is that fair?
+                patch_match = match(r"Patch notes:(.*)"s, get_body(evt.payload))
+                patch_notes = patch_match === nothing ? "" : strip(patch_match[1])
                 if is_pull_request(evt.payload)
                     if config["registrator"]["disable_pull_request_trigger"]
                         make_comment(evt, "Pull request comments will not trigger Registrator as it is disabled. Please trying using a commit or issue comment.")
@@ -135,7 +144,7 @@ struct RequestParams{T<:RequestTrigger}
         isvalid = commenter_can_register
         @debug("Event pre-check validity: $isvalid")
 
-        return new{typeof(trigger_src)}(evt, phrase, reponame, trigger_src,
+        return new{typeof(trigger_src)}(evt, phrase, reponame, patch_notes, trigger_src,
                                         commenter_can_register, target,
                                         CommonParams(isvalid, err, report_error))
     end
@@ -407,15 +416,15 @@ end
 
 has_register_rights(event) = is_comment_by_collaborator(event) || is_owned_by_organization(event) && is_comment_by_org_owner_or_member(event)
 
-function is_pull_request(payload)
+function is_pull_request(payload::Dict{<:AbstractString})
     haskey(payload, "pull_request") || haskey(payload, "issue") && haskey(payload["issue"], "pull_request")
 end
 
-function is_commit_comment(payload)
+function is_commit_comment(payload::Dict{<:AbstractString})
     haskey(payload, "comment") && !haskey(payload, "issue")
 end
 
-function get_prid(payload)
+function get_prid(payload::Dict{<:AbstractString})
     if haskey(payload, "pull_request")
         return payload["pull_request"]["number"]
     elseif haskey(payload, "issue")
@@ -551,7 +560,7 @@ function make_comment(evt::WebhookEvent, body::String)
     end
 end
 
-function get_html_url(payload)
+function get_html_url(payload::Dict{<:AbstractString})
     if haskey(payload, "pull_request")
         return payload["pull_request"]["html_url"]
     elseif haskey(payload, "issue")
@@ -694,7 +703,7 @@ function is_pr_exists_exception(ex)
     return false
 end
 
-function get_user_login(payload)
+function get_user_login(payload::Dict{<:AbstractString})
     if haskey(payload, "comment")
         return payload["comment"]["user"]["login"]
     elseif haskey(payload, "issue")
@@ -703,6 +712,18 @@ function get_user_login(payload)
         return payload["pull_request"]["user"]["login"]
     else
         error("Don't know how to get user login")
+    end
+end
+
+function get_body(payload::Dict{<:AbstractString})
+    if haskey(payload, "comment")
+        return payload["comment"]["body"]
+    elseif haskey(payload, "issue")
+        return payload["issue"]["body"]
+    elseif haskey(payload, "pull_request")
+        return payload["pull_request"]["body"]
+    else
+        error("Don't know how to get body")
     end
 end
 
@@ -730,26 +751,24 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
                           "version"=> string(ver)))
     key = config["registrator"]["enc_key"]
     enc_meta = "<!-- " * bytes2hex(encrypt(MbedTLS.CIPHER_AES_128_CBC, key, meta, key)) * " -->"
-    params = Dict("title"=>"$(get(rbrn.metadata, "kind", "")) $name: $ver",
-                  "base"=>target_registry["base_branch"],
+    params = Dict("base"=>target_registry["base_branch"],
                   "head"=>brn,
                   "maintainer_can_modify"=>true)
     ref = get_html_url(rp.evt.payload)
 
-    # FYI: TagBot (github.com/apps/julia-tagbot) depends on the "Repository", "Version",
-    # and "Commit" fields. If you're going to change the format here, please ping
-    # @christopher-dG and make sure that WebUI.jl has also been updated.
-    params["body"] = """
-        Registering: $name
-        Repository: $(rp.evt.repository.html_url)
-        Version: v$ver
-        Commit: $(pp.sha)
-        Proposed by: @$creator
-        Reviewed by: @$reviewer
-        Reference: [$ref]($ref)
-
-        $enc_meta
-        """
+    params["title"], params["body"] = pull_request_contents(;
+        registration_type=get(rbrn.metadata, "kind", ""),
+        package=name,
+        repo=rp.evt.repository.html_url,
+        user="@$creator",
+        branch=brn,
+        version=ver,
+        commit=pp.sha,
+        patch_notes=rp.patch_notes,
+        reviewer="@$reviewer",
+        reference=ref,
+        meta=enc_meta,
+    )
 
     pr = nothing
     repo = join(split(target_registry["repo"], "/")[end-1:end], "/")
@@ -944,7 +963,7 @@ end
 
 function github_webhook(http_ip=config["server"]["http_ip"], http_port=get(config["server"], "http_port", parse(Int, get(ENV, "PORT", "8001"))))
     auth = get_jwt_auth()
-    trigger = Regex("@$(config["registrator"]["trigger"]) (.*?)(\\n|\\r)*\$")
+    trigger = Regex("@$(config["registrator"]["trigger"]) $accept_regex")
     listener = GitHub.CommentListener(comment_handler, trigger; check_collab=false, auth=auth, secret=config["github"]["secret"])
     httpsock[] = Sockets.listen(IPv4(http_ip), http_port)
 
