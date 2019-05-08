@@ -1,38 +1,4 @@
 """
-Return a `GitRepo` object for an up-to-date copy of `registry`.
-"""
-function get_registry(registry::AbstractString; gitconfig::Dict=Dict())
-    reg_path(args...) = joinpath("registries", map(string, args)...)
-    if haskey(REGISTRIES, registry)
-        registry_uuid = REGISTRIES[registry]
-        registry_path = reg_path(registry_uuid)
-        if !ispath(registry_path)
-            run(pipeline(`git clone $registry $registry_path`; stdout=devnull))
-        else
-            # this is really annoying/impossible to do with LibGit2
-            git = gitcmd(registry_path, gitconfig)
-            run(pipeline(`$git config remote.origin.url $registry`; stdout=devnull))
-            run(pipeline(`$git checkout -f master`; stdout=devnull))
-            run(pipeline(`$git fetch -P origin master`; stdout=devnul))
-            run(pipeline(`$git reset --hard origin/master`; stdout=devnull))
-        end
-    else
-        registry_temp = mktempdir(mkpath(reg_path()))
-        try
-            run(pipeline(`git clone $registry $registry_temp`; stdout=devnull))
-            reg = TOML.parsefile(joinpath(registry_temp, "Registry.toml"))
-            registry_uuid = REGISTRIES[registry] = UUID(reg["uuid"])
-            registry_path = reg_path(registry_uuid)
-            rm(registry_path, recursive=true, force=true)
-            mv(registry_temp, registry_path)
-        finally
-            rm(registry_temp, recursive=true, force=true)
-        end
-    end
-    return GitRepo(registry_path)
-end
-
-"""
 Given a remote repo URL and a git tree spec, get a `Project` object
 for the project file in that tree and a hash string for the tree.
 """
