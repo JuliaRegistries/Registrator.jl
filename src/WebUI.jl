@@ -235,6 +235,7 @@ function make_registration_request(
         target_branch=r.repo.default_branch,
         title=title,
         description=body,
+        remove_source_branch=true,
     )
 end
 
