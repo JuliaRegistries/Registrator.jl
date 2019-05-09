@@ -211,11 +211,11 @@ cloneurl(r::GitHub.Repo) = r.clone_url
 cloneurl(r::GitLab.Project) = r.http_url_to_repo
 
 # Get a repo's tree hash.
-function treesha(f::GitHubAPI, r::GitHub.Repo, ref::AbstractString)
+function gettreesha(f::GitHubAPI, r::GitHub.Repo, ref::AbstractString)
     branch = @gf get_branch(f, r.owner.login, r.name, ref)
     return branch === nothing ? nothing : branch.commit.commit.tree.sha
 end
-function treesha(::GitLabAPI, r::GitLab.Project, ref::AbstractString)
+function gettreesha(::GitLabAPI, r::GitLab.Project, ref::AbstractString)
     url = cloneurl(r)
     return try
         mktempdir() do dir
@@ -409,7 +409,7 @@ function register(r::HTTP.Request)
     # Register the package,
     clone = cloneurl(repo)
     project = Pkg.Types.read_project(IOBuffer(toml))
-    tree = treesha(u.forge, repo, ref)
+    tree = gettreesha(u.forge, repo, ref)
     tree === nothing && return html(500, "Looking up the tree hash failed")
     branch = RegEdit.register(
         clone, project, tree;
