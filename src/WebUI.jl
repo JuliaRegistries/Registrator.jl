@@ -8,7 +8,7 @@ using GitForge, GitForge.GitHub, GitForge.GitLab
 using HTTP
 using JSON
 using Mux
-using Pkg
+using Pkg, Pkg.TOML
 using Sockets
 using TimeToLive
 
@@ -20,6 +20,8 @@ ROUTE_SELECT = "/select"
 ROUTE_REGISTER = "/register"
 
 const DOCS = "https://github.com/JuliaRegistries/Registrator.jl/blob/master/README.web.md#usage-for-package-maintainers"
+
+const CONFIG = Dict{String, Any}()
 
 # A supported provider whose hosted repositories can be registered.
 Base.@kwdef struct Provider{F <: GitForge.Forge}
@@ -79,7 +81,7 @@ end
 
 # Get the callback URL with the provider parameter.
 callback_url(p::AbstractString) =
-    string(ENV["SERVER_URL"], ROUTE_CALLBACK, "?provider=", HTTP.escapeuri(p))
+    string(CONFIG["server_url"], ROUTE_CALLBACK, "?provider=", HTTP.escapeuri(p))
 
 # Get a query string parameter from a request.
 getquery(r::HTTP.Request, key::AbstractString, default="") =
@@ -121,7 +123,7 @@ function html(status::Int, body::AbstractString)
             </style>
           </head>
           <body>
-            <h1><a href=$ROUTE_INDEX>Registrator</a></h1>
+            <h1><a href="$ROUTE_INDEX">Registrator</a></h1>
             <h4>Registry URL: <a href="$registry" target="_blank">$registry</a></h3>
             <h3>Click <a href="$DOCS" target="_blank">here</a> for usage instructions</h3>
             <br>
@@ -462,48 +464,48 @@ end
 ##############
 
 function init_providers()
-    disabled = split(get(ENV, "DISABLED_PROVIDERS", ""))
-
-    if !in("github", disabled)
+    if  haskey(CONFIG, "github")
+        github = CONFIG["github"]
         PROVIDERS["github"] = Provider(;
             name="GitHub",
             client=GitHubAPI(;
-                url=get(ENV, "GITHUB_API_URL", GitHub.DEFAULT_URL),
-                token=Token(ENV["GITHUB_API_TOKEN"]),
-                has_rate_limits=get(ENV, "GITHUB_DISABLE_RATE_LIMITS", "") != "true",
+                url=get(github, "api_url", GitHub.DEFAULT_URL),
+                token=Token(github["token"]),
+                has_rate_limits=!get(github, "disable_rate_limits", false),
             ),
-            client_id=ENV["GITHUB_CLIENT_ID"],
-            client_secret=ENV["GITHUB_CLIENT_SECRET"],
-            auth_url=get(ENV, "GITHUB_AUTH_URL", "https://github.com/login/oauth/authorize"),
-            token_url=get(ENV, "GITHUB_TOKEN_URL", "https://github.com/login/oauth/access_token"),
+            client_id=github["client_id"],
+            client_secret=github["client_secret"],
+            auth_url=get(github, "auth_url", "https://github.com/login/oauth/authorize"),
+            token_url=get(github, "token_url", "https://github.com/login/oauth/access_token"),
             scope="public_repo",
         )
     end
 
-    if !in("gitlab", disabled)
+    if haskey(CONFIG, "gitlab")
+        gitlab = CONFIG["gitlab"]
         PROVIDERS["gitlab"] = Provider(;
             name="GitLab",
             client=GitLabAPI(;
-                url=get(ENV, "GITLAB_API_URL", GitLab.DEFAULT_URL),
-                token=PersonalAccessToken(ENV["GITLAB_API_TOKEN"]),
-                has_rate_limits=get(ENV, "GITLAB_DISABLE_RATE_LIMITS", "") != "true",
+                url=get(gitlab, "api_url", GitLab.DEFAULT_URL),
+                token=PersonalAccessToken(gitlab["token"]),
+                has_rate_limits=!get(gitlab, "disable_rate_limits", false),
             ),
-            client_id=ENV["GITLAB_CLIENT_ID"],
-            client_secret=ENV["GITLAB_CLIENT_SECRET"],
-            auth_url=get(ENV, "GITLAB_AUTH_URL", "https://gitlab.com/oauth/authorize"),
-            token_url=get(ENV, "GITLAB_TOKEN_URL", "https://gitlab.com/oauth/token"),
+            client_id=gitlab["client_id"],
+            client_secret=gitlab["client_secret"],
+            auth_url=get(gitlab, "auth_url", "https://gitlab.com/oauth/authorize"),
+            token_url=get(gitlab, "token_url", "https://gitlab.com/oauth/token"),
             scope="read_user",
             include_state=false,
             token_type=OAuth2Token,
         )
     end
 
-    haskey(ENV, "EXTRA_PROVIDERS") && include(ENV["EXTRA_PROVIDERS"])
+    haskey(CONFIG, "extra_providers") && include(CONFIG["extra_providers"])
 end
 
 function init_registry()
-    url = ENV["REGISTRY_URL"]
-    k = get(ENV, "REGISTRY_PROVIDER") do
+    url = CONFIG["registry_url"]
+    k = get(CONFIG, "registry_provider") do
         if occursin("github", url)
             "github"
         elseif occursin("gitlab", url)
@@ -515,9 +517,9 @@ function init_registry()
     owner, name = splitrepo(url)
     repo = @gf get_repo(forge, owner, name)
     repo === nothing && error("Registry lookup failed")
-    clone = get(ENV, "REGISTRY_CLONE_URL", url)
-    deps = Vector{String}(split(get(ENV, "REGISTRY_DEPS", "")))
-    enable_patch_notes = get(ENV, "DISABLE_PATCH_NOTES", "") != "true"
+    clone = get(CONFIG, "registry_clone_url", url)
+    deps = get(CONFIG, "registry_deps", String[])
+    enable_patch_notes = !get(CONFIG, "disable_patch_notes", false)
     REGISTRY[] = Registry(forge, repo, url, clone, deps, enable_patch_notes)
 end
 
@@ -534,7 +536,7 @@ end
 
 pathmatch(p::AbstractString, f::Function) = branch(r -> first(split(r.target, "?")) == p, f)
 
-function start_server(ip::IPAddr, port::Int, verbose::Bool=false)
+function start_server(ip::IPAddr, port::Int)
     @app server = (
         error_handler,
         pathmatch(ROUTE_INDEX, index),
@@ -544,19 +546,25 @@ function start_server(ip::IPAddr, port::Int, verbose::Bool=false)
         pathmatch(ROUTE_REGISTER, register),
         r -> html(404, "Page not found"),
     )
-    return serve(server, ip, port; readtimeout=0, verbose=verbose)
+    return serve(server, ip, port; readtimeout=0)
 end
 
-function main(; port::Int, ip::AbstractString="0.0.0.0", verbose::Bool=false)
-    if haskey(ENV, "ROUTE_PREFIX")
+function main(config::AbstractString="config.toml")
+    merge!(CONFIG, TOML.parsefile(config)["web"])
+
+    if haskey(CONFIG, "route_prefix")
         for r in [:ROUTE_INDEX, :ROUTE_AUTH, :ROUTE_CALLBACK, :ROUTE_SELECT, :ROUTE_REGISTER]
-            @eval $r = ENV["ROUTE_PREFIX"] * $r
+            @eval $r = CONFIG["route_prefix"] * $r
         end
     end
+
     init_providers()
     init_registry()
-    ip = ip == "localhost" ? Sockets.localhost : parse(IPAddr, ip)
-    task = start_server(ip, port, verbose)
+
+    ip = CONFIG["ip"] == "localhost" ? Sockets.localhost : parse(IPAddr, CONFIG["ip"])
+    port = CONFIG["port"]
+
+    task = start_server(ip, port)
     @info "Serving" ip port
     wait(task)
 end
