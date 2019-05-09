@@ -206,6 +206,14 @@ function gettreesha(f::GitHubAPI, r::GitHub.Repo, ref::AbstractString)
 end
 function gettreesha(::GitLabAPI, r::GitLab.Project, ref::AbstractString)
     url = cloneurl(r)
+
+    if REGISTRY[] isa Registry{GitLabAPI}
+        # For private repositories, we need to insert the token into the URL.
+        host = HTTP.URI(url).host
+        token = CONFIG["gitlab"]["token"]
+        url = replace(url, host => "oauth2:$token@$host")
+    end
+
     return try
         mktempdir() do dir
             dest = joinpath(dir, r.name)
