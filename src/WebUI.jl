@@ -25,7 +25,7 @@ const PAGE_SELECT = """
     <form action="$ROUTE_REGISTER" method="post">
     URL of package to register: <input type="text" size="50" name="package">
     <br>
-    Branch to register: <input type="text" size="20" name="ref" value="master">
+    Git reference (branch/tag/commit): <input type="text" size="20" name="ref" value="master">
     <br>
     Patch notes (optional):
     <br>
@@ -220,8 +220,8 @@ function gettreesha(::GitLabAPI, r::GitLab.Project, ref::AbstractString)
     return try
         mktempdir() do dir
             dest = joinpath(dir, r.name)
-            run(`git clone $url $dest --branch $ref`)
-            match(r"tree (.*)", readchomp(`git -C $dest show HEAD --format=raw`))[1]
+            run(`git clone $url $dest`)
+            match(r"tree (.*)", readchomp(`git -C $dest show $ref --format=raw`))[1]
         end
     catch
         nothing
@@ -422,7 +422,7 @@ function register(r::HTTP.Request)
             package=project.name,
             repo=web_url(repo),
             user=display_user(u.user),
-            branch=ref,
+            gitref=ref,
             version=project.version,
             commit=commit,
             patch_notes=notes,

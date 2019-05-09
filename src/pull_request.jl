@@ -6,7 +6,7 @@ function pull_request_contents(;
     package::AbstractString,
     repo::AbstractString,
     user::AbstractString,
-    branch::AbstractString,
+    gitref::AbstractString,
     version::VersionNumber,
     commit::AbstractString,
     patch_notes::AbstractString,
@@ -25,7 +25,7 @@ function pull_request_contents(;
         "- Registering package: $package",
         "- Repository: $repo",
         "- Created by: $user",
-        "- Branch: $branch",
+        "- Git reference: $gitref",
         "- Version: v$version",
         "- Commit: $commit",
     ]
