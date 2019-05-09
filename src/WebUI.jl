@@ -157,24 +157,30 @@ getrepo(f::GitHubAPI, owner::AbstractString, name::AbstractString) =
 
 # Check for a user's authorization to release a package.
 # The criteria is simply whether the user is a collaborator for user-owned repos,
-# or whether they're an organization member for organization-owned repos.
+# or whether they're an organization member or collaborator for organization-owned repos.
 isauthorized(u, repo) = false
 function isauthorized(u::User{GitHub.User}, repo::GitHub.Repo)
     repo.private && return false
-    hasauth = @gf if repo.organization === nothing
-        is_collaborator(u.forge, repo.owner.login, repo.name, u.user.login)
+    hasauth = if repo.organization === nothing
+        @gf is_collaborator(u.forge, repo.owner.login, repo.name, u.user.login)
     else
-        is_member(u.forge, repo.organization.login, u.user.login)
+        # First check for organization membership, and fall back to collaborator status.
+        ismember = @gf is_member(u.forge, repo.organization.login, u.user.login)
+        something(ismember, false) ||
+            @gf is_collaborator(u.forge, repo.organization.login, repo.name, u.user.login)
     end
     return something(hasauth, false)
 end
 function isauthorized(u::User{GitLab.User}, repo::GitLab.Project)
     repo.visibility == "private" && return false
     forge = PROVIDERS["gitlab"].client
-    hasauth = @gf if repo.namespace.kind == "user"
-        is_collaborator(forge, repo.owner.username, repo.name, u.user.id)
+    hasauth = if repo.namespace.kind == "user"
+        @gf is_collaborator(forge, repo.owner.username, repo.name, u.user.id)
     else
-        is_member(forge, repo.namespace.full_path, u.user.id)
+        # Same as above: group membership then collaborator check.
+        ismember = @gf is_member(forge, repo.namespace.full_path, u.user.id)
+        something(ismember, false) ||
+            @gf is_collaborator(u.forge, repo.organization.login, repo.name, u.user.id)
     end
     return something(hasauth, false)
 end
