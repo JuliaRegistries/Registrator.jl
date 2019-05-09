@@ -22,7 +22,14 @@ ROUTE_REGISTER = "/register"
 const DOCS = "https://github.com/JuliaRegistries/Registrator.jl/blob/master/README.web.md#usage-for-package-maintainers"
 
 const PAGE_SELECT = """
-    <form action="$ROUTE_REGISTER" method="post">
+    <script>
+    function disableButton() {
+      var button = document.getElementById("submitButton");
+      button.disabled = true;
+      button.value = "Please wait...";
+    }
+    </script>
+    <form action="$ROUTE_REGISTER" method="post" onsubmit="disableButton()">
     URL of package to register: <input type="text" size="50" name="package">
     <br>
     Git reference (branch/tag/commit): <input type="text" size="20" name="ref" value="master">
@@ -31,7 +38,7 @@ const PAGE_SELECT = """
     <br>
     <textarea cols="80" rows="10" name="notes"></textarea>
     <br>
-    <input type="submit" value="Submit">
+    <input id="submitButton" type="submit" value="Submit">
     </form>
     """
 
