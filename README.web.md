@@ -109,6 +109,7 @@ There are some that are required, and some that are optional.
   For GitHub, the value should be `github`, and for GitLab, it should be `gitlab`.
   For any other provider, it should be whatever key you used in your extra providers file.
 - `REGISTRY_DEPS`: The URLs (space-delimited) of any registries that packages in your target registry depend on.
+- `DISABLE_PATCH_NOTES`: Set to `true` to disable the patch notes text box.
 - `ROUTE_PREFIX`: Base route for the server.
   For example, use `/registrator` to serve the UI on `<your-hostname>/registrator/`.
   

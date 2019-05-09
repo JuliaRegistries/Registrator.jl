@@ -41,6 +41,7 @@ struct Registry{F <: GitForge.Forge, R}
     url::String
     clone::String
     deps::Vector{String}
+    enable_patch_notes::Bool
 end
 
 # U is a User type, e.g. GitHub.User.
@@ -363,13 +364,22 @@ function select(::HTTP.Request)
         <br>
         Git reference (branch/tag/commit): <input type="text" size="20" name="ref" value="master">
         <br>
-        Patch notes (optional):
-        <br>
-        <textarea cols="80" rows="10" name="notes"></textarea>
-        <br>
+        """
+
+    if REGISTRY[].enable_patch_notes
+        body *= """
+            Patch notes (optional):
+            <br>
+            <textarea cols="80" rows="10" name="notes"></textarea>
+            <br>
+            """
+    end
+
+    body *= """
         <input id="submitButton" type="submit" value="Submit">
         </form>
         """
+
     return html(body)
 end
 
@@ -507,7 +517,8 @@ function init_registry()
     repo === nothing && error("Registry lookup failed")
     clone = get(ENV, "REGISTRY_CLONE_URL", url)
     deps = Vector{String}(split(get(ENV, "REGISTRY_DEPS", "")))
-    REGISTRY[] = Registry(forge, repo, url, clone, deps)
+    enable_patch_notes = get(ENV, "DISABLE_PATCH_NOTES", "") != "true"
+    REGISTRY[] = Registry(forge, repo, url, clone, deps, enable_patch_notes)
 end
 
 for f in [:index, :auth, :callback, :select, :register]
