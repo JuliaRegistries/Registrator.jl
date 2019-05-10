@@ -759,7 +759,7 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
     params["title"], params["body"] = pull_request_contents(;
         registration_type=get(rbrn.metadata, "kind", ""),
         package=name,
-        repo=rp.evt.repository.html_url,
+        repo=string(rp.evt.repository.html_url),
         user="@$creator",
         gitref=brn,
         version=ver,
