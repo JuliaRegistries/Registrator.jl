@@ -43,9 +43,26 @@ Either:
 
 If you want to register as a private member you should host your own instance of Registrator, see [docs.md](https://github.com/JuliaRegistries/Registrator.jl/blob/master/docs.md)
 
+### Patch notes
+
+If you have enabled TagBot for your repositories, then you have the option to write your patch notes in the same place that you trigger Registrator.
+The notes will be copied into your GitHub release.
+To do this, add a section labeled "Patch notes:" to your Registrator trigger issue/comment.
+This must occur at the end of the trigger.
+
+Example:
+
+```
+@JuliaRegistrator register()
+
+Patch notes:
+
+Check out my new features!
+```
+
 ### Note on git tags and GitHub releases
 
-The Julia package manager **does not** rely on git tags and GitHub releases. However, Registrator will generate a `git tag` command for you to optionally create a corresponding tag with your package version.
+The Julia package manager **does not** rely on git tags and GitHub releases. However, Registrator will generate a `git tag` command for you to optionally create a corresponding tag with your package version, or you can use TagBot as is mentioned above.
 
 ## Approving pull requests on the registry
 
