@@ -132,4 +132,58 @@ end
     end
 end
 
+@testset "check_version!" begin
+    import Registrator.RegEdit: RegBranch, check_version!
+    import Pkg.Types: Project
+
+    pkg = Project(Dict("name" => "TestTools"))
+
+    for ver in [v"0.0.2", v"0.3.2", v"4.3.2"]
+        regbr = RegBranch(pkg, "test")
+        check_version!(regbr, VersionNumber[], ver)
+        @test haskey(regbr.metadata, "warning")
+        @test length(regbr.metadata["warning"]) != 0
+        @test !haskey(regbr.metadata, "error")
+    end
+
+    for ver in [v"0.0.1", v"0.1.0", v"1.0.0"]
+        regbr = RegBranch(pkg, "test")
+        check_version!(regbr, VersionNumber[], ver)
+        @test !haskey(regbr.metadata, "warning")
+        @test !haskey(regbr.metadata, "error")
+    end
+
+    versions_list = [v"0.0.5", v"1.0.0", v"0.1.0", v"0.1.5"]
+    let    # Less than least existing version
+        regbr = RegBranch(pkg, "test")
+        check_version!(regbr, versions_list, v"0.0.4")
+        @test haskey(regbr.metadata, "error")
+        @test length(regbr.metadata["error"]) != 0
+        @test !haskey(regbr.metadata, "warning")
+    end
+
+    let    # Existing version
+        regbr = RegBranch(pkg, "test")
+        check_version!(regbr, versions_list, v"0.0.5")
+        @test haskey(regbr.metadata, "error")
+        @test length(regbr.metadata["error"]) != 0
+        @test !haskey(regbr.metadata, "warning")
+    end
+
+    let    # Non-existing version
+        regbr = RegBranch(pkg, "test")
+        check_version!(regbr, versions_list, v"0.0.6")
+        @test !haskey(regbr.metadata, "error")
+        @test !haskey(regbr.metadata, "warning")
+    end
+
+    let    # Skip a version
+        regbr = RegBranch(pkg, "test")
+        check_version!(regbr, versions_list, v"0.0.7")
+        @test !haskey(regbr.metadata, "error")
+        @test haskey(regbr.metadata, "warning")
+        @test length(regbr.metadata["warning"]) != 0
+    end
+end
+
 end
