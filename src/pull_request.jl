@@ -31,7 +31,7 @@ function pull_request_contents(;
     ]
 
     isempty(reviewer) || push!(lines, "- Reviewed by: $reviewer")
-    isempty(reference) || push!(lines, "- Reference: $ref")
+    isempty(reference) || push!(lines, "- Reference: $reference")
     isempty(patch_notes) || push!(
         lines,
         "- Patch notes:",
