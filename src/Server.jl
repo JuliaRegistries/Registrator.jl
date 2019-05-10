@@ -12,7 +12,7 @@ using JSON
 using MbedTLS
 
 import Pkg: TOML
-import ..Registrator: post_on_slack_channel
+import ..Registrator: post_on_slack_channel, pull_request_contents
 import ..RegEdit: register, RegBranch
 import Base: string
 
@@ -443,7 +443,7 @@ function get_clone_url(event)
 end
 
 
-function is_pfile_parseable(c::String)
+function is_pfile_parseable(c::AbstractString)
     @debug("Checking whether Project.toml is non-empty and parseable")
     if length(c) != 0
         try
@@ -489,7 +489,7 @@ function is_pfile_nuv(c)
     return true, nothing
 end
 
-function is_pfile_valid(c::String)
+function is_pfile_valid(c::AbstractString)
     for f in [is_pfile_parseable, is_pfile_nuv]
         v, err = f(c)
         v || return v, err
@@ -542,7 +542,7 @@ function get_jwt_auth()
     GitHub.JWTAuth(config["github"]["app_id"], config["github"]["priv_pem"])
 end
 
-function make_comment(evt::WebhookEvent, body::String)
+function make_comment(evt::WebhookEvent, body::AbstractString)
     config["registrator"]["reply_comment"] || return
     @debug("Posting comment to PR/issue")
     headers = Dict("private_token" => config["github"]["token"])
@@ -761,7 +761,7 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
         package=name,
         repo=rp.evt.repository.html_url,
         user="@$creator",
-        branch=brn,
+        gitref=brn,
         version=ver,
         commit=pp.sha,
         patch_notes=rp.patch_notes,

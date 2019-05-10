@@ -1,6 +1,6 @@
 module WebUI
 
-using ..Registrator: RegEdit
+using ..Registrator: RegEdit, pull_request_contents
 
 using Base64
 using Dates
@@ -8,7 +8,7 @@ using GitForge, GitForge.GitHub, GitForge.GitLab
 using HTTP
 using JSON
 using Mux
-using Pkg
+using Pkg, Pkg.TOML
 using Sockets
 using TimeToLive
 
@@ -21,19 +21,7 @@ ROUTE_REGISTER = "/register"
 
 const DOCS = "https://github.com/JuliaRegistries/Registrator.jl/blob/master/README.web.md#usage-for-package-maintainers"
 
-const PAGE_SELECT = """
-    <form action="$ROUTE_REGISTER" method="post">
-    URL of package to register: <input type="text" size="50" name="package">
-    <br>
-    Branch to register: <input type="text" size="20" name="ref" value="master">
-    <br>
-    Patch notes (optional):
-    <br>
-    <textarea cols="80" rows="10" name="notes"></textarea>
-    <br>
-    <input type="submit" value="Submit">
-    </form>
-    """
+const CONFIG = Dict{String, Any}()
 
 # A supported provider whose hosted repositories can be registered.
 Base.@kwdef struct Provider{F <: GitForge.Forge}
@@ -54,6 +42,8 @@ struct Registry{F <: GitForge.Forge, R}
     repo::R
     url::String
     clone::String
+    deps::Vector{String}
+    enable_patch_notes::Bool
 end
 
 # U is a User type, e.g. GitHub.User.
@@ -91,7 +81,7 @@ end
 
 # Get the callback URL with the provider parameter.
 callback_url(p::AbstractString) =
-    string(ENV["SERVER_URL"], ROUTE_CALLBACK, "?provider=", HTTP.escapeuri(p))
+    string(CONFIG["server_url"], ROUTE_CALLBACK, "?provider=", HTTP.escapeuri(p))
 
 # Get a query string parameter from a request.
 getquery(r::HTTP.Request, key::AbstractString, default="") =
@@ -133,7 +123,7 @@ function html(status::Int, body::AbstractString)
             </style>
           </head>
           <body>
-            <h1><a href=$ROUTE_INDEX>Registrator</a></h1>
+            <h1><a href="$ROUTE_INDEX">Registrator</a></h1>
             <h4>Registry URL: <a href="$registry" target="_blank">$registry</a></h3>
             <h3>Click <a href="$DOCS" target="_blank">here</a> for usage instructions</h3>
             <br>
@@ -156,24 +146,30 @@ getrepo(f::GitHubAPI, owner::AbstractString, name::AbstractString) =
 
 # Check for a user's authorization to release a package.
 # The criteria is simply whether the user is a collaborator for user-owned repos,
-# or whether they're an organization member for organization-owned repos.
+# or whether they're an organization member or collaborator for organization-owned repos.
 isauthorized(u, repo) = false
 function isauthorized(u::User{GitHub.User}, repo::GitHub.Repo)
     repo.private && return false
-    hasauth = @gf if repo.organization === nothing
-        is_collaborator(u.forge, repo.owner.login, repo.name, u.user.login)
+    hasauth = if repo.organization === nothing
+        @gf is_collaborator(u.forge, repo.owner.login, repo.name, u.user.login)
     else
-        is_member(u.forge, repo.organization.login, u.user.login)
+        # First check for organization membership, and fall back to collaborator status.
+        ismember = @gf is_member(u.forge, repo.organization.login, u.user.login)
+        something(ismember, false) ||
+            @gf is_collaborator(u.forge, repo.organization.login, repo.name, u.user.login)
     end
     return something(hasauth, false)
 end
 function isauthorized(u::User{GitLab.User}, repo::GitLab.Project)
     repo.visibility == "private" && return false
     forge = PROVIDERS["gitlab"].client
-    hasauth = @gf if repo.namespace == "user"
-        is_member(forge, repo.namespace.full_path, u.user.id)
+    hasauth = if repo.namespace.kind == "user"
+        @gf is_collaborator(forge, repo.owner.username, repo.name, u.user.id)
     else
-        is_collaborator(forge, repo.owner.username, repo.name, u.user.id)
+        # Same as above: group membership then collaborator check.
+        ismember = @gf is_member(forge, repo.namespace.full_path, u.user.id)
+        something(ismember, false) ||
+            @gf is_collaborator(u.forge, repo.organization.login, repo.name, u.user.id)
     end
     return something(hasauth, false)
 end
@@ -204,17 +200,25 @@ cloneurl(r::GitHub.Repo) = r.clone_url
 cloneurl(r::GitLab.Project) = r.http_url_to_repo
 
 # Get a repo's tree hash.
-function treesha(f::GitHubAPI, r::GitHub.Repo, ref::AbstractString)
+function gettreesha(f::GitHubAPI, r::GitHub.Repo, ref::AbstractString)
     branch = @gf get_branch(f, r.owner.login, r.name, ref)
     return branch === nothing ? nothing : branch.commit.commit.tree.sha
 end
-function treesha(::GitLabAPI, r::GitLab.Project, ref::AbstractString)
+function gettreesha(::GitLabAPI, r::GitLab.Project, ref::AbstractString)
     url = cloneurl(r)
+
+    if REGISTRY[] isa Registry{GitLabAPI}
+        # For private repositories, we need to insert the token into the URL.
+        host = HTTP.URI(url).host
+        token = CONFIG["gitlab"]["token"]
+        url = replace(url, host => "oauth2:$token@$host")
+    end
+
     return try
         mktempdir() do dir
             dest = joinpath(dir, r.name)
-            run(`git clone $url $dest --branch $ref`)
-            match(r"tree (.*)", readchomp(`git -C $dest show HEAD --format=raw`))[1]
+            run(`git clone $url $dest`)
+            match(r"tree (.*)", readchomp(`git -C $dest show $ref --format=raw`))[1]
         end
     catch
         nothing
@@ -234,6 +238,7 @@ function make_registration_request(
         target_branch=r.repo.default_branch,
         title=title,
         description=body,
+        remove_source_branch=true,
     )
 end
 
@@ -355,7 +360,38 @@ function callback(r::HTTP.Request)
 end
 
 # Step 4: Select a package.
-select(::HTTP.Request) = html(PAGE_SELECT)
+function select(::HTTP.Request)
+    body = """
+        <script>
+        function disableButton() {
+          var button = document.getElementById("submitButton");
+          button.disabled = true;
+          button.value = "Please wait...";
+        }
+        </script>
+        <form action="$ROUTE_REGISTER" method="post" onsubmit="disableButton()">
+        URL of package to register: <input type="text" size="50" name="package">
+        <br>
+        Git reference (branch/tag/commit): <input type="text" size="20" name="ref" value="master">
+        <br>
+        """
+
+    if REGISTRY[].enable_patch_notes
+        body *= """
+            Patch notes (optional):
+            <br>
+            <textarea cols="80" rows="10" name="notes"></textarea>
+            <br>
+            """
+    end
+
+    body *= """
+        <input id="submitButton" type="submit" value="Submit">
+        </form>
+        """
+
+    return html(body)
+end
 
 # Step 5: Register the package (maybe).
 function register(r::HTTP.Request)
@@ -401,11 +437,11 @@ function register(r::HTTP.Request)
     # Register the package,
     clone = cloneurl(repo)
     project = Pkg.Types.read_project(IOBuffer(toml))
-    tree = treesha(u.forge, repo, ref)
+    tree = gettreesha(u.forge, repo, ref)
     tree === nothing && return html(500, "Looking up the tree hash failed")
     branch = RegEdit.register(
         clone, project, tree;
-        registry=REGISTRY[].clone, push=true,
+        registry=REGISTRY[].clone, registry_deps=REGISTRY[].deps, push=true,
     )
 
     return if get(branch.metadata, "error", nothing) === nothing
@@ -414,7 +450,7 @@ function register(r::HTTP.Request)
             package=project.name,
             repo=web_url(repo),
             user=display_user(u.user),
-            branch=ref,
+            gitref=ref,
             version=project.version,
             commit=commit,
             patch_notes=notes,
@@ -436,48 +472,48 @@ end
 ##############
 
 function init_providers()
-    disabled = split(get(ENV, "DISABLED_PROVIDERS", ""))
-
-    if !in("github", disabled)
+    if  haskey(CONFIG, "github")
+        github = CONFIG["github"]
         PROVIDERS["github"] = Provider(;
             name="GitHub",
             client=GitHubAPI(;
-                url=get(ENV, "GITHUB_API_URL", GitHub.DEFAULT_URL),
-                token=Token(ENV["GITHUB_API_TOKEN"]),
-                has_rate_limits=get(ENV, "GITHUB_DISABLE_RATE_LIMITS", "") != "true",
+                url=get(github, "api_url", GitHub.DEFAULT_URL),
+                token=Token(github["token"]),
+                has_rate_limits=!get(github, "disable_rate_limits", false),
             ),
-            client_id=ENV["GITHUB_CLIENT_ID"],
-            client_secret=ENV["GITHUB_CLIENT_SECRET"],
-            auth_url=get(ENV, "GITHUB_AUTH_URL", "https://github.com/login/oauth/authorize"),
-            token_url=get(ENV, "GITHUB_TOKEN_URL", "https://github.com/login/oauth/access_token"),
+            client_id=github["client_id"],
+            client_secret=github["client_secret"],
+            auth_url=get(github, "auth_url", "https://github.com/login/oauth/authorize"),
+            token_url=get(github, "token_url", "https://github.com/login/oauth/access_token"),
             scope="public_repo",
         )
     end
 
-    if !in("gitlab", disabled)
+    if haskey(CONFIG, "gitlab")
+        gitlab = CONFIG["gitlab"]
         PROVIDERS["gitlab"] = Provider(;
             name="GitLab",
             client=GitLabAPI(;
-                url=get(ENV, "GITLAB_API_URL", GitLab.DEFAULT_URL),
-                token=PersonalAccessToken(ENV["GITLAB_API_TOKEN"]),
-                has_rate_limits=get(ENV, "GITLAB_DISABLE_RATE_LIMITS", "") != "true",
+                url=get(gitlab, "api_url", GitLab.DEFAULT_URL),
+                token=PersonalAccessToken(gitlab["token"]),
+                has_rate_limits=!get(gitlab, "disable_rate_limits", false),
             ),
-            client_id=ENV["GITLAB_CLIENT_ID"],
-            client_secret=ENV["GITLAB_CLIENT_SECRET"],
-            auth_url=get(ENV, "GITLAB_AUTH_URL", "https://gitlab.com/oauth/authorize"),
-            token_url=get(ENV, "GITLAB_TOKEN_URL", "https://gitlab.com/oauth/token"),
+            client_id=gitlab["client_id"],
+            client_secret=gitlab["client_secret"],
+            auth_url=get(gitlab, "auth_url", "https://gitlab.com/oauth/authorize"),
+            token_url=get(gitlab, "token_url", "https://gitlab.com/oauth/token"),
             scope="read_user",
             include_state=false,
             token_type=OAuth2Token,
         )
     end
 
-    haskey(ENV, "EXTRA_PROVIDERS") && include(ENV["EXTRA_PROVIDERS"])
+    haskey(CONFIG, "extra_providers") && include(CONFIG["extra_providers"])
 end
 
 function init_registry()
-    url = ENV["REGISTRY_URL"]
-    k = get(ENV, "REGISTRY_PROVIDER") do
+    url = CONFIG["registry_url"]
+    k = get(CONFIG, "registry_provider") do
         if occursin("github", url)
             "github"
         elseif occursin("gitlab", url)
@@ -489,7 +525,10 @@ function init_registry()
     owner, name = splitrepo(url)
     repo = @gf get_repo(forge, owner, name)
     repo === nothing && error("Registry lookup failed")
-    REGISTRY[] = Registry(forge, repo, url, get(ENV, "REGISTRY_CLONE_URL", url))
+    clone = get(CONFIG, "registry_clone_url", url)
+    deps = get(CONFIG, "registry_deps", String[])
+    enable_patch_notes = !get(CONFIG, "disable_patch_notes", false)
+    REGISTRY[] = Registry(forge, repo, url, clone, deps, enable_patch_notes)
 end
 
 for f in [:index, :auth, :callback, :select, :register]
@@ -505,7 +544,7 @@ end
 
 pathmatch(p::AbstractString, f::Function) = branch(r -> first(split(r.target, "?")) == p, f)
 
-function start_server(ip::IPAddr, port::Int, verbose::Bool=false)
+function start_server(ip::IPAddr, port::Int)
     @app server = (
         error_handler,
         pathmatch(ROUTE_INDEX, index),
@@ -515,19 +554,25 @@ function start_server(ip::IPAddr, port::Int, verbose::Bool=false)
         pathmatch(ROUTE_REGISTER, register),
         r -> html(404, "Page not found"),
     )
-    return serve(server, ip, port; readtimeout=0, verbose=verbose)
+    return serve(server, ip, port; readtimeout=0)
 end
 
-function main(; port::Int, ip::AbstractString="0.0.0.0", verbose::Bool=false)
-    if haskey(ENV, "ROUTE_PREFIX")
+function main(config::AbstractString="config.toml")
+    merge!(CONFIG, TOML.parsefile(config)["web"])
+
+    if haskey(CONFIG, "route_prefix")
         for r in [:ROUTE_INDEX, :ROUTE_AUTH, :ROUTE_CALLBACK, :ROUTE_SELECT, :ROUTE_REGISTER]
-            @eval $r = ENV["ROUTE_PREFIX"] * $r
+            @eval $r = CONFIG["route_prefix"] * $r
         end
     end
+
     init_providers()
     init_registry()
-    ip = ip == "localhost" ? Sockets.localhost : parse(IPAddr, ip)
-    task = start_server(ip, port, verbose)
+
+    ip = CONFIG["ip"] == "localhost" ? Sockets.localhost : parse(IPAddr, CONFIG["ip"])
+    port = CONFIG["port"]
+
+    task = start_server(ip, port)
     @info "Serving" ip port
     wait(task)
 end

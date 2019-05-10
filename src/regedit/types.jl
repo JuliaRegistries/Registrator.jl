@@ -28,7 +28,7 @@ Return a `GitRepo` object for an up-to-date copy of `registry`.
 Update the existing copy if available.
 """
 function get_registry(
-    registry_url::String;
+    registry_url::AbstractString;
     gitconfig::Dict=Dict(),
     cache::RegistryCache=REGISTRY_CACHE,
 )

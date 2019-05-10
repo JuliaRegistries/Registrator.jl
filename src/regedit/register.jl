@@ -1,42 +1,8 @@
 """
-Return a `GitRepo` object for an up-to-date copy of `registry`.
-"""
-function get_registry(registry::AbstractString; gitconfig::Dict=Dict())
-    reg_path(args...) = joinpath("registries", map(string, args)...)
-    if haskey(REGISTRIES, registry)
-        registry_uuid = REGISTRIES[registry]
-        registry_path = reg_path(registry_uuid)
-        if !ispath(registry_path)
-            run(pipeline(`git clone $registry $registry_path`; stdout=devnull))
-        else
-            # this is really annoying/impossible to do with LibGit2
-            git = gitcmd(registry_path, gitconfig)
-            run(pipeline(`$git config remote.origin.url $registry`; stdout=devnull))
-            run(pipeline(`$git checkout -f master`; stdout=devnull))
-            run(pipeline(`$git fetch -P origin master`; stdout=devnul))
-            run(pipeline(`$git reset --hard origin/master`; stdout=devnull))
-        end
-    else
-        registry_temp = mktempdir(mkpath(reg_path()))
-        try
-            run(pipeline(`git clone $registry $registry_temp`; stdout=devnull))
-            reg = TOML.parsefile(joinpath(registry_temp, "Registry.toml"))
-            registry_uuid = REGISTRIES[registry] = UUID(reg["uuid"])
-            registry_path = reg_path(registry_uuid)
-            rm(registry_path, recursive=true, force=true)
-            mv(registry_temp, registry_path)
-        finally
-            rm(registry_temp, recursive=true, force=true)
-        end
-    end
-    return GitRepo(registry_path)
-end
-
-"""
 Given a remote repo URL and a git tree spec, get a `Project` object
 for the project file in that tree and a hash string for the tree.
 """
-# function get_project(remote_url::String, tree_spec::String)
+# function get_project(remote_url::AbstractString, tree_spec::AbstractString)
 #     # TODO?: use raw file downloads for GitHub/GitLab
 #     mktempdir(mkpath("packages")) do tmp
 #         # bare clone the package repo
@@ -90,12 +56,12 @@ struct RegBranch
 
     metadata::Dict{String,Any} # "error", "warning", kind etc.
 
-    function RegBranch(pkg::Pkg.Types.Project, branch::String)
+    function RegBranch(pkg::Pkg.Types.Project, branch::AbstractString)
         new(pkg.name, pkg.version, branch, Dict{String,Any}())
     end
 end
 
-function write_registry(registry_path::String, reg::RegistryData)
+function write_registry(registry_path::AbstractString, reg::RegistryData)
     open(registry_path, "w") do io
         TOML.print(io, reg)
     end
@@ -145,10 +111,10 @@ function check_version!(regbr::RegBranch, existing::Vector{VersionNumber}, ver::
     return regbr
 end
 
-findpackageerror(name::String, uuid::Base.UUID, regdata::Array{RegistryData}) =
+findpackageerror(name::AbstractString, uuid::Base.UUID, regdata::Array{RegistryData}) =
     findpackageerror(name, string(uuid), regdata)
 
-function findpackageerror(name::String, u::String, regdata::Array{RegistryData})
+function findpackageerror(name::AbstractString, u::AbstractString, regdata::Array{RegistryData})
     for _registry_data in regdata
         if haskey(_registry_data.packages, u)
             name_in_reg = _registry_data.packages[u]["name"]
@@ -215,7 +181,7 @@ end
 
 import Pkg.Compress.load_versions
 
-function compress(path::String, uncompressed::Dict,
+function compress(path::AbstractString, uncompressed::Dict,
     versions::Vector{VersionNumber} = load_versions(path))
     inverted = Dict()
     for (ver, data) in uncompressed, (key, val) in data
@@ -231,7 +197,7 @@ function compress(path::String, uncompressed::Dict,
     return compressed
 end
 
-function save(path::String, uncompressed::Dict,
+function save(path::AbstractString, uncompressed::Dict,
     versions::Vector{VersionNumber} = load_versions(path))
     compressed = compress(path, uncompressed)
     open(path, write=true) do io
@@ -242,9 +208,9 @@ end
 # ---- End of code copied from Pkg
 
 function find_package_in_registry(pkg::Pkg.Types.Project,
-                                  package_repo::String,
-                                  registry_file::String,
-                                  registry_path::String,
+                                  package_repo::AbstractString,
+                                  registry_file::AbstractString,
+                                  registry_path::AbstractString,
                                   registry_data::RegistryData,
                                   regbr::RegBranch)
     uuid = string(pkg.uuid)
@@ -290,8 +256,8 @@ function find_package_in_registry(pkg::Pkg.Types.Project,
 end
 
 function update_package_file(pkg::Pkg.Types.Project,
-                             package_repo::String,
-                             package_path::String)
+                             package_repo::AbstractString,
+                             package_path::AbstractString)
     package_info = Dict("name" => pkg.name,
                         "uuid" => string(pkg.uuid),
                         "repo" => package_repo)
@@ -304,9 +270,9 @@ function update_package_file(pkg::Pkg.Types.Project,
 end
 
 function update_versions_file(pkg::Pkg.Types.Project,
-                              package_path::String,
+                              package_path::AbstractString,
                               regbr::RegBranch,
-                              tree_hash::String)
+                              tree_hash::AbstractString)
     versions_file = joinpath(package_path, "Versions.toml")
     versions_data = isfile(versions_file) ? TOML.parsefile(versions_file) : Dict()
     versions = sort!([VersionNumber(v) for v in keys(versions_data)])
@@ -326,7 +292,7 @@ function update_versions_file(pkg::Pkg.Types.Project,
 end
 
 function update_deps_file(pkg::Pkg.Types.Project,
-                          package_path::String,
+                          package_path::AbstractString,
                           regbr::RegBranch,
                           regdata::Vector{RegistryData})
     if pkg.name in keys(pkg.deps)
@@ -359,7 +325,7 @@ function update_deps_file(pkg::Pkg.Types.Project,
 end
 
 function update_compat_file(pkg::Pkg.Types.Project,
-                            package_path::String,
+                            package_path::AbstractString,
                             regbr::RegBranch,
                             regdata::Vector{RegistryData},
                             regpaths::Vector{String})
@@ -470,13 +436,13 @@ errors or warnings that occurred.
 
 # Arguments
 
-* `package_repo::String`: the git repository URL for the package to be registered
+* `package_repo::AbstractString`: the git repository URL for the package to be registered
 * `pkg::Pkg.Types.Project`: the parsed Project.toml file for the package to be registered
-* `tree_hash::String`: the tree hash (not commit hash) of the package revision to be registered
+* `tree_hash::AbstractString`: the tree hash (not commit hash) of the package revision to be registered
 
 # Keyword Arguments
 
-* `registry::String="$DEFAULT_REGISTRY_URL"`: the git repository URL for the registry
+* `registry::AbstractString="$DEFAULT_REGISTRY_URL"`: the git repository URL for the registry
 * `registry_deps::Vector{String}=[]`: the git repository URLs for any registries containing
     packages depended on by `pkg`
 * `push::Bool=false`: whether to push a registration branch to `registry` for consideration
@@ -484,8 +450,8 @@ errors or warnings that occurred.
 """
 function register(
     package_repo::AbstractString, pkg::Pkg.Types.Project, tree_hash::AbstractString;
-    registry::String = DEFAULT_REGISTRY_URL,
-    registry_deps::Vector{<:AbstractString} = String[],
+    registry::AbstractString = DEFAULT_REGISTRY_URL,
+    registry_deps::Vector{<:AbstractString} = [],
     push::Bool = false,
     gitconfig::Dict = Dict()
 )
@@ -550,7 +516,7 @@ function register(
         @debug("check compat section")
         regpaths = [registry_path; registry_deps_paths]
         r = update_compat_file(pkg, package_path, regbr, regdata, regpaths)
-        r === nothing || return r 
+        r === nothing || return r
 
         regtreesha = get_registrator_tree_sha()
 

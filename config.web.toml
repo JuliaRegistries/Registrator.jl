@@ -1,0 +1,31 @@
+# See README.web.md for details on each key.
+
+[web]
+ip = ""
+port = 0
+server_url = ""
+registry_url = ""
+# registry_clone_url = ""
+# extra_providers = ""
+# registry_provider = ""
+# registry_deps = []
+# disable_patch_notes = false
+# route_prefix = ""
+
+[web.github]
+token = ""
+client_id = ""
+client_secret = ""
+# api_url = ""
+# auth_url = ""
+# token_url = ""
+# disable_rate_limits = false
+
+[web.gitlab]
+token = ""
+client_id = ""
+client_secret = ""
+# api_url = ""
+# auth_url = ""
+# token_url = ""
+# disable_rate_limits = false
