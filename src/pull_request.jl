@@ -6,10 +6,10 @@ function pull_request_contents(;
     package::AbstractString,
     repo::AbstractString,
     user::AbstractString,
-    gitref::AbstractString,
     version::VersionNumber,
     commit::AbstractString,
     patch_notes::AbstractString,
+    gitref::AbstractString="",
     reviewer::AbstractString="",
     reference::AbstractString="",
     meta::AbstractString="",
@@ -25,11 +25,11 @@ function pull_request_contents(;
         "- Registering package: $package",
         "- Repository: $repo",
         "- Created by: $user",
-        "- Git reference: $gitref",
         "- Version: v$version",
         "- Commit: $commit",
     ]
 
+    isempty(gitref) || push!(lines, "- Git reference: $gitref")
     isempty(reviewer) || push!(lines, "- Reviewed by: $reviewer")
     isempty(reference) || push!(lines, "- Reference: $reference")
     isempty(patch_notes) || push!(
