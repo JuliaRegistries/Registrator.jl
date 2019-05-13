@@ -55,9 +55,9 @@ uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
 
 [[GitForge]]
 deps = ["Dates", "HTTP", "JSON2"]
-git-tree-sha1 = "5f76d938f3f5e2665b234854cd7303124c5f6634"
+git-tree-sha1 = "8d7dbd341b92fa2a8140dd3f06484bbb57f91623"
 uuid = "8f6bce27-0656-5410-875b-07a5572985df"
-version = "0.1.1"
+version = "0.1.2"
 
 [[GitHub]]
 deps = ["Base64", "Compat", "Dates", "HTTP", "JSON", "MbedTLS", "Sockets", "Test"]
@@ -94,12 +94,10 @@ uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 version = "0.20.0"
 
 [[JSON2]]
-deps = ["Dates", "Parsers"]
-git-tree-sha1 = "36180793e9b043af9d07966482eb3a16f903649f"
-repo-rev = "cdg/options"
-repo-url = "https://github.com/christopher-dG/JSON2.jl"
+deps = ["Dates", "Parsers", "Test"]
+git-tree-sha1 = "6cbbbab27d9411946725f5d5c91e8b8fb5f7d5db"
 uuid = "2535ab7d-5cd8-5a07-80ac-9b1792aadce3"
-version = "0.3.0"
+version = "0.3.1"
 
 [[Lazy]]
 deps = ["Compat", "MacroTools", "Test"]
