@@ -761,7 +761,6 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
         package=name,
         repo=string(rp.evt.repository.html_url),
         user="@$creator",
-        gitref=brn,
         version=ver,
         commit=pp.sha,
         patch_notes=rp.patch_notes,
