@@ -225,7 +225,7 @@ function find_package_in_registry(pkg::Pkg.Types.Project,
         package_path = joinpath(registry_path, package_data["path"])
         repo = TOML.parsefile(joinpath(package_path, "Package.toml"))["repo"]
         if repo != package_repo
-            err = "Changing package repo URL not allowed"
+            err = "Changing package repo URL not allowed, please submit a pull request with the URL change to the target registry and retry."
             @debug(err)
             regbr.metadata["error"] = err
             return nothing, regbr
