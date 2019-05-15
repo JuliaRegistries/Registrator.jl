@@ -9,7 +9,7 @@ Registrator is a GitHub app that automates creation of registration pull request
 
 ## Install Registrator:
 
-[![install](https://img.shields.io/badge/-install%20app-blue.svg)](https://github.com/apps/juliaregistrar/installations/new)
+[![install](https://img.shields.io/badge/-install%20app-blue.svg)](https://github.com/apps/juliateam-registrator/installations/new)
 
 ## How to Use
 
