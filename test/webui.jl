@@ -4,6 +4,7 @@ using GitForge: GitForge, get_user
 using GitForge.GitHub: GitHub, GitHubAPI, NoToken, Token
 using HTTP: HTTP
 using Sockets: Sockets
+using Distributed
 
 const UI = Registrator.WebUI
 
@@ -100,11 +101,12 @@ end
 
     # Start the server.
     # TODO: Stop it when this test set is done.
-    task = UI.start_server(Sockets.localhost, 4000)
+    task = @async UI.start_server(Sockets.localhost, 4000)
+    @info "Waiting for server to start..."
+    sleep(10)    # Wait for server to be up
 
     @testset "404s" begin
-        rs = [UI.ROUTE_INDEX, UI.ROUTE_AUTH, UI.ROUTE_CALLBACK, UI.ROUTE_SELECT, UI.ROUTE_REGISTER]
-        for r in rs
+        for r in values(UI.ROUTES)
             resp = HTTP.get(UI.CONFIG["server_url"] * r * "/foo"; status_exception=false)
             @test resp.status == 404
             @test occursin("Page not found", String(resp.body))
@@ -130,17 +132,17 @@ end
     end
 
     @testset "Route: /select" begin
-        resp = HTTP.get(UI.CONFIG["server_url"] * UI.ROUTE_SELECT; status_exception=false)
+        resp = HTTP.get(UI.CONFIG["server_url"] * UI.ROUTES[:SELECT]; status_exception=false)
         @test resp.status == 200
         @test occursin("package to register", String(resp.body))
     end
 
     @testset "Route: /register (validation)" begin
-        resp = HTTP.get(UI.CONFIG["server_url"] * UI.ROUTE_REGISTER; status_exception=false)
+        resp = HTTP.get(UI.CONFIG["server_url"] * UI.ROUTES[:REGISTER]; status_exception=false)
         @test resp.status == 405
         @test occursin("Method not allowed", String(resp.body))
 
-        resp = HTTP.post(UI.CONFIG["server_url"] * UI.ROUTE_REGISTER; status_exception=false)
+        resp = HTTP.post(UI.CONFIG["server_url"] * UI.ROUTES[:REGISTER]; status_exception=false)
         @test resp.status == 400
         @test occursin("Missing or invalid state cookie", String(resp.body))
 
@@ -150,7 +152,7 @@ end
         user = @gf get_user(client, "christopher-dG")
         UI.USERS[state] = UI.User(user, client)
 
-        url = UI.CONFIG["server_url"] * UI.ROUTE_REGISTER
+        url = UI.CONFIG["server_url"] * UI.ROUTES[:REGISTER]
         cookies = Dict("state" => state)
 
         body = "package=&ref=master"
@@ -178,4 +180,5 @@ end
         @test resp.status == 400
         @test occursin("Unauthorized to release this package", String(resp.body))
     end
+
 end
