@@ -45,10 +45,10 @@ function main()
         return
     end
 
-    zsock = ReplySocket()
-
     merge!(config, Pkg.TOML.parsefile(ARGS[1])["regservice"])
     global_logger(SimpleLogger(stdout, get_log_level(config["log_level"])))
+
+    zsock = ReplySocket(get(config, "port", 5555))
 
     @info("Starting registration service...")
     t = @async status_monitor(config["stop_file"], zsock)

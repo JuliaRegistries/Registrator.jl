@@ -230,10 +230,10 @@ function main()
         return
     end
 
-    zsock = RequestSocket()
-
     merge!(config, Pkg.TOML.parsefile(ARGS[1])["commentbot"])
     global_logger(SimpleLogger(stdout, get_log_level(config["log_level"])))
+
+    zsock = RequestSocket(get(config, "backend_port", 5555))
 
     @info("Starting server...")
     t1 = @async request_processor(zsock)
