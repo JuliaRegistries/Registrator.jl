@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 
 if [ $# != 1 ]; then
     echo "USAGE: ./restart.sh <regservice|commentbot|webui>"
@@ -20,6 +20,7 @@ fi
 
 echo "Stopping server"
 touch stop$1
+# This line works fine on bash but not on sh
 timeout 120s grep -q '!stopped!' <(tail -n 1 -f $1.log)
 
 if [ $? -ne 0 ]; then
