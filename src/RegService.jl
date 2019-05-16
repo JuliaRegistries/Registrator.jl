@@ -29,8 +29,8 @@ function service(zsock::ReplySocket)
     while true
         ret = recvsend(zsock) do regp
             if isempty(regp.gitconfig)
-                haskey(config, "user") && regp.gitconfig["user.name"] = config["user"]
-                haskey(config, "email") && regp.gitconfig["user.email"] = config["email"]
+                haskey(config, "user") && (regp.gitconfig["user.name"] = config["user"])
+                haskey(config, "email") && (regp.gitconfig["user.email"] = config["email"])
             end
             register(regp)
         end
