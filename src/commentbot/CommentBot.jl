@@ -78,7 +78,7 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
         user="@$creator",
         version=ver,
         commit=pp.sha,
-        patch_notes=rp.patch_notes,
+        release_notes=rp.release_notes,
         reviewer="@$reviewer",
         reference=ref,
         meta=enc_meta,

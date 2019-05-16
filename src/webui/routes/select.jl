@@ -70,9 +70,9 @@ function select(::HTTP.Request)
         <br>
         """
 
-    if REGISTRY[].enable_patch_notes
+    if REGISTRY[].enable_release_notes
         body *= """
-            Patch notes (optional):
+            Release notes (optional):
             <br>
             <textarea cols="80" rows="10" id="notes"></textarea>
             <br>
