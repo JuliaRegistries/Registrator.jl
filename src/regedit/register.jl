@@ -61,6 +61,8 @@ struct RegBranch
     end
 end
 
+get_backtrace(ex) = sprint(Base.showerror, ex, catch_backtrace())
+
 function write_registry(registry_path::AbstractString, reg::RegistryData)
     open(registry_path, "w") do io
         TOML.print(io, reg)
@@ -544,11 +546,40 @@ function register(
         end
 
         clean_registry = false
-        return regbr
+    catch ex
+        println(get_backtrace(ex))
+        regbr.metadata["error"] = "Unexpected error in registration"
     finally
         if clean_registry
             @debug("cleaning up possibly inconsistent registry", registry_path=showsafe(registry_path), err=showsafe(err))
             rm(registry_path; recursive=true, force=true)
         end
     end
+    return regbr
 end
+
+struct RegisterParams
+    package_repo::AbstractString
+    pkg::Pkg.Types.Project
+    tree_sha::AbstractString
+    registry::AbstractString
+    registry_deps::Vector{<:AbstractString}
+    push::Bool
+    gitconfig::Dict
+
+    function RegisterParams(package_repo::AbstractString,
+                            pkg::Pkg.Types.Project,
+                            tree_sha::AbstractString;
+                            registry::AbstractString=DEFAULT_REGISTRY_URL,
+                            registry_deps::Vector{<:AbstractString}=[],
+                            push::Bool=false,
+                            gitconfig::Dict=Dict())
+        new(package_repo, pkg, tree_sha,
+            registry, registry_deps,
+            push, gitconfig)
+    end
+end
+
+register(regp::RegisterParams) = register(regp.package_repo, regp.pkg, regp.tree_sha;
+                                          registry=regp.registry, registry_deps=regp.registry_deps,
+                                          push=regp.push, gitconfig=regp.gitconfig)

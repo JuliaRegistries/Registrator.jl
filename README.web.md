@@ -86,6 +86,7 @@ It's important to note that optional values **must** be omitted or commented out
 - `server_url`: The full URL at which your server will be accessible.
   This could be something like `http://localhost:4000` for testing, or `https://example.com`.
 - `registry_url`: Your registry repository's web URL, for example `https://github.com/foo/bar`.
+- `stop_file`: Create this file to signal WebUI to shutdown.
 
 #### Optional
 
@@ -101,6 +102,7 @@ It's important to note that optional values **must** be omitted or commented out
 - `disable_patch_notes`: Set to `true` to disable the patch notes text box.
 - `route_prefix`: Base route for the server.
   For example, use `/registrator` to serve the UI on `<your-hostname>/registrator/`.
+- `log_level`: The log level. Can be "INFO", "DEBUG", "WARN", "ERROR". Default is "INFO".
   
 ### `[web.git{hub,lab}]` Section
 
