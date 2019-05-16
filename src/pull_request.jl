@@ -38,6 +38,7 @@ function pull_request_contents(;
         "<!-- BEGIN PATCH NOTES -->",
         patch_notes,
         "<!-- END PATCH NOTES -->",
+        join(map(line -> "> $line", split(patch_notes, "\n")), "\n"),
         ""
     )
     isempty(meta) || push!(lines, meta)
