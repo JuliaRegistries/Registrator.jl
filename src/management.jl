@@ -17,7 +17,7 @@ function status_monitor(wait_and_close::Function,
         flush(stdout); flush(stderr);
         # stop server if stop is requested
         if isfile(stop_file)
-            @warn("Server stop requested.")
+            @warn "Server stop requested."
             flush(stdout); flush(stderr)
 
             # stop accepting new requests
@@ -36,12 +36,13 @@ status_monitor(stop_file::AbstractString,
                event_queue::Channel,
                httpsock::Ref{Sockets.TCPServer},
                ) = status_monitor(stop_file, ()->isopen(event_queue)) do
-                                      close(httpsock[])
                                       # wait for queued requests to be
                                       # processed and close queue
                                       while isready(event_queue)
+                                          @info "Waiting for queued jobs to finish"
                                           yield()
                                       end
+                                      close(httpsock[])
                                       close(event_queue)
                                   end
 
