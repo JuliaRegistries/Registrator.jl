@@ -53,7 +53,7 @@ function html(status::Int, body::AbstractString)
     return HTTP.Response(status, ["Content-Type" => "text/html"]; body=doc)
 end
 
-json(body::Dict) = json(200, body)
+json(; kwargs...) = json(200; kwargs...)
 json(status::Int; kwargs...) = HTTP.Response(status, ["Content-Type" => "text/json"]; body=JSON.json(kwargs))
 
 # Parse an HTML form.
