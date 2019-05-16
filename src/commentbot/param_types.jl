@@ -37,7 +37,7 @@ struct RequestParams{T<:RequestTrigger}
                 # TODO:
                 # - The syntax with which users declare their patch notes is still undecided.
                 # - This assumes that patch notes appear last in the body. Is that fair?
-                patch_match = match(r"Patch notes:(.*)"s, get_body(evt.payload))
+                patch_match = match(r"(?:patch|release) notes:(.*)"si, get_body(evt.payload))
                 patch_notes = patch_match === nothing ? "" : strip(patch_match[1])
                 if is_pull_request(evt.payload)
                     if config["disable_pull_request_trigger"]
