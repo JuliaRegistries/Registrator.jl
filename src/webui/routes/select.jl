@@ -39,6 +39,7 @@ function select(::HTTP.Request)
         function do_register() {
           var package = document.getElementById("package").value;
           var ref = document.getElementById("ref").value;
+          var notes = document.getElementById("notes").value;
           var button = document.getElementById("submitButton");
           button.disabled = true;
           button.value = "Please wait...";
@@ -59,7 +60,7 @@ function select(::HTTP.Request)
               div.innerHTML = "<h4>ERROR: " + data["error"] + "</h4>";
             }
           };
-          xhr.send('package='+encodeURIComponent(package)+'&ref='+ref);
+          xhr.send('package='+encodeURIComponent(package)+'&ref='+ref+'&notes='+encodeURIComponent(notes));
         }
         </script>
         <div id="reg-form">
@@ -73,7 +74,7 @@ function select(::HTTP.Request)
         body *= """
             Patch notes (optional):
             <br>
-            <textarea cols="80" rows="10" name="notes"></textarea>
+            <textarea cols="80" rows="10" id="notes"></textarea>
             <br>
             """
     end
