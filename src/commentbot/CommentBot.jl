@@ -227,7 +227,7 @@ end
 
 function main()
     if isempty(ARGS)
-        println("Usage: julia -e 'using Registrator; Registrator.RegServer.main()' <configuration>")
+        println("Usage: julia -e 'using Registrator; Registrator.CommentBot.main()' <configuration>")
         return
     end
 
