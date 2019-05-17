@@ -38,7 +38,7 @@ struct Registry{F <: GitForge.Forge, R}
     url::String
     clone::String
     deps::Vector{String}
-    enable_patch_notes::Bool
+    enable_release_notes::Bool
 end
 
 # U is a User type, e.g. GitHub.User.
@@ -107,8 +107,8 @@ function init_registry()
     repo === nothing && error("Registry lookup failed")
     clone = get(CONFIG, "registry_clone_url", url)
     deps = get(CONFIG, "registry_deps", String[])
-    enable_patch_notes = !get(CONFIG, "disable_patch_notes", false)
-    REGISTRY[] = Registry(forge, repo, url, clone, deps, enable_patch_notes)
+    enable_release_notes = !get(CONFIG, "disable_release_notes", false)
+    REGISTRY[] = Registry(forge, repo, url, clone, deps, enable_release_notes)
 end
 
 for f in [:index, :auth, :callback, :select, :register]
@@ -146,7 +146,7 @@ function action(regdata::RegistrationData, zsock::RequestSocket)
             gitref=regdata.ref,
             version=regdata.project.version,
             commit=regdata.commit,
-            patch_notes=regdata.notes,
+            release_notes=regdata.notes,
         )
 
         # Make the PR.

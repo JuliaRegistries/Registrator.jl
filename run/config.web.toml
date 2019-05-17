@@ -11,7 +11,7 @@ stop_file = "stopwebui"
 # extra_providers = ""
 # registry_provider = ""
 # registry_deps = []
-# disable_patch_notes = false
+# disable_release_notes = false
 # route_prefix = ""
 
 [web.github]

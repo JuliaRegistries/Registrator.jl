@@ -1,5 +1,5 @@
 # FYI: TagBot (github.com/apps/julia-tagbot) depends on the "Repository", "Version",
-# "Commit", and "Patch notes" fields. If you're going to change the format here,
+# "Commit", and "Release notes" fields. If you're going to change the format here,
 # please ping @christopher-dG or open an issue on TagBot!
 function pull_request_contents(;
     registration_type::AbstractString,
@@ -8,7 +8,7 @@ function pull_request_contents(;
     user::AbstractString,
     version::VersionNumber,
     commit::AbstractString,
-    patch_notes::AbstractString,
+    release_notes::AbstractString,
     gitref::AbstractString="",
     reviewer::AbstractString="",
     reference::AbstractString="",
@@ -32,12 +32,12 @@ function pull_request_contents(;
     isempty(gitref) || push!(lines, "- Git reference: $gitref")
     isempty(reviewer) || push!(lines, "- Reviewed by: $reviewer")
     isempty(reference) || push!(lines, "- Reference: $reference")
-    isempty(patch_notes) || push!(
+    isempty(release_notes) || push!(
         lines,
-        "- Patch notes:",
-        "<!-- BEGIN PATCH NOTES -->",
-        patch_notes,
-        "<!-- END PATCH NOTES -->",
+        "- Release notes:",
+        "<!-- BEGIN RELEASE NOTES -->",
+        join(map(line -> "> $line", split(release_notes, "\n")), "\n"),
+        "<!-- END RELEASE NOTES -->",
         ""
     )
     isempty(meta) || push!(lines, meta)

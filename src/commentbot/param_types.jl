@@ -8,7 +8,7 @@ struct RequestParams{T<:RequestTrigger}
     evt::WebhookEvent
     phrase::RegexMatch
     reponame::String
-    patch_notes::String
+    release_notes::String
     trigger_src::T
     commenter_can_register::Bool
     target::Union{Nothing,String}
@@ -18,7 +18,7 @@ struct RequestParams{T<:RequestTrigger}
         reponame = evt.repository.full_name
         user = get_user_login(evt.payload)
         trigger_src = EmptyTrigger()
-        patch_notes = ""
+        notes = ""
         commenter_can_register = false
         err = nothing
         report_error = false
@@ -34,11 +34,8 @@ struct RequestParams{T<:RequestTrigger}
             commenter_can_register = has_register_rights(evt)
             if commenter_can_register
                 @debug("Commenter has registration rights")
-                # TODO:
-                # - The syntax with which users declare their patch notes is still undecided.
-                # - This assumes that patch notes appear last in the body. Is that fair?
-                patch_match = match(r"(?:patch|release) notes:(.*)"si, get_body(evt.payload))
-                patch_notes = patch_match === nothing ? "" : strip(patch_match[1])
+                notes_match = match(r"(?:patch|release) notes:(.*)"si, get_body(evt.payload))
+                notes = notes_match === nothing ? "" : strip(notes_match[1])
                 if is_pull_request(evt.payload)
                     if config["disable_pull_request_trigger"]
                         make_comment(evt, "Pull request comments will not trigger Registrator as it is disabled. Please trying using a commit or issue comment.")
@@ -94,7 +91,7 @@ struct RequestParams{T<:RequestTrigger}
         isvalid = commenter_can_register
         @debug("Event pre-check validity: $isvalid")
 
-        return new{typeof(trigger_src)}(evt, phrase, reponame, patch_notes, trigger_src,
+        return new{typeof(trigger_src)}(evt, phrase, reponame, notes, trigger_src,
                                         commenter_can_register, target,
                                         CommonParams(isvalid, err, report_error))
     end
