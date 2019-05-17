@@ -36,26 +36,32 @@ abstract type MessageSocket end
 A socket for making requests to a ZMQ service.
 
 Parameters:
-- `ep="tcp://localhost:5555"`: The endpoint to connect to
+- `port::Int=5555`: The TCP port to connect to
 """
 mutable struct RequestSocket <: MessageSocket
     sock::Socket
     ep::String
 
-    RequestSocket(ep="tcp://localhost:5555") = new(request_socket(ep), ep)
+    function RequestSocket(port::Int=5555)
+        ep = "tcp://localhost:$port"
+        new(request_socket(ep), ep)
+    end
 end
 
 """
 A socket for serving replies to ZMQ clients.
 
 Parameters:
-- `ep="tcp://*:5555"`: The endpoint to connect to
+- `port::Int=5555`: The TCP port to connect to
 """
 mutable struct ReplySocket <: MessageSocket
     sock::Socket
     ep::String
 
-    ReplySocket(ep="tcp://*:5555") = new(reply_socket(ep), ep)
+    function ReplySocket(port::Int=5555)
+        ep = "tcp://*:$port"
+        new(reply_socket(ep), ep)
+    end
 end
 
 function reconnect!(sock::RequestSocket)

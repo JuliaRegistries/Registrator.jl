@@ -1,18 +1,12 @@
-[regservice]
-stop_file = "/tmp/stopregservice"    # `touch` this file to stop the registration service
-log_level = "debug"
-user = ""
-email = ""      # The email associated with the above ID, this is
-                # required for creating the registry commit
-
 [commentbot]
 # Remove http_port to make the server use ENV["PORT"]. Heroku users must do this.
 http_port = 8001
 http_ip = "0.0.0.0"
 log_level = "debug"
+backend_port = 5555             # Port of the backend regservice
 
-trigger = "@JuliaRegistrator"   # The comment that should trigger Registrator. Typically
-                                # keep this the same as your GitHub user (with `@` prefixed)
+trigger = "JuliaRegistrator"    # The comment that should trigger Registrator. Typically
+                                # keep this the same as your GitHub user
 
 stop_file = "/tmp/stopcommentbot" # `touch` this file to stop the comment bot
 

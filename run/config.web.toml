@@ -13,6 +13,7 @@ stop_file = "stopwebui"
 # registry_deps = []
 # disable_release_notes = false
 # route_prefix = ""
+# backend_port = 5555
 
 [web.github]
 token = ""

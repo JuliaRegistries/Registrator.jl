@@ -1,0 +1,7 @@
+[regservice]
+stop_file = "/tmp/stopregservice"    # `touch` this file to stop the registration service
+log_level = "debug"
+port = 5555     # Port on which to serve registration service
+user = ""
+email = ""      # The email associated with the above ID, this is
+                # required for creating the registry commit
