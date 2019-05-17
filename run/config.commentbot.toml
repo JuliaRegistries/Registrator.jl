@@ -1,6 +1,6 @@
 [commentbot]
 # Remove http_port to make the server use ENV["PORT"]. Heroku users must do this.
-http_port = 8001
+http_port = 8002
 http_ip = "0.0.0.0"
 log_level = "debug"
 backend_port = 5555             # Port of the backend regservice
@@ -61,7 +61,25 @@ app_id = 12345  # The app ID for your GitHub app. This can be found in
                 # after it is created. See the "Advanced" section in
                 # your app's settings page.
 
-priv_pem = "private-key.pem"    # The private key file of your GitHub app
+priv_pem = "/config/registrator/github.pem"    # The private key file of your GitHub app
+
+[commentbot.gitlab]
+user = ""       # A GitLab user ID, can be same as that set for [regservice]
+
+token = ""      # An access token for the above user ID, this is
+                # required for pushing the commit to the remote registry
+
+secret = ""     # This is the webhook secret that you configure when
+                # you setup an app in GitLab. See
+                # https://developer.github.com/apps/building-github-apps/creating-a-github-app/
+                # for instructions on how to create an app.
+
+app_id = 12345  # The app ID for your GitLab app. This can be found in
+                # the first webhook payload that your app sends just
+                # after it is created. See the "Advanced" section in
+                # your app's settings page.
+
+priv_pem = "/config/registrator/gitlab.pem"    # The private key file of your GitHub app
 
 [commentbot.targets.qux]   # You can define additional targets as [targets.baz], [targets.foo] etc.
 repo = "https://github.com/your_github_id/QuxRegistry"

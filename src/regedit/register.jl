@@ -192,7 +192,7 @@ function compress(path::AbstractString, uncompressed::Dict,
     versions::Vector{VersionNumber} = load_versions(path))
     inverted = Dict()
     for (ver, data) in uncompressed, (key, val) in data
-        val isa TOML.TYPE || (val = string(val))
+        val isa Union{Bool, DateTime, AbstractString, AbstractDict, AbstractArray} || (val = string(val))
         push!(get!(inverted, key => val, VersionNumber[]), ver)
     end
     compressed = Dict()
