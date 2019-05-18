@@ -181,7 +181,7 @@ function make_registration_request(
         throw(pr.ex)
     end
 
-    prs = get_pull_requests(r.forge, owner, repo; head=branch, base=base, state="open")
+    prs = get_pull_requests(r.forge, owner, repo; head="$owner:$branch", base=base, state="open")
     @assert length(prs.val) == 1
     prid = first(prs.val).number
     update_pull_request(r.forge, owner, repo, prid; title=title, body=body)
