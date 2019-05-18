@@ -137,14 +137,33 @@ function make_registration_request(
     title::AbstractString,
     body::AbstractString,
 )
-    return create_pull_request(
-        r.forge, r.repo.id;
+    repoid = r.repo.id
+    base = r.repo.default_branch
+    pr = create_pull_request(
+        r.forge, repoid;
         source_branch=branch,
-        target_branch=r.repo.default_branch,
+        target_branch=base,
         title=title,
         description=body,
         remove_source_branch=true,
     )
+    pr.ex === nothing && return pr
+    if pr.resp === nothing || pr.resp.status != 409
+        @error "Exception making registration request" owner=owner repo=repo base=base head=branch
+        throw(pr.ex)
+    end
+
+    resp = pr.resp.body |> copy |> String |> JSON.parse
+    if !haskey(resp, "message") || length(resp["message"]) == 0 || \
+        !occursin("Another open merge request already exists for this source branch", first(resp["message"]))
+        @error "Exception making registration request" owner=owner repo=repo base=base head=branch
+        throw(pr.ex)
+    end
+
+    prs = get_pull_requests(r.forge, repoid; head=branch, base=base, state="opened")
+    @assert length(prs.val) == 1
+    prid = first(prs.val).number
+    return update_pull_request(r.forge, repoid, prid; title=title, body=body)
 end
 
 function make_registration_request(
@@ -184,7 +203,7 @@ function make_registration_request(
     prs = get_pull_requests(r.forge, owner, repo; head="$owner:$branch", base=base, state="open")
     @assert length(prs.val) == 1
     prid = first(prs.val).number
-    update_pull_request(r.forge, owner, repo, prid; title=title, body=body)
+    return update_pull_request(r.forge, owner, repo, prid; title=title, body=body)
 end
 
 # Get the web URL of various Git things.
