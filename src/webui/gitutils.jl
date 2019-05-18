@@ -163,7 +163,7 @@ function make_registration_request(
         title=title,
         body=body,
     )
-    pr.ex === nothing && return pr.val
+    pr.ex === nothing && return pr
     if pr.resp === nothing || pr.resp.status != 422
         @error "Exception making registration request" owner=owner repo=repo base=base head=branch
         throw(pr.ex)
