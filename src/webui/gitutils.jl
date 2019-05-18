@@ -159,7 +159,7 @@ function make_registration_request(
         throw(pr.ex)
     end
 
-    prs = get_pull_requests(r.forge, repoid; head=branch, base=base, state="opened")
+    prs = get_pull_requests(r.forge, repoid; source_branch=branch, target_branch=base, state="opened")
     @assert length(prs.val) == 1
     prid = first(prs.val).number
     return update_pull_request(r.forge, repoid, prid; title=title, body=body)
