@@ -110,6 +110,25 @@ function gettreesha(::GitLabAPI, r::GitLab.Project, ref::AbstractString)
     end
 end
 
+"""
+    make_registration_request(registry::Registry{F},
+                              branch::AbstractString,
+                              title::AbstractString,
+                              body::AbstractString
+                              ) where F<:GitForge.Forge
+Try to create a pull request. If pull request already exists update the title and body.
+
+Parameters:
+- `registry`: The registry to create/update the pull request on
+- `branch`: The head of the pull request
+- `title`
+- `body`
+
+Returns:
+A GitForge.Result object
+"""
+make_registration_request
+
 #TODO: Check for existing pull request and update it
 # Make the PR to the registry.
 function make_registration_request(
@@ -134,13 +153,38 @@ function make_registration_request(
     title::AbstractString,
     body::AbstractString,
 )
-    return create_pull_request(
-        r.forge, r.repo.owner.login, r.repo.name;
+    owner = r.repo.owner.login
+    repo = r.repo.name
+    base = r.repo.default_branch
+    pr = create_pull_request(
+        r.forge, owner, repo;
         head=branch,
-        base=r.repo.default_branch,
+        base=base,
         title=title,
         body=body,
     )
+    pr.ex === nothing && return pr.val
+    if pr.resp === nothing || pr.resp.status != 422
+        @error "Exception making registration request" owner=owner repo=repo base=base head=branch
+        throw(pr.ex)
+    end
+
+    resp = pr.resp.body |> copy |> String |> JSON.parse
+    if !haskey(resp, "errors") || length(resp["errors"]) == 0
+        @error "Exception making registration request" owner=owner repo=repo base=base head=branch
+        throw(pr.ex)
+    end
+
+    errors = first(resp["errors"])
+    if !haskey(errors, "message") || !occursin("A pull request already exists", errors["message"])
+        @error "Exception making registration request" owner=owner repo=repo base=base head=branch
+        throw(pr.ex)
+    end
+
+    prs = get_pull_requests(r.forge, owner, repo; head=branch, base=base, state="open")
+    @assert length(prs.val) == 1
+    prid = first(prs.val).number
+    update_pull_request(r.forge, owner, repo, prid; title=title, body=body)
 end
 
 # Get the web URL of various Git things.
