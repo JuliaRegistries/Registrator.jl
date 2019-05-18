@@ -154,8 +154,7 @@ function make_registration_request(
     end
 
     resp = pr.resp.body |> copy |> String |> JSON.parse
-    if !haskey(resp, "message") || length(resp["message"]) == 0 || \
-        !occursin("Another open merge request already exists for this source branch", first(resp["message"]))
+    if !haskey(resp, "message") || length(resp["message"]) == 0 || !occursin("Another open merge request already exists for this source branch", first(resp["message"]))
         @error "Exception making registration request" owner=owner repo=repo base=base head=branch
         throw(pr.ex)
     end
