@@ -110,12 +110,19 @@ function gettreesha(::GitLabAPI, r::GitLab.Project, ref::AbstractString)
     end
 end
 
+function ensure_already_exists(f::Function, resp::HTTP.Response, status::Int)
+    resp.status == status || return false
+    data = JSON.parse(String(copy(resp.body)))
+    any(e -> occursin("already exists", e), f(data))
+end
+
 """
-    make_registration_request(registry::Registry{F},
-                              branch::AbstractString,
-                              title::AbstractString,
-                              body::AbstractString
-                              ) where F<:GitForge.Forge
+    make_registration_request(
+        registry::Registry{F},
+        branch::AbstractString,
+        title::AbstractString,
+        body::AbstractString,
+    ) where F <: GitForge.Forge
 Try to create a pull request. If pull request already exists update the title and body.
 
 Parameters:
@@ -129,8 +136,6 @@ A GitForge.Result object
 """
 make_registration_request
 
-#TODO: Check for existing pull request and update it
-# Make the PR to the registry.
 function make_registration_request(
     r::Registry{GitLabAPI},
     branch::AbstractString,
@@ -139,7 +144,7 @@ function make_registration_request(
 )
     repoid = r.repo.id
     base = r.repo.default_branch
-    pr = create_pull_request(
+    result = create_pull_request(
         r.forge, repoid;
         source_branch=branch,
         target_branch=base,
@@ -147,21 +152,18 @@ function make_registration_request(
         description=body,
         remove_source_branch=true,
     )
-    pr.ex === nothing && return pr
-    if pr.resp === nothing || pr.resp.status != 409
-        @error "Exception making registration request" owner=owner repo=repo base=base head=branch
-        throw(pr.ex)
-    end
-
-    resp = pr.resp.body |> copy |> String |> JSON.parse
-    if !haskey(resp, "message") || length(resp["message"]) == 0 || !occursin("Another open merge request already exists for this source branch", first(resp["message"]))
-        @error "Exception making registration request" owner=owner repo=repo base=base head=branch
-        throw(pr.ex)
+    ex = GitForge.exception(result)
+    ex === nothing && return result
+    resp = GitForge.response(result)
+    if !ensure_already_exists(data -> get(data, "message", String[]), resp, 409)
+        @error "Exception making registration request" repoid=repoid base=base head=branch
+        return result
     end
 
     prs = get_pull_requests(r.forge, repoid; source_branch=branch, target_branch=base, state="opened")
-    @assert length(prs.val) == 1
-    prid = first(prs.val).iid
+    val = GitForge.value(prs)
+    @assert length(val) == 1
+    prid = first(val).iid
     return update_pull_request(r.forge, repoid, prid; title=title, body=body)
 end
 
@@ -174,34 +176,28 @@ function make_registration_request(
     owner = r.repo.owner.login
     repo = r.repo.name
     base = r.repo.default_branch
-    pr = create_pull_request(
+    result = create_pull_request(
         r.forge, owner, repo;
         head=branch,
         base=base,
         title=title,
         body=body,
     )
-    pr.ex === nothing && return pr
-    if pr.resp === nothing || pr.resp.status != 422
-        @error "Exception making registration request" owner=owner repo=repo base=base head=branch
-        throw(pr.ex)
+    ex = GitForge.exception(result)
+    ex === nothing && return result
+    resp = GitForge.respone(result)
+    exists = ensure_already_exists(resp, 422) do data
+        map(e -> get(e, "message", ""), get(data, "errors", []))
     end
-
-    resp = pr.resp.body |> copy |> String |> JSON.parse
-    if !haskey(resp, "errors") || length(resp["errors"]) == 0
+    if !exists
         @error "Exception making registration request" owner=owner repo=repo base=base head=branch
-        throw(pr.ex)
-    end
-
-    errors = first(resp["errors"])
-    if !haskey(errors, "message") || !occursin("A pull request already exists", errors["message"])
-        @error "Exception making registration request" owner=owner repo=repo base=base head=branch
-        throw(pr.ex)
+        return result
     end
 
     prs = get_pull_requests(r.forge, owner, repo; head="$owner:$branch", base=base, state="open")
-    @assert length(prs.val) == 1
-    prid = first(prs.val).number
+    val = GitForge.value(prs)
+    @assert length(val) == 1
+    prid = first(val).number
     return update_pull_request(r.forge, owner, repo, prid; title=title, body=body)
 end
 
