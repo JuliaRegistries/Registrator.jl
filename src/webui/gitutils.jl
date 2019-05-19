@@ -185,7 +185,7 @@ function make_registration_request(
     )
     ex = GitForge.exception(result)
     ex === nothing && return result
-    resp = GitForge.respone(result)
+    resp = GitForge.response(result)
     exists = ensure_already_exists(resp, 422) do data
         map(e -> get(e, "message", ""), get(data, "errors", []))
     end
