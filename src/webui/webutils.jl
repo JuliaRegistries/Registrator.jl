@@ -13,43 +13,19 @@ function getcookie(r::HTTP.Request, key::AbstractString, default="")
     return ind === nothing ? default : cookies[ind].value
 end
 
+readtpl(tpl) = mustache.template_from_file(joinpath(dirname(@__FILE__), "templates", tpl))
+const INDEX_TPL = readtpl("index.tpl")
+const SELECT_TPL = readtpl("select.tpl")
+
 # Return an HTML response.
 html(body::AbstractString) = html(200, body)
 function html(status::Int, body::AbstractString)
     registry = REGISTRY[].url
-    doc = """
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <meta charset="utf-8">
-            <title>Registrator</title>
-            <style>
-              body {
-                background-color: #ddd;
-                text-align: center;
-                margin: auto;
-                max-width: 50em;
-                font-family: Helvetica, sans-serif;
-                line-height: 1.8;
-                color: #333;
-              }
-              a {
-                color: inherit;
-              }
-              h3, h4 {
-                color: #555;
-              }
-            </style>
-          </head>
-          <body>
-            <h1><a href="$(ROUTES[:INDEX])">Registrator</a></h1>
-            <h4>Registry URL: <a href="$registry" target="_blank">$registry</a></h3>
-            <h3>Click <a href="$DOCS" target="_blank">here</a> for usage instructions</h3>
-            <br>
-            $body
-          </body>
-        </html>
-        """
+    doc = render(INDEX_TPL,
+                 route_index=ROUTES[:INDEX],
+                 registry_url=registry,
+                 docs_url=DOCS,
+                 body=body,)
     return HTTP.Response(status, ["Content-Type" => "text/html"]; body=doc)
 end
 
