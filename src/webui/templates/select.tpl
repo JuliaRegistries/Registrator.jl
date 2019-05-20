@@ -1,3 +1,18 @@
+<div id="reg-form">
+  URL of package to register: <input type="text" size="50" id="package" />
+  <br />
+  Git reference (branch/tag/commit): <input type="text" size="20" id="ref" value="master" />
+  <br />
+
+  {{#:enable_release_notes}}
+  Release notes (optional):
+  <br />
+  <textarea cols="80" rows="10" id="notes"></textarea>
+  <br />
+  {{/:enable_release_notes}}
+
+  <button id="submitButton" onclick="do_register()">Submit</button>
+</div>
 <script>
 function poll_status(id) {
   var xhr = new XMLHttpRequest();
@@ -60,18 +75,3 @@ function do_register() {
   xhr.send('package='+encodeURIComponent(package)+'&ref='+ref+'&notes='+encodeURIComponent(notes));
 }
 </script>
-<div id="reg-form">
-  URL of package to register: <input type="text" size="50" id="package" />
-  <br />
-  Git reference (branch/tag/commit): <input type="text" size="20" id="ref" value="master" />
-  <br />
-
-  {{#:enable_release_notes}}
-  Release notes (optional):
-  <br />
-  <textarea cols="80" rows="10" id="notes"></textarea>
-  <br />
-  {{/:enable_release_notes}}
-
-  <button id="submitButton" onclick="do_register()">Submit</button>
-</div>
