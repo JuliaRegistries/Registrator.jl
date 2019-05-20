@@ -110,22 +110,61 @@ function gettreesha(::GitLabAPI, r::GitLab.Project, ref::AbstractString)
     end
 end
 
-#TODO: Check for existing pull request and update it
-# Make the PR to the registry.
+function ensure_already_exists(f::Function, resp::HTTP.Response, status::Int)
+    resp.status == status || return false
+    data = JSON.parse(String(copy(resp.body)))
+    any(e -> occursin("already exists", e), f(data))
+end
+
+"""
+    make_registration_request(
+        registry::Registry{F},
+        branch::AbstractString,
+        title::AbstractString,
+        body::AbstractString,
+    ) where F <: GitForge.Forge
+Try to create a pull request. If pull request already exists update the title and body.
+
+Parameters:
+- `registry`: The registry to create/update the pull request on
+- `branch`: The head of the pull request
+- `title`
+- `body`
+
+Returns:
+A GitForge.Result object
+"""
+make_registration_request
+
 function make_registration_request(
     r::Registry{GitLabAPI},
     branch::AbstractString,
     title::AbstractString,
     body::AbstractString,
 )
-    return create_pull_request(
-        r.forge, r.repo.id;
+    repoid = r.repo.id
+    base = r.repo.default_branch
+    result = create_pull_request(
+        r.forge, repoid;
         source_branch=branch,
-        target_branch=r.repo.default_branch,
+        target_branch=base,
         title=title,
         description=body,
         remove_source_branch=true,
     )
+    ex = GitForge.exception(result)
+    ex === nothing && return result
+    resp = GitForge.response(result)
+    if !ensure_already_exists(data -> get(data, "message", String[]), resp, 409)
+        @error "Exception making registration request" repoid=repoid base=base head=branch
+        return result
+    end
+
+    prs = get_pull_requests(r.forge, repoid; source_branch=branch, target_branch=base, state="opened")
+    val = GitForge.value(prs)
+    @assert length(val) == 1
+    prid = first(val).iid
+    return update_pull_request(r.forge, repoid, prid; title=title, body=body)
 end
 
 function make_registration_request(
@@ -134,13 +173,32 @@ function make_registration_request(
     title::AbstractString,
     body::AbstractString,
 )
-    return create_pull_request(
-        r.forge, r.repo.owner.login, r.repo.name;
+    owner = r.repo.owner.login
+    repo = r.repo.name
+    base = r.repo.default_branch
+    result = create_pull_request(
+        r.forge, owner, repo;
         head=branch,
-        base=r.repo.default_branch,
+        base=base,
         title=title,
         body=body,
     )
+    ex = GitForge.exception(result)
+    ex === nothing && return result
+    resp = GitForge.response(result)
+    exists = ensure_already_exists(resp, 422) do data
+        map(e -> get(e, "message", ""), get(data, "errors", []))
+    end
+    if !exists
+        @error "Exception making registration request" owner=owner repo=repo base=base head=branch
+        return result
+    end
+
+    prs = get_pull_requests(r.forge, owner, repo; head="$owner:$branch", base=base, state="open")
+    val = GitForge.value(prs)
+    @assert length(val) == 1
+    prid = first(val).number
+    return update_pull_request(r.forge, owner, repo, prid; title=title, body=body)
 end
 
 # Get the web URL of various Git things.
