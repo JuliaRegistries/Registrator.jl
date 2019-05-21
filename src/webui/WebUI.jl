@@ -12,6 +12,8 @@ using Pkg, Pkg.TOML
 using Sockets
 using TimeToLive
 using Logging
+using Mustache
+
 using ..Messaging
 
 const ROUTES = Dict(
