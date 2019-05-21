@@ -45,7 +45,8 @@ If you want to register as a private member you should host your own instance of
 
 ### Release notes
 
-If you have enabled TagBot for your repositories, then a set of automatically generated release notes based on merged pull requests and merges will be generated. These can later be edited via the GitHub releases interface.
+If you have enabled TagBot for your repositories, then a set of automatically generated release notes based on merged pull requests and closed issues will be generated.
+These can later be edited via the GitHub releases interface.
 
 Alternatively, you have the option to write release notes in the same place that you trigger Registrator.
 The notes will be copied into your GitHub release.
