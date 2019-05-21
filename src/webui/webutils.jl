@@ -21,11 +21,13 @@ const SELECT_TPL = readtpl("select.tpl")
 html(body::AbstractString) = html(200, body)
 function html(status::Int, body::AbstractString)
     registry = REGISTRY[].url
-    doc = render(INDEX_TPL,
-                 route_index=ROUTES[:INDEX],
-                 registry_url=registry,
-                 docs_url=DOCS,
-                 body=body,)
+    doc = render(
+              INDEX_TPL,
+              route_index=ROUTES[:INDEX],
+              registry_url=registry,
+              docs_url=DOCS,
+              body=body,
+          )
     return HTTP.Response(status, ["Content-Type" => "text/html"]; body=doc)
 end
 
