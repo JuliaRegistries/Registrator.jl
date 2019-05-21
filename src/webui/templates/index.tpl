@@ -23,7 +23,7 @@
   </head>
   <body>
     <h1><a href="{{{:route_index}}}">Registrator</a></h1>
-    <h4>Registry URL: <a href="{{{:registry_url}}}" target="_blank">{{{:registry_url}}}</a></h3>
+    <h4>Registry URL: <a href="{{{:registry_url}}}" target="_blank">{{{:registry_url}}}</a></h4>
     <h3>Click <a href="{{{:docs_url}}}" target="_blank">here</a> for usage instructions</h3>
     <br>
     {{{:body}}}
