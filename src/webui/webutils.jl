@@ -13,7 +13,7 @@ function getcookie(r::HTTP.Request, key::AbstractString, default="")
     return ind === nothing ? default : cookies[ind].value
 end
 
-readtpl(tpl) = Mustache.template_from_file(joinpath(dirname(@__FILE__), "templates", tpl))
+readtpl(tpl::AbstractString) = Mustache.template_from_file(joinpath(@__DIR__), "templates", tpl))
 const INDEX_TPL = readtpl("index.tpl")
 const SELECT_TPL = readtpl("select.tpl")
 
