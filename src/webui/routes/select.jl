@@ -1,6 +1,6 @@
 # Step 4: Select a package.
 function select(::HTTP.Request)
-    body = render(
+    body = render_from_file(
                SELECT_TPL,
                route_status=ROUTES[:STATUS],
                route_register=ROUTES[:REGISTER],

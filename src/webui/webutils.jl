@@ -13,15 +13,15 @@ function getcookie(r::HTTP.Request, key::AbstractString, default="")
     return ind === nothing ? default : cookies[ind].value
 end
 
-readtpl(tpl::AbstractString) = Mustache.template_from_file(joinpath(@__DIR__), "templates", tpl))
-const INDEX_TPL = readtpl("index.tpl")
-const SELECT_TPL = readtpl("select.tpl")
+tplpath(tpl::AbstractString) = joinpath(@__DIR__, "templates", tpl)
+const INDEX_TPL = tplpath("index.tpl")
+const SELECT_TPL = tplpath("select.tpl")
 
 # Return an HTML response.
 html(body::AbstractString) = html(200, body)
 function html(status::Int, body::AbstractString)
     registry = REGISTRY[].url
-    doc = render(
+    doc = render_from_file(
               INDEX_TPL,
               route_index=ROUTES[:INDEX],
               registry_url=registry,
