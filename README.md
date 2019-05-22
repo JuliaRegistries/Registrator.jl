@@ -45,14 +45,10 @@ If you want to register as a private member you should host your own instance of
 
 ### Release notes
 
-If you have enabled TagBot for your repositories, then you have the option to write your release notes in the same place that you trigger Registrator.
-The notes will be copied into your GitHub release.
-To do this, add a section labeled "Release notes:" to your Registrator trigger issue/comment.
-This must occur at the end of the trigger.
-The phrase "Patch notes:" is also supported.
+If you have enabled TagBot on your repositories, then you may write your release notes in the same place that you trigger Registrator, or allow them to be automatically generated from closed issues and merged pull requests instead.
+These can later be edited via the GitHub releases interface.
 
-Example:
-
+To write your release notes, add a section labeled "Release notes:" or "Patch notes:" to your Registrator trigger issue/comment, after the `@JuliaRegistrator` trigger. For example,
 ```
 @JuliaRegistrator register()
 
@@ -60,6 +56,8 @@ Release notes:
 
 Check out my new features!
 ```
+
+Note that if you have not enabled TagBot, no release will be made at all, and so any release notes you write will not be used.
 
 ### Note on git tags and GitHub releases
 
