@@ -27,7 +27,7 @@ function parse_comment(text::AbstractString)
     end
 
     # The first capture is the action.
-    action = captures[1]
+    action = string(captures[1])
 
     # The second capture is keyword arguments.
     kwargs = Dict{Symbol, String}()

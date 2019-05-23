@@ -23,7 +23,7 @@ struct RequestParams{T<:RequestTrigger}
         err = nothing
         report_error = false
 
-        text = strip(strip(phrase[1], ['`']))
+        text = strip(phrase[1], [' ', '`'])
         action_name, action_kwargs = parse_comment(text)
         if action_name === nothing
             return new{typeof(trigger_src)}(
