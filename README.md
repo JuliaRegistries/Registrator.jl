@@ -16,14 +16,14 @@ Registrator is a GitHub app that automates creation of registration pull request
 First, install the app on your package(s) as mentioned above.  The procedure for registering a new package is the same as for releasing a new version.
 
 1. Set the [Project.toml](Project.toml) version field in your repository to your new desired `version`.
-2. Comment `@JuliaRegistrator register()` on the commit/branch you want to register (e.g. like [here](https://github.com/JuliaRegistries/Registrator.jl/issues/61#issuecomment-483486641) or [here](https://github.com/chakravala/Grassmann.jl/commit/3c3a92610ebc8885619f561fe988b0d985852fce#commitcomment-33233149)).
+2. Comment `@JuliaRegistrator register` on the commit/branch you want to register (e.g. like [here](https://github.com/JuliaRegistries/Registrator.jl/issues/61#issuecomment-483486641) or [here](https://github.com/chakravala/Grassmann.jl/commit/3c3a92610ebc8885619f561fe988b0d985852fce#commitcomment-33233149)).
 3. If something is incorrect, adjust, and redo step 2.
 4. Finally, either rely on [TagBot](https://github.com/apps/julia-tagbot) to tag and make a github release or alternatively tag the release manually.
 
 Registrator will look for the project file in the master branch by default, and will use the version set in the Project.toml file via, for example, `version = "0.1.0"`. To use a custom branch comment with:
 
 ```
-@JuliaRegistrator register() branch=name-of-your-branch
+@JuliaRegistrator register branch=name-of-your-branch
 ```
 
 The old pseudo-Julia syntax is also still supported:
@@ -42,8 +42,8 @@ Check that your package conforms to the required `Project.toml` structure found 
 
 Either:
 
-1. Open an issue and add ` @JuliaRegistrator register()` as a comment.  You can re-trigger the registrator by commenting ` @JuliaRegistrator register()` again (in case registrator reports an error or to make changes).
-2. Add a comment to a commit and say ` @JuliaRegistrator register()`.
+1. Open an issue and add ` @JuliaRegistrator register` as a comment.  You can re-trigger the registrator by commenting ` @JuliaRegistrator register` again (in case registrator reports an error or to make changes).
+2. Add a comment to a commit and say ` @JuliaRegistrator register`.
 
 *Note*: Only *collaborators* on the package repository and *public members* on the organization the package is under are allowed to register. If you are not a collaborator, you can request a collaborator trigger registrator in a GitHub issue or a comment on a commit.
 
@@ -56,7 +56,7 @@ These can later be edited via the GitHub releases interface.
 
 To write your release notes, add a section labeled "Release notes:" or "Patch notes:" to your Registrator trigger issue/comment, after the `@JuliaRegistrator` trigger. For example,
 ```
-@JuliaRegistrator register()
+@JuliaRegistrator register
 
 Release notes:
 
