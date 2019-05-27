@@ -23,8 +23,17 @@ struct RequestParams{T<:RequestTrigger}
         err = nothing
         report_error = false
 
-        command = strip(phrase.captures[1], [' ', '`'])
-        action_name, action_args, action_kwargs = parse_comment(command)
+        text = strip(phrase[1], [' ', '`'])
+        action_name, action_kwargs = parse_comment(text)
+        if action_name === nothing
+            return new{typeof(trigger_src)}(
+                evt, phrase, reponame, notes, trigger_src,
+                commenter_can_register, nothing,
+                CommonParams(false, "Invalid trigger, ignoring", report_error),
+            )
+        end
+
+        branch = get(action_kwargs, :branch, "master")
         target = get(action_kwargs, :target, nothing)
 
         if evt.payload["repository"]["private"] && get(config, "disable_private_registrations", true)
@@ -49,9 +58,8 @@ struct RequestParams{T<:RequestTrigger}
                     trigger_src = CommitCommentTrigger()
                 else
                     @debug("Comment is on an issue")
-                    brn = get(action_kwargs, :branch, "master")
-                    @debug("Will use branch", brn)
-                    trigger_src = IssueTrigger(brn)
+                    @debug("Will use branch", branch)
+                    trigger_src = IssueTrigger(branch)
                 end
             else
                 err = register_rights_error(evt, user)

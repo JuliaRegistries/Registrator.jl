@@ -1,26 +1,47 @@
-const accept_regex = "([^\\r\\n]*)(\\n|\\r)*.*"
+"""
+    parse_comment(text::AbstractString) -> (String, Dict{Symbol, String})
 
-function parse_comment(fncall)
-    argind = findfirst(isequal('('), fncall)
-    name = fncall[1:(argind - 1)]
-    parsed_args = Meta.parse(replace(fncall[argind:end], ";" => ","))
-    args, kwargs = Vector{String}(), Dict{Symbol,String}()
-    if isa(parsed_args, Expr) && parsed_args.head == :tuple
-        started_kwargs = false
-        for x in parsed_args.args
-            if isa(x, Expr) && (x.head == :kw || x.head == :(=)) && isa(x.args[1], Symbol)
-                @assert !haskey(kwargs, x.args[1]) "kwargs must all be unique"
-                kwargs[x.args[1]] = string(x.args[2])
-                started_kwargs = true
-            else
-                @assert !started_kwargs "kwargs must come after other args"
-                push!(args, string(x))
-            end
-        end
-    elseif isa(parsed_args, Expr) && parsed_args.head == :(=) && isa(parsed_args.args[1], Symbol)
-        kwargs[parsed_args.args[1]] = string(parsed_args.args[2])
-    else
-        push!(args, string(parsed_args))
+Parse a trigger comment with keyword arguments, and return (`name`, `keywords`).
+Positional arguments are ignored.
+
+If the input is invalid `(nothing, nothing)` is returned.
+
+Valid input would look like this:
+
+```
+<action> key1=val1 key2=val2
+--- anything here and below ---
+```
+
+The old syntax `action(key1=val1)` is supported for backwards compatibility.
+"""
+function parse_comment(text::AbstractString)
+    # Handling leading ( is easy, but not capturing the closing one is a bit harder.
+    text = strip(rstrip(text, ')'))
+
+    captures = match(r"(\w+)\(?\s*(.*)", text)
+    if captures === nothing
+        @debug "Invalid trigger" text
+        return nothing, nothing
     end
-    return name, args, kwargs
+
+    # The first capture is the action.
+    action = string(captures[1])
+
+    # The second capture is keyword arguments.
+    kwargs = Dict{Symbol, String}()
+    foreach(eachmatch(r"([a-zA-Z_]\w*)\s*=\s*([^\s,]+)", captures[2])) do c
+        # If the value is a literal string, remove the quotes.
+        key = Symbol(c[1])
+        val = strip(c[2], [' ', '"'])
+        kwargs[key] = val
+    end
+
+    # Check that there are no duplicates or other oddities.
+    if length(kwargs) != count(isequal('='), captures[2])
+        @debug "Invalid trigger arguments" text args=captures[2]
+        return nothing, nothing
+    end
+
+    return action, kwargs
 end

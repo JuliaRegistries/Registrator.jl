@@ -206,7 +206,7 @@ end
 function github_webhook(http_ip=config["http_ip"],
                         http_port=get(config, "http_port", parse(Int, get(ENV, "PORT", "8001"))))
     auth = get_jwt_auth()
-    trigger = Regex("@$(config["trigger"]) $accept_regex")
+    trigger = Regex(config["trigger"] * "(.*)")
     listener = GitHub.CommentListener(comment_handler, trigger; check_collab=false, auth=auth, secret=config["github"]["secret"])
     httpsock[] = Sockets.listen(IPv4(http_ip), http_port)
 

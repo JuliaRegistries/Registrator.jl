@@ -5,8 +5,8 @@ http_ip = "0.0.0.0"
 log_level = "debug"
 backend_port = 5555             # Port of the backend regservice
 
-trigger = "JuliaRegistrator"    # The comment that should trigger Registrator. Typically
-                                # keep this the same as your GitHub user
+trigger = "@JuliaRegistrator"   # The comment that should trigger Registrator. Typically
+                                # keep this the same as your GitHub user mention.
 
 stop_file = "/tmp/stopcommentbot" # `touch` this file to stop the comment bot
 
