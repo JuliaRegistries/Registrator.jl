@@ -2,3 +2,7 @@
 /registries
 /packages
 *.secret.toml
+oldlogs/
+*.log
+nohup.out
+run/stop*
