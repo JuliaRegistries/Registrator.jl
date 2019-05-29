@@ -61,7 +61,8 @@
   function do_register() {
     var package = document.getElementById("package").value;
     var ref = document.getElementById("ref").value;
-    var notes = document.getElementById("notes").value;
+    var elNotes = document.getElementById("notes");
+    var notes = elNotes == null ? "" : elNotes.value;
     var button = document.getElementById("submitButton");
     button.disabled = true;
     button.innerHTML = "Please wait...";
