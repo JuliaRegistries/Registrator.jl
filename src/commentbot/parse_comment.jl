@@ -17,7 +17,7 @@ The old syntax `action(key1=val1)` is supported for backwards compatibility.
 """
 function parse_comment(text::AbstractString)
     # Handling leading ( is easy, but not capturing the closing one is a bit harder.
-    text = strip(rstrip(text, ')'))
+    text = replace(text, r"[\)\s]+$"m => "")
 
     captures = match(r"(\w+)\(?\s*(.*)", text)
     if captures === nothing

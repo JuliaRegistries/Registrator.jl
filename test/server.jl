@@ -1,4 +1,4 @@
-import Registrator.CommentBot: accept_regex, parse_comment
+import Registrator.CommentBot: parse_comment
 
 using Test
 
@@ -18,6 +18,8 @@ using Test
     @test parse_comment("register branch=foo target=bar") == ("register", Dict(:branch => "foo", :target => "bar"))
     @test parse_comment("register branch = foo target = bar") == ("register", Dict(:branch => "foo", :target => "bar"))
     @test parse_comment("register branch=foo, target=bar") == ("register", Dict(:branch => "foo", :target => "bar"))
+
+    @test parse_comment("register(branch=foo)\nfoobar\"") == ("register", Dict(:branch => "foo"))
 
     @test parse_comment("register branch=foo branch=bar") == (nothing, nothing)
 end
