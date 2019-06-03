@@ -3,6 +3,7 @@
 <head>
     <meta charset="utf-8">
     <title>Registrator</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
     <style>
     body {
@@ -13,7 +14,7 @@
         padding-top: 40px; 
     }
     .card {
-        width:350px;
+        margin: 0 auto;
         min-height:200px;
         box-shadow:0 5px 10px rgba(0,0,0,.2);
     }
@@ -84,12 +85,17 @@
     .txt-danger {
         color: #df6a78;
     }
+    @media screen and (min-width: 767px) {
+        .card {
+            width: 350px;
+        }
+    }
 </style>
 </head>
 <body>
     <div class="container">
         <div class="row">
-            <div class="col-md-4 offset-md-4">
+            <div class="col-md-12 col-sm-12 col-xs-12">
                 <h3 class="text-center text-uppercase">
                     <a class="cust-a" href="{{{:route_index}}}">Registrator</a>
                 </h3>
@@ -110,7 +116,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-12 mt-4">
+            <div class="col-md-12 col-sm-12 col-xs-12 mt-4">
                 {{{:body}}}
             </div>
         </div>
