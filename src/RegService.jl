@@ -39,15 +39,9 @@ function service(zsock::ReplySocket)
     nothing
 end
 
-function main()
-    if isempty(ARGS)
-        println("Usage: julia -e 'using Registrator; Registrator.RegService.main()' <configuration>")
-        return
-    end
-
-    merge!(config, Pkg.TOML.parsefile(ARGS[1])["regservice"])
+function main(config::AbstractString=isempty(ARGS) ? "config.toml" : first(ARGS))
+    merge!(config, Pkg.TOML.parsefile(config)["regservice"])
     global_logger(SimpleLogger(stdout, get_log_level(config["log_level"])))
-
     zsock = ReplySocket(get(config, "port", 5555))
 
     @info("Starting registration service...")

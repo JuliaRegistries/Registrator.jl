@@ -224,15 +224,9 @@ function request_processor(zsock::RequestSocket)
     recover("request_processor", keep_running, do_action, handle_exception)
 end
 
-function main()
-    if isempty(ARGS)
-        println("Usage: julia -e 'using Registrator; Registrator.CommentBot.main()' <configuration>")
-        return
-    end
-
-    merge!(config, Pkg.TOML.parsefile(ARGS[1])["commentbot"])
+function main(config::AbstractString=isempty(ARGS) ? "config.toml" : first(ARGS))
+    merge!(config, Pkg.TOML.parsefile(config)["commentbot"])
     global_logger(SimpleLogger(stdout, get_log_level(config["log_level"])))
-
     zsock = RequestSocket(get(config, "backend_port", 5555))
 
     @info("Starting server...")
