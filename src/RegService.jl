@@ -8,7 +8,7 @@ using Logging
 import ..RegEdit: register
 using ..Messaging
 
-const config = Dict{String,Any}()
+const CONFIG = Dict{String,Any}()
 
 include("management.jl")
 
@@ -29,8 +29,8 @@ function service(zsock::ReplySocket)
     while true
         ret = recvsend(zsock) do regp
             if isempty(regp.gitconfig)
-                haskey(config, "user") && (regp.gitconfig["user.name"] = config["user"])
-                haskey(config, "email") && (regp.gitconfig["user.email"] = config["email"])
+                haskey(CONFIG, "user") && (regp.gitconfig["user.name"] = CONFIG["user"])
+                haskey(CONFIG, "email") && (regp.gitconfig["user.email"] = CONFIG["email"])
             end
             register(regp)
         end
@@ -40,12 +40,12 @@ function service(zsock::ReplySocket)
 end
 
 function main(config::AbstractString=isempty(ARGS) ? "config.toml" : first(ARGS))
-    merge!(config, Pkg.TOML.parsefile(config)["regservice"])
-    global_logger(SimpleLogger(stdout, get_log_level(config["log_level"])))
-    zsock = ReplySocket(get(config, "port", 5555))
+    merge!(CONFIG, Pkg.TOML.parsefile(config)["regservice"])
+    global_logger(SimpleLogger(stdout, get_log_level(CONFIG["log_level"])))
+    zsock = ReplySocket(get(CONFIG, "port", 5555))
 
     @info("Starting registration service...")
-    t = @async status_monitor(config["stop_file"], zsock)
+    t = @async status_monitor(CONFIG["stop_file"], zsock)
     service(zsock)
     wait(t)
 

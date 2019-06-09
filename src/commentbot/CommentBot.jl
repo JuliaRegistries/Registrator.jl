@@ -27,7 +27,7 @@ include("approval.jl")
 include("../management.jl")
 
 const event_queue = Channel{RequestParams}(1024)
-const config = Dict{String,Any}()
+const CONFIG = Dict{String,Any}()
 const httpsock = Ref{Sockets.TCPServer}()
 
 function print_entry_log(rp::RequestParams{PullRequestTrigger})
@@ -64,7 +64,7 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
                           "trigger_id"=> trigger_id,
                           "tree_sha"=> pp.tree_sha,
                           "version"=> string(ver)))
-    key = config["enc_key"]
+    key = CONFIG["enc_key"]
     enc_meta = "<!-- " * bytes2hex(encrypt(MbedTLS.CIPHER_AES_128_CBC, key, meta, key)) * " -->"
     params = Dict("base"=>target_registry["base_branch"],
                   "head"=>brn,
@@ -117,9 +117,9 @@ string(::RequestParams{IssueTrigger}) = "issue"
 
 function action(rp::RequestParams{T}, zsock::RequestSocket) where T <: RegisterTrigger
     if rp.target === nothing
-        target_registry_name, target_registry = first(config["targets"])
+        target_registry_name, target_registry = first(CONFIG["targets"])
     else
-        filteredtargets = filter(x->(x[1]==rp.target), config["targets"])
+        filteredtargets = filter(x->(x[1]==rp.target), CONFIG["targets"])
         if length(filteredtargets) == 0
             msg = "Error: target $(rp.target) not found"
             @debug(msg)
@@ -139,7 +139,7 @@ function action(rp::RequestParams{T}, zsock::RequestSocket) where T <: RegisterT
                                   Pkg.Types.read_project(copy(IOBuffer(pp.projectfile_contents))),
                                   pp.tree_sha;
                                   registry=target_registry["repo"],
-                                  registry_deps=get(config, "registry_deps", String[]),
+                                  registry_deps=get(CONFIG, "registry_deps", String[]),
                                   push=true,
                                   )
             rbrn = sendrecv(zsock, regp; nretry=10)
@@ -203,11 +203,11 @@ function comment_handler(event::WebhookEvent, phrase::RegexMatch)
     return HTTP.Messages.Response(200)
 end
 
-function github_webhook(http_ip=config["http_ip"],
-                        http_port=get(config, "http_port", parse(Int, get(ENV, "PORT", "8001"))))
+function github_webhook(http_ip=CONFIG["http_ip"],
+                        http_port=get(CONFIG, "http_port", parse(Int, get(ENV, "PORT", "8001"))))
     auth = get_jwt_auth()
-    trigger = Regex(config["trigger"] * "(.*)")
-    listener = GitHub.CommentListener(comment_handler, trigger; check_collab=false, auth=auth, secret=config["github"]["secret"])
+    trigger = Regex(CONFIG["trigger"] * "(.*)")
+    listener = GitHub.CommentListener(comment_handler, trigger; check_collab=false, auth=auth, secret=CONFIG["github"]["secret"])
     httpsock[] = Sockets.listen(IPv4(http_ip), http_port)
 
     do_action() = GitHub.run(listener, httpsock[], IPv4(http_ip), http_port)
@@ -225,13 +225,13 @@ function request_processor(zsock::RequestSocket)
 end
 
 function main(config::AbstractString=isempty(ARGS) ? "config.toml" : first(ARGS))
-    merge!(config, Pkg.TOML.parsefile(config)["commentbot"])
+    merge!(CONFIG, Pkg.TOML.parsefile(config)["commentbot"])
     global_logger(SimpleLogger(stdout, get_log_level(config["log_level"])))
-    zsock = RequestSocket(get(config, "backend_port", 5555))
+    zsock = RequestSocket(get(CONFIG, "backend_port", 5555))
 
     @info("Starting server...")
     t1 = @async request_processor(zsock)
-    t2 = @async status_monitor(config["stop_file"], event_queue, httpsock)
+    t2 = @async status_monitor(CONFIG["stop_file"], event_queue, httpsock)
     github_webhook()
     wait(t1)
     wait(t2)
