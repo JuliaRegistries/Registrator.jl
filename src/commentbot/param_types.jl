@@ -36,7 +36,7 @@ struct RequestParams{T<:RequestTrigger}
         branch = get(action_kwargs, :branch, "master")
         target = get(action_kwargs, :target, nothing)
 
-        if evt.payload["repository"]["private"] && get(config, "disable_private_registrations", true)
+        if evt.payload["repository"]["private"] && get(CONFIG, "disable_private_registrations", true)
             err = "Private package registration request received, ignoring"
             @debug(err)
         elseif action_name == "register"
@@ -46,7 +46,7 @@ struct RequestParams{T<:RequestTrigger}
                 notes_match = match(r"(?:patch|release) notes:(.*)"si, get_body(evt.payload))
                 notes = notes_match === nothing ? "" : strip(notes_match[1])
                 if is_pull_request(evt.payload)
-                    if config["disable_pull_request_trigger"]
+                    if CONFIG["disable_pull_request_trigger"]
                         make_comment(evt, "Pull request comments will not trigger Registrator as it is disabled. Please trying using a commit or issue comment.")
                     else
                         @debug("Comment is on a pull request")
@@ -68,10 +68,10 @@ struct RequestParams{T<:RequestTrigger}
             end
             @debug("Comment is on a pull request")
         elseif action_name == "approved"
-            if config["disable_approval_process"]
+            if CONFIG["disable_approval_process"]
                 make_comment(evt, "The `approved()` command is disabled.")
             else
-                registry_repos = [join(split(r["repo"], "/")[end-1:end], "/") for (n, r) in config["targets"]]
+                registry_repos = [join(split(r["repo"], "/")[end-1:end], "/") for (n, r) in CONFIG["targets"]]
                 if reponame in registry_repos
                     @debug("Recieved approval comment")
                     commenter_can_register = has_register_rights(evt)

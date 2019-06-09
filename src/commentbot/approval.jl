@@ -1,6 +1,6 @@
 function tag_package(rname, ver::VersionNumber, mcs, auth)
-    tagger = Dict("name" => config["github"]["user"],
-                  "email" => config["github"]["email"],
+    tagger = Dict("name" => CONFIG["github"]["user"],
+                  "email" => CONFIG["github"]["email"],
                   "date" => Dates.format(now(), dateformat"YYYY-mm-ddTHH:MM:SSZ"))
     create_tag(rname; auth=auth,
                params=Dict("tag" => "v$ver",
@@ -19,7 +19,7 @@ function get_metadata_from_pr_body(rp::RequestParams, auth)
     mstart = match(r"<!--", pr.body)
     mend = match(r"-->", pr.body)
 
-    key = config["enc_key"]
+    key = CONFIG["enc_key"]
     try
         enc_meta = strip(pr.body[mstart.offset+4:mend.offset-1])
         meta = String(decrypt(MbedTLS.CIPHER_AES_128_CBC, key, hex2bytes(enc_meta), key))

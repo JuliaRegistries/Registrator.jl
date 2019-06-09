@@ -8,8 +8,8 @@ function register_rights_error(evt, user)
 end
 
 get_access_token(event) = create_access_token(Installation(event.payload["installation"]), get_jwt_auth())
-get_user_auth() = GitHub.authenticate(config["github"]["token"])
-get_jwt_auth() = GitHub.JWTAuth(config["github"]["app_id"], config["github"]["priv_pem"])
+get_user_auth() = GitHub.authenticate(CONFIG["github"]["token"])
+get_jwt_auth() = GitHub.JWTAuth(CONFIG["github"]["app_id"], CONFIG["github"]["priv_pem"])
 
 function get_sha_from_branch(reponame, brn; auth = GitHub.AnonymousAuth())
     try
@@ -40,7 +40,7 @@ function is_comment_by_org_owner_or_member(event)
     @debug("Checking if comment is by repository parent organization owner or member")
     org = event.repository.owner.login
     user = get_user_login(event.payload)
-    if get(config, "check_private_membership", false)
+    if get(CONFIG, "check_private_membership", false)
         return GitHub.check_membership(org, user; auth=get_user_auth())
     else
         return GitHub.check_membership(org, user; public_only=true)
@@ -66,9 +66,9 @@ get_comment_commit_id(event) = event.payload["comment"]["commit_id"]
 get_clone_url(event) = event.payload["repository"]["clone_url"]
 
 function make_comment(evt::WebhookEvent, body::AbstractString)
-    config["reply_comment"] || return
+    CONFIG["reply_comment"] || return
     @debug("Posting comment to PR/issue")
-    headers = Dict("private_token" => config["github"]["token"])
+    headers = Dict("private_token" => CONFIG["github"]["token"])
     params = Dict("body" => body)
     repo = evt.repository
     auth = get_user_auth()
@@ -124,14 +124,14 @@ function raise_issue(event::WebhookEvent, phrase::Regex, bt::String)
         ```
         """
 
-    slack_config = get(config, "slack", nothing)
+    slack_config = get(CONFIG, "slack", nothing)
     if (slack_config !== nothing) && get(slack_config, "alert", false)
         post_on_slack_channel(body, slack_config["token"], slack_config["channel"])
     end
 
-    if config["report_issue"]
+    if CONFIG["report_issue"]
         params = Dict("title"=>title, "body"=>body)
-        regrepo = config["issue_repo"]
+        regrepo = CONFIG["issue_repo"]
         iss = create_issue(regrepo; params=params, auth=get_user_auth())
         msg = "Unexpected error occured during registration, see issue: [$(regrepo)#$(iss.number)]($(iss.html_url))"
         @debug(msg)
@@ -144,14 +144,14 @@ function raise_issue(event::WebhookEvent, phrase::Regex, bt::String)
 end
 
 function set_status(rp, state, desc)
-     config["set_status"] || return
+     CONFIG["set_status"] || return
      repo = rp.reponame
      kind = rp.evt.kind
      payload = rp.evt.payload
      if kind == "pull_request"
          commit = payload["pull_request"]["head"]["sha"]
          params = Dict("state" => state,
-                       "context" => config["github"]["user"],
+                       "context" => CONFIG["github"]["user"],
                        "description" => desc)
          GitHub.create_status(repo, commit;
                               auth=get_access_token(rp.evt),
