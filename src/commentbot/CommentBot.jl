@@ -226,7 +226,7 @@ end
 
 function main(config::AbstractString=isempty(ARGS) ? "config.toml" : first(ARGS))
     merge!(CONFIG, Pkg.TOML.parsefile(config)["commentbot"])
-    global_logger(SimpleLogger(stdout, get_log_level(config["log_level"])))
+    global_logger(SimpleLogger(stdout, get_log_level(CONFIG["log_level"])))
     zsock = RequestSocket(get(CONFIG, "backend_port", 5555))
 
     @info("Starting server...")
