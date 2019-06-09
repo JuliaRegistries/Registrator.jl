@@ -331,25 +331,29 @@ function update_compat_file(pkg::Pkg.Types.Project,
                             regbr::RegBranch,
                             regdata::Vector{RegistryData},
                             regpaths::Vector{String})
+    err = nothing
     for (p, v) in pkg.compat
         try
             ver = Pkg.Types.semver_spec(v)
             if p == "julia" && any(map(x->!isempty(intersect(Pkg.Types.VersionRange("0-0.6"),x)), ver.ranges))
                 err = "Julia version < 0.7 not allowed in `[compat]`"
                 @debug(err)
-                regbr.metadata["error"] = err
-                return regbr
+                break
             end
         catch ex
-            if isa(ex, ArgumentError)
+            if isdefined(ex, :msg)
                 err = "Error in `[compat]`: $(ex.msg)"
                 @debug(err)
-                regbr.metadata["error"] = err
-                return regbr
+                break
             else
                 rethrow(ex)
             end
         end
+    end
+
+    if err !== nothing
+        regbr.metadata["error"] = err
+        return regbr
     end
 
     @debug("update package data: compat file")
@@ -361,6 +365,7 @@ function update_compat_file(pkg::Pkg.Types.Project,
     end
 
     d = Dict()
+    err = nothing
     for (n,v) in pkg.compat
         spec = Pkg.Types.semver_spec(v)
         if n == "julia"
@@ -376,15 +381,13 @@ function update_compat_file(pkg::Pkg.Types.Project,
             else
                 err = "Package $n mentioned in `[compat]` but not found in `[deps]` or `[extras]`"
                 @debug(err)
-                regbr.metadata["error"] = err
-                return regbr
+                break
             end
 
             err = findpackageerror(n, uuidofdep, regdata)
             if err !== nothing
                 @debug(err)
-                regbr.metadata["error"] = err
-                return regbr
+                break
             end
 
             if inextras && !indeps
@@ -408,6 +411,12 @@ function update_compat_file(pkg::Pkg.Types.Project,
         ranges = VersionSpec(ranges).ranges # this combines joinable ranges
         d[n] = length(ranges) == 1 ? string(ranges[1]) : map(string, ranges)
     end
+
+    if err !== nothing
+        regbr.metadata["error"] = err
+        return regbr
+    end
+
     compat_data[pkg.version] = d
 
     save(compat_file, compat_data)
@@ -453,7 +462,7 @@ errors or warnings that occurred.
 function register(
     package_repo::AbstractString, pkg::Pkg.Types.Project, tree_hash::AbstractString;
     registry::AbstractString = DEFAULT_REGISTRY_URL,
-    registry_deps::Vector{<:AbstractString} = [],
+    registry_deps::Vector{<:AbstractString} = AbstractString[],
     push::Bool = false,
     gitconfig::Dict = Dict()
 )
