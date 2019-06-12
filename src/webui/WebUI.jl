@@ -108,7 +108,7 @@ function init_registry()
     repo = @gf get_repo(forge, owner, name)
     repo === nothing && error("Registry lookup failed")
     clone = get(CONFIG, "registry_clone_url", url)
-    deps = get(CONFIG, "registry_deps", String[])
+    deps = map(String, get(CONFIG, "registry_deps", String[]))
     enable_release_notes = !get(CONFIG, "disable_release_notes", false)
     REGISTRY[] = Registry(forge, repo, url, clone, deps, enable_release_notes)
 end

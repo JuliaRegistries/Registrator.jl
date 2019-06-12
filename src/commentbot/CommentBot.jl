@@ -135,11 +135,12 @@ function action(rp::RequestParams{T}, zsock::RequestSocket) where T <: RegisterT
     @info("Processing register event", reponame=rp.reponame, target_registry_name)
     try
         if pp.cparams.isvalid && pp.cparams.error === nothing
+            registry_deps=map(String, get(CONFIG, "registry_deps", String[])),
             regp = RegisterParams(pp.cloneurl,
                                   Pkg.Types.read_project(copy(IOBuffer(pp.projectfile_contents))),
                                   pp.tree_sha;
                                   registry=target_registry["repo"],
-                                  registry_deps=get(CONFIG, "registry_deps", String[]),
+                                  registry_deps=registry_deps,
                                   push=true,
                                   )
             rbrn = sendrecv(zsock, regp; nretry=10)
