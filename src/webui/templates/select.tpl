@@ -1,27 +1,25 @@
 <div id="reg-form">
-  <form>
-    <div class="form-group row">
-      <label class="col-sm-4 col-form-label">URL of package to register:</label>
-      <div class="col-sm-8">
-        <input type="text" size="50" id="package" class="form-control">
-      </div>
+  <div class="form-group row">
+    <label class="col-sm-4 col-form-label">URL of package to register:</label>
+    <div class="col-sm-8">
+      <input type="text" size="50" id="package" class="form-control">
     </div>
-    <div class="form-group row">
-      <label class="col-sm-4 col-form-label">Git reference (branch/tag/commit):</label>
-      <div class="col-sm-8">
-        <input type="text" size="20" id="ref" value="master" class="form-control">
-      </div>
+  </div>
+  <div class="form-group row">
+    <label class="col-sm-4 col-form-label">Git reference (branch/tag/commit):</label>
+    <div class="col-sm-8">
+      <input type="text" size="20" id="ref" value="master" class="form-control">
     </div>
-    {{#:enable_release_notes}}
-    <div class="form-group row">
-      <label class="col-sm-4 col-form-label">Release notes (optional):</label>
-      <div class="col-sm-8">
-        <textarea cols="80" rows="7" id="notes" class="form-control"></textarea>
-      </div>
+  </div>
+  {{#:enable_release_notes}}
+  <div class="form-group row">
+    <label class="col-sm-4 col-form-label">Release notes (optional):</label>
+    <div class="col-sm-8">
+      <textarea cols="80" rows="7" id="notes" class="form-control"></textarea>
     </div>
-    {{/:enable_release_notes}}
-    <button class="btn btn-fresh btn-sm" id="submitButton" onclick="do_register()">Submit</button>
-  </form>
+  </div>
+  {{/:enable_release_notes}}
+  <button class="btn btn-fresh btn-sm" id="submitButton" onclick="do_register()">Submit</button>
 </div>
 <script>
   function poll_status(id) {
