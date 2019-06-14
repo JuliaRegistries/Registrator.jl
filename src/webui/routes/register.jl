@@ -1,5 +1,4 @@
 # Step 5: Register the package (maybe).
-# TODO: Use a register queue and call RegService
 function register(r::HTTP.Request)
     r.method == "POST" || return json(405; error="Method not allowed")
 
