@@ -12,7 +12,7 @@ function status(r::HTTP.Request)
     haskey(REGISTRATIONS, id) || return json(404; state="unknown")
 
     # 10 second arbitrary timeout.
-    for i in 1:10
+    for _ in 1:10
         regstate = REGISTRATIONS[id]
         if regstate.state !== :pending
             delete!(REGISTRATIONS, id)
