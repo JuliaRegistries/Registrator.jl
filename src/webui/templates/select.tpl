@@ -42,7 +42,7 @@
         } else if (st == "pending") {
           console.log("Registration pending");
           text = data["message"];
-          setTimeout(function () {poll_status(id);}, 5000);
+          poll_status(id);
         } else {
           console.log("Registration unknown state");
           text = "Unknown state returned";
@@ -50,7 +50,7 @@
       } else {
         text = "ERROR: " + data["error"];
       }
-      div.innerHTML = "<div class='text-center'><h4 class='txt-danger'>" + text + "</h4></div>";
+      div.innerHTML = "<div class='text-center'><h4>" + text + "</h4></div>";
     };
     xhr.send();
   }
