@@ -25,32 +25,27 @@
   function poll_status(id) {
     var xhr = new XMLHttpRequest();
     xhr.open('GET', '{{{:route_status}}}?id='+encodeURIComponent(id));
-    xhr.setRequestHeader('Content-Type', 'text/json');
     xhr.onload = function() {
       data = JSON.parse(xhr.responseText);
       div = document.getElementById("reg-form");
 
       var text = ""
       if (xhr.status === 200) {
-        st = data["state"];
+        st = data.state;
         if (st == "success") {
-          console.log("Registration is done");
-          text = data["message"];
+          text = data.message;
         } else if (st == "errored") {
-          console.log("Registration errored");
-          text = "ERROR: " + data["message"];
+          text = "ERROR: " + data.message;
         } else if (st == "pending") {
-          console.log("Registration pending");
-          text = data["message"];
-          setTimeout(function () {poll_status(id);}, 5000);
+          text = data.message;
+          poll_status(id);
         } else {
-          console.log("Registration unknown state");
           text = "Unknown state returned";
         }
       } else {
-        text = "ERROR: " + data["error"];
+        text = "ERROR: " + data.error;
       }
-      div.innerHTML = "<div class='text-center'><h4 class='txt-danger'>" + text + "</h4></div>";
+      div.innerHTML = "<div class='text-center'><h4>" + text + "</h4></div>";
     };
     xhr.send();
   }
@@ -73,12 +68,10 @@
       div = document.getElementById("reg-form");
 
       if (xhr.status === 200) {
-        console.log("Success sending registration request. Polling for status");
-        div.innerHTML = "<div class='text-center'><h4>" + data["message"] + "</h4></div>";
-        poll_status(data["id"]);
+        div.innerHTML = "<div class='text-center'><h4>" + data.message + "</h4></div>";
+        poll_status(data.id);
       } else {
-        console.log("Error occured while making registration request");
-        div.innerHTML = "<div class='text-center'><h4 class='txt-danger'>ERROR: " + data["error"] + "</h4></div>";
+        div.innerHTML = "<div class='text-center'><h4 class='txt-danger'>ERROR: " + data.error + "</h4></div>";
       }
     };
     xhr.send('package='+encodeURIComponent(package)+'&ref='+ref+'&notes='+encodeURIComponent(notes));

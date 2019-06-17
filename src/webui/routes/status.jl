@@ -10,7 +10,16 @@ function status(r::HTTP.Request)
 
     id = getquery(r, "id")
     haskey(REGISTRATIONS, id) || return json(404; state="unknown")
-    regstate = REGISTRATIONS[id]
-    regstate.state === :pending || delete!(REGISTRATIONS, id)
-    return json(; state=regstate.state, message=regstate.msg)
+
+    # 10 second arbitrary timeout.
+    for _ in 1:10
+        regstate = REGISTRATIONS[id]
+        if regstate.state !== :pending
+            delete!(REGISTRATIONS, id)
+            return json(; state=regstate.state, message=regstate.msg)
+        end
+        sleep(1)
+    end
+
+    return json(; state="pending", message="Registration in progress...")
 end
