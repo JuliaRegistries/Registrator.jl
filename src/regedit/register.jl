@@ -424,14 +424,18 @@ function update_compat_file(pkg::Pkg.Types.Project,
 end
 
 function get_registrator_tree_sha()
+    regtreesha = nothing
     reg_pkgs = Pkg.Display.status(Pkg.Types.Context(),
                    [Pkg.PackageSpec("Registrator", Base.UUID("4418983a-e44d-11e8-3aec-9789530b3b3e"))])
-    if length(reg_pkgs) == 0
-        regtreesha = "unknown"
-    else
+    if !isempty(reg_pkgs)
         regtreesha = reg_pkgs[1].new.hash
-        if regtreesha === nothing    # Registrator is dev'd
-            regtreesha = LibGit2.head(abspath(joinpath(pathof(Main.Registrator), "..", "..")))
+    end
+    if regtreesha === nothing
+        regpath = abspath(joinpath(pathof(Main.Registrator), "..", ".."))
+        if isdir(joinpath(regpath, ".git"))
+            regtreesha = LibGit2.head(regpath)
+        else
+            regtreesha = "unknown"
         end
     end
 
