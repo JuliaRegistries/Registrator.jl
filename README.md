@@ -13,6 +13,19 @@ Registrator is a GitHub app that automates creation of registration pull request
 
 ## How to Use
 
+There are two ways to use Registrator: a web interface and a GitHub app.
+
+### Via the Web Interface
+
+This workflow supports repositories hosted on either GitHub or GitLab.
+
+Go to https://pkg.julialang.org/registrator/ and follow the instructions.
+There are also more detailed instructions [here](README.web.md#usage-for-package-maintainers).
+
+### Via the GitHub App
+
+Unsurprisingly, this method only works for packages whose repositories are hosted on GitHub.
+
 First, install the app on your package(s) as mentioned above.  The procedure for registering a new package is the same as for releasing a new version.
 
 1. Set the [Project.toml](Project.toml) version field in your repository to your new desired `version`.
