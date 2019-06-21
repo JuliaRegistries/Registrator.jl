@@ -101,7 +101,8 @@ function gettreesha(::GitLabAPI, r::GitLab.Project, ref::AbstractString)
         mktempdir() do dir
             dest = joinpath(dir, r.name)
             run(`git clone $url $dest`)
-            match(r"tree (.*)", readchomp(`git -C $dest show $ref --format=raw`))[1]
+            run(`git -C $dest checkout $ref`)
+            match(r"tree (.*)", readchomp(`git -C $dest show --format=raw`))[1]
         end
     catch ex
         println(get_backtrace(ex))
