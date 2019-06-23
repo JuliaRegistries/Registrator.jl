@@ -29,7 +29,9 @@ function register(r::HTTP.Request)
     toml === nothing && return json(400; error="Project.toml was not found")
     project = try
         Pkg.Types.read_project(IOBuffer(toml))
-    catch
+    catch e
+        @error "Reading project from Project.toml failed"
+        println(get_backtrace(e))
         return json(400; error="Project.toml is invalid")
     end
     for k in [:name, :uuid, :version]
