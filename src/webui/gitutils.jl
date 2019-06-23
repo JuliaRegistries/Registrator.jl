@@ -1,3 +1,5 @@
+using ..Registrator: decodeb64
+
 # # Run some GitForge function, warning on error but still returning the value.
 macro gf(ex::Expr)
     quote
@@ -53,9 +55,6 @@ function isauthorized(u::User{GitLab.User}, repo::GitLab.Project)
     end
     return something(hasauth, false)
 end
-
-# Remove all of a base64 string's whitespace before decoding it.
-decodeb64(s::AbstractString) = String(base64decode(replace(s, r"\s" => "")))
 
 # Get the raw Project.toml text from a repository.
 function gettoml(f::GitHubAPI, repo::GitHub.Repo, ref::AbstractString)

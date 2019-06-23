@@ -2,7 +2,6 @@ module WebUI
 
 using ..Registrator: RegEdit, pull_request_contents
 
-using Base64
 using Dates
 using GitForge, GitForge.GitHub, GitForge.GitLab
 using HTTP

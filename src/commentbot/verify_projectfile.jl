@@ -1,3 +1,5 @@
+using ..Registrator: decodeb64
+
 function is_pfile_parseable(c::AbstractString)
     @debug("Checking whether Project.toml is non-empty and parseable")
     if length(c) != 0
@@ -76,7 +78,7 @@ function verify_projectfile_from_sha(reponame, sha; auth=GitHub.AnonymousAuth())
             b = blob(reponame, Blob(tr["sha"]); auth=a)
 
             @debug("Decoding base64 projectfile contents")
-            projectfile_contents = join([String(copy(base64decode(k))) for k in split(b.content)])
+            projectfile_contents = decodeb64(b.content)
 
             @debug("Checking project file validity")
             projectfile_valid, err = is_pfile_valid(projectfile_contents)

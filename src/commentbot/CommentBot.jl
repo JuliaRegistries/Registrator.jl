@@ -4,7 +4,6 @@ using Sockets
 using GitHub
 using HTTP
 using Distributed
-using Base64
 using Pkg
 using Logging
 using Dates
