@@ -36,6 +36,10 @@ function is_pfile_nuv(c)
             err = "Pre-release version not allowed"
             @debug(err)
             return false, err
+        elseif p.version == v"0"
+            err = "Package version must be greater than 0.0.0"
+            @debug(err)
+            return false, err
         end
     catch ex
         err = "Error reading Project.toml: $(ex.msg)"

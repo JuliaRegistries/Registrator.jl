@@ -73,6 +73,11 @@ end
 # warning in regbr.metadata["warning"]
 # version labels for the PR in in regbr.metadata["labels"]
 function check_version!(regbr::RegBranch, existing::Vector{VersionNumber}, ver::VersionNumber)
+    if ver == v"0"
+        regbr.metadata["error"] = "Package version must be greater than 0.0.0"
+        return regbr
+    end
+
     @assert issorted(existing)
     if isempty(existing)
         push!(get!(regbr.metadata, "labels", String[]), "new package")
