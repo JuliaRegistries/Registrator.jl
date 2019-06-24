@@ -1,3 +1,5 @@
+using ..Registrator: decodeb64
+
 # # Run some GitForge function, warning on error but still returning the value.
 macro gf(ex::Expr)
     quote
@@ -57,13 +59,13 @@ end
 # Get the raw Project.toml text from a repository.
 function gettoml(f::GitHubAPI, repo::GitHub.Repo, ref::AbstractString)
     fc = @gf get_file_contents(f, repo.owner.login, repo.name, "Project.toml"; ref=ref)
-    return fc === nothing ? nothing : String(base64decode(strip(fc.content)))
+    return fc === nothing ? nothing : decodeb64(fc.content)
 end
 
 function gettoml(::GitLabAPI, repo::GitLab.Project, ref::AbstractString)
     forge = PROVIDERS["gitlab"].client
     fc = @gf get_file_contents(forge, repo.id, "Project.toml"; ref=ref)
-    return fc === nothing ? nothing : String(base64decode(fc.content))
+    return fc === nothing ? nothing : decodeb64(fc.content)
 end
 
 function getcommithash(f::GitHubAPI, repo::GitHub.Repo, ref::AbstractString)
