@@ -138,7 +138,7 @@ function action(rp::RequestParams{T}, zsock::RequestSocket) where T <: RegisterT
             regp = RegisterParams(pp.cloneurl,
                                   pp.project,
                                   pp.tree_sha;
-                                  registry=target_registry["repo"],
+                                  registry=get(ENV, "DEFAULT_REGISTRY_URL", get(target_registry, "repo")),
                                   registry_deps=registry_deps,
                                   push=true,
                                   )
