@@ -129,6 +129,12 @@ function action(rp::RequestParams{T}, zsock::RequestSocket) where T <: RegisterT
             target_registry_name, target_registry = filteredtargets[1]
         end
     end
+    
+    # Here we will check if the target registry has a repo argument, and if not,
+    # assign it a default one, obtained from ENV.
+    if !haskey(target_registry, "repo") && haskey(ENV, "DEFAULT_REGISTRY_URL")
+        target_registry["repo"] = ENV["DEFAULT_REGISTRY_URL"]
+    end
 
     pp = ProcessedParams(rp)
     @info("Processing register event", reponame=rp.reponame, target_registry_name)
@@ -138,7 +144,7 @@ function action(rp::RequestParams{T}, zsock::RequestSocket) where T <: RegisterT
             regp = RegisterParams(pp.cloneurl,
                                   pp.project,
                                   pp.tree_sha;
-                                  registry=get(ENV, "DEFAULT_REGISTRY_URL", get(target_registry, "repo")),
+                                  registry=target_registry["repo"],
                                   registry_deps=registry_deps,
                                   push=true,
                                   )
