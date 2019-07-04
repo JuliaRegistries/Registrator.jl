@@ -29,16 +29,10 @@ const TEST_SIGNATURE = LibGit2.Signature(
 
     @testset "registration_branch" begin
         example = Project(Dict(
-            "name" => "Example", "version" => "1.10.2"
+            "name" => "Example", "version" => "1.10.2",
+            "uuid" => "698ec630-83b2-4a6d-81d4-a10176273030"
         ))
-
-        @test registration_branch(example) == "register/Example/v1.10.2"
-
-        example = Project(Dict(
-            "name" => "Example", "version" => nothing
-        ))
-
-        @test_throws ArgumentError registration_branch(example)
+        @test registration_branch(example) == "registrator/example/698ec630/v1.10.2"
     end
 end
 
