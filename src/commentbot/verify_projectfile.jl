@@ -22,12 +22,9 @@ function is_pfile_parseable(c::AbstractString)
     end
 end
 
-function is_pfile_nuv(c)
+function pfile_hasfields(p::Pkg.Types.Project)
     @debug("Checking whether Project.toml contains name, uuid and version")
-    ib = IOBuffer(c)
-
     try
-        p = Pkg.Types.read_project(copy(ib))
         if p.name === nothing || p.uuid === nothing || p.version === nothing
             err = "Project file should contain name, uuid and version"
             @debug(err)
@@ -50,16 +47,8 @@ function is_pfile_nuv(c)
     return true, nothing
 end
 
-function is_pfile_valid(c::AbstractString)
-    for f in [is_pfile_parseable, is_pfile_nuv]
-        v, err = f(c)
-        v || return v, err
-    end
-    return true, nothing
-end
-
 function verify_projectfile_from_sha(reponame, sha; auth=GitHub.AnonymousAuth())
-    projectfile_contents = nothing
+    project = nothing
     projectfile_found = false
     projectfile_valid = false
     err = nothing
@@ -85,10 +74,15 @@ function verify_projectfile_from_sha(reponame, sha; auth=GitHub.AnonymousAuth())
             projectfile_contents = decodeb64(b.content)
 
             @debug("Checking project file validity")
-            projectfile_valid, err = is_pfile_valid(projectfile_contents)
+            projectfile_valid, err = is_pfile_parseable(projectfile_contents)
+
+            if projectfile_valid
+                project = Pkg.Types.read_project(copy(IOBuffer(projectfile_contents)))
+                projectfile_valid, err = pfile_hasfields(project)
+            end
             break
         end
     end
 
-    return projectfile_contents, t.sha, projectfile_found, projectfile_valid, err
+    return project, t.sha, projectfile_found, projectfile_valid, err
 end
