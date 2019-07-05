@@ -171,8 +171,12 @@ struct ProcessedParams
         if err === nothing
             # Look for tag in last 15 tags
             tag_exists = false
-            ts = tags(rp.reponame; auth=auth, page_limit=1,
-                      params=Dict("per_page" => 15))[1]
+            ts = try
+                tags(rp.reponame; auth=auth, page_limit=1,
+                     params=Dict("per_page" => 15))[1]
+            catch ex
+                []
+            end
             ver = project.version
             for t in ts
                 if split(t.url.path, "/")[end] == "v$ver"
