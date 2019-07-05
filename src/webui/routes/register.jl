@@ -42,7 +42,6 @@ function register(r::HTTP.Request)
     commit === nothing && return json(500, error="Looking up the commit hash failed")
 
     # Register the package,
-    project = Pkg.Types.read_project(IOBuffer(toml))
     tree = gettreesha(u.forge, repo, ref)
     tree === nothing && return json(500, error="Looking up the tree hash failed")
     regdata = RegistrationData(project, tree, repo, u.user, ref, commit, notes)
