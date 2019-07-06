@@ -128,7 +128,7 @@ function get_cloneurl_and_sha(rp::RequestParams{IssueTrigger}, auth)
 end
 
 struct ProcessedParams
-    projectfile_contents::Union{Nothing, String}
+    project::Union{Nothing, Pkg.Types.Project}
     projectfile_found::Bool
     projectfile_valid::Bool
     sha::Union{Nothing, String}
@@ -142,7 +142,7 @@ struct ProcessedParams
             return ProcessedParams(nothing, nothing, copy(rp.cparams))
         end
 
-        projectfile_contents = nothing
+        project = nothing
         projectfile_found = false
         projectfile_valid = false
         sha = nothing
@@ -161,17 +161,37 @@ struct ProcessedParams
         cloneurl, sha, err = get_cloneurl_and_sha(rp, auth)
 
         if err === nothing && sha !== nothing
-            projectfile_contents, tree_sha, projectfile_found, projectfile_valid, err = verify_projectfile_from_sha(rp.reponame, sha; auth = auth)
+            project, tree_sha, projectfile_found, projectfile_valid, err = verify_projectfile_from_sha(rp.reponame, sha; auth = auth)
             if !projectfile_found
                 err = "File Project.toml not found"
                 @debug(err)
             end
         end
 
-        isvalid = rp.commenter_can_register && projectfile_found && projectfile_valid
+        if err === nothing
+            # Look for tag in last 15 tags
+            tag_exists = false
+            ts = try
+                tags(rp.reponame; auth=auth, page_limit=1,
+                     params=Dict("per_page" => 15))[1]
+            catch ex
+                []
+            end
+            ver = project.version
+            for t in ts
+                if split(t.url.path, "/")[end] == "v$ver"
+                    tag_exists = true
+                    err = "Tag already exists on project repository"
+                    @debug(err, rp.reponame, ver)
+                    break
+                end
+            end
+        end
+
+        isvalid = rp.commenter_can_register && projectfile_found && projectfile_valid && !tag_exists
         @debug("Event validity: $(isvalid)")
 
-        new(projectfile_contents, projectfile_found, projectfile_valid, sha, tree_sha, cloneurl,
+        new(project, projectfile_found, projectfile_valid, sha, tree_sha, cloneurl,
             CommonParams(isvalid, err, report_error))
     end
 end
