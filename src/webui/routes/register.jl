@@ -24,18 +24,18 @@ function register(r::HTTP.Request)
     repo === nothing && return json(400; error="Repository was not found")
     isauthorized(u, repo) || return json(400; error="Unauthorized to release this package")
 
-    # Get the Project.toml, and make sure it is valid.
+    # Get the (Julia)Project.toml, and make sure it is valid.
     toml = gettoml(u.forge, repo, ref)
-    toml === nothing && return json(400; error="Project.toml was not found")
+    toml === nothing && return json(400; error="(Julia)Project.toml was not found")
     project = try
         Pkg.Types.read_project(IOBuffer(toml))
     catch e
-        @error "Reading project from Project.toml failed"
+        @error "Reading project from (Julia)Project.toml failed"
         println(get_backtrace(e))
-        return json(400; error="Project.toml is invalid")
+        return json(400; error="(Julia)Project.toml is invalid")
     end
     for k in [:name, :uuid, :version]
-        getfield(project, k) === nothing && return json(400; error="In Project.toml, `$k` is missing or invalid")
+        getfield(project, k) === nothing && return json(400; error="In (Julia)Project.toml, `$k` is missing or invalid")
     end
 
     commit = getcommithash(u.forge, repo, ref)

@@ -28,13 +28,13 @@ Unsurprisingly, this method only works for packages whose repositories are hoste
 
 First, install the app on your package(s) as mentioned above.  The procedure for registering a new package is the same as for releasing a new version.
 
-1. Set the [Project.toml](Project.toml) version field in your repository to your new desired `version`.
+1. Set the [`(Julia)Project.toml`](Project.toml) version field in your repository to your new desired `version`.
 2. Comment `@JuliaRegistrator register` on the commit/branch you want to register (e.g. like [here](https://github.com/JuliaRegistries/Registrator.jl/issues/61#issuecomment-483486641) or [here](https://github.com/chakravala/Grassmann.jl/commit/3c3a92610ebc8885619f561fe988b0d985852fce#commitcomment-33233149)).
 3. If something is incorrect, adjust, and redo step 2.
-4. If the automatic tests pass, but a moderator makes suggestions (e.g., manually updating your Project.toml to include a [compat] section with version requirements for dependancies), then incorporate suggestions as you see fit into a new commit, and redo step 2 _for the new commit_.  You don't need to do anything to close out the old request.  
+4. If the automatic tests pass, but a moderator makes suggestions (e.g., manually updating your `(Julia)Project.toml` to include a [compat] section with version requirements for dependancies), then incorporate suggestions as you see fit into a new commit, and redo step 2 _for the new commit_.  You don't need to do anything to close out the old request.
 5. Finally, either rely on [TagBot](https://github.com/apps/julia-tagbot) to tag and make a github release or alternatively tag the release manually.
 
-Registrator will look for the project file in the master branch by default, and will use the version set in the Project.toml file via, for example, `version = "0.1.0"`. To use a custom branch comment with:
+Registrator will look for the project file in the master branch by default, and will use the version set in the `(Julia)Project.toml` file via, for example, `version = "0.1.0"`. To use a custom branch comment with:
 
 ```
 @JuliaRegistrator register branch=name-of-your-branch
