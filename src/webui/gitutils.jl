@@ -56,16 +56,22 @@ function isauthorized(u::User{GitLab.User}, repo::GitLab.Project)
     return something(hasauth, false)
 end
 
-# Get the raw Project.toml text from a repository.
+# Get the raw (Julia)Project.toml text from a repository.
 function gettoml(f::GitHubAPI, repo::GitHub.Repo, ref::AbstractString)
-    fc = @gf get_file_contents(f, repo.owner.login, repo.name, "Project.toml"; ref=ref)
-    return fc === nothing ? nothing : decodeb64(fc.content)
+    for file in Base.project_names
+        fc = @gf get_file_contents(f, repo.owner.login, repo.name, file; ref=ref)
+        fc === nothing || return decodeb64(fc.content)
+    end
+    return nothing
 end
 
 function gettoml(::GitLabAPI, repo::GitLab.Project, ref::AbstractString)
     forge = PROVIDERS["gitlab"].client
-    fc = @gf get_file_contents(forge, repo.id, "Project.toml"; ref=ref)
-    return fc === nothing ? nothing : decodeb64(fc.content)
+    for file in Base.project_names
+        fc = @gf get_file_contents(forge, repo.id, file; ref=ref)
+        fc === nothing || return decodeb64(fc.content)
+    end
+    return nothing
 end
 
 function getcommithash(f::GitHubAPI, repo::GitHub.Repo, ref::AbstractString)

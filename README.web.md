@@ -11,9 +11,9 @@ This section is for people who want to use Registrator to register their package
 If the package is owned by an individual, then you must be that individual, or a collaborator on the repository.
 If the package is owned by an organization/group, then you must be a member of that organization.
 
-### Validating `Project.toml`
+### Validating `(Julia)Project.toml`
 
-Your package must have a `Project.toml` file at the repository root.
+Your package must have a `JuliaProject.toml` or `Project.toml` file at the repository root.
 It should contain at least three keys:
 
 - `name`: The name of the package, with no trailing `.jl`.
@@ -104,7 +104,7 @@ It's important to note that optional values **must** be omitted or commented out
   For example, use `/registrator` to serve the UI on `<your-hostname>/registrator/`.
 - `log_level`: The log level. Can be "INFO", "DEBUG", "WARN", "ERROR". Default is "INFO".
 - `backend_port`: Port number of the backend registration service. Default is 5555.
-  
+
 ### `[web.git{hub,lab}]` Section
 
 If you want to disable a provider, simply omit its section.
@@ -277,7 +277,7 @@ Since our config file is at the default location (`config.toml`), we don't need 
 ```sh
 # Instalation: Just do this once.
 julia -e '
-    using Pkg; 
+    using Pkg;
     Pkg.add("https://github.com/JuliaRegistries/Registrator.jl")'
 
 # Run this every time.

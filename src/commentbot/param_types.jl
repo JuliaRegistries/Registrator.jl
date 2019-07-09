@@ -163,7 +163,7 @@ struct ProcessedParams
         if err === nothing && sha !== nothing
             project, tree_sha, projectfile_found, projectfile_valid, err = verify_projectfile_from_sha(rp.reponame, sha; auth = auth)
             if !projectfile_found
-                err = "File Project.toml not found"
+                err = "File (Julia)Project.toml not found"
                 @debug(err)
             end
         end

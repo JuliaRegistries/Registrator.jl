@@ -126,7 +126,7 @@ function findpackageerror(name::AbstractString, u::AbstractString, regdata::Arra
         if haskey(_registry_data.packages, u)
             name_in_reg = _registry_data.packages[u]["name"]
             if name_in_reg != name
-                return "Error in Project.toml: UUID $u refers to package '$name_in_reg' in registry but Project.toml has '$name'"
+                return "Error in (Julia)Project.toml: UUID $u refers to package '$name_in_reg' in registry but Project.toml has '$name'"
             end
             return nothing
         end
@@ -134,10 +134,10 @@ function findpackageerror(name::AbstractString, u::AbstractString, regdata::Arra
 
     if haskey(BUILTIN_PKGS, name)
         if BUILTIN_PKGS[name] != u
-            return "Error in Project.toml: UUID $u for package $name should be $(BUILTIN_PKGS[k])"
+            return "Error in (Julia)Project.toml: UUID $u for package $name should be $(BUILTIN_PKGS[k])"
         end
     else
-        return "Error in Project.toml: Package '$name' with UUID: $u not found in registry or stdlib"
+        return "Error in (Julia)Project.toml: Package '$name' with UUID: $u not found in registry or stdlib"
     end
 
     nothing
@@ -457,7 +457,7 @@ errors or warnings that occurred.
 # Arguments
 
 * `package_repo::AbstractString`: the git repository URL for the package to be registered
-* `pkg::Pkg.Types.Project`: the parsed Project.toml file for the package to be registered
+* `pkg::Pkg.Types.Project`: the parsed (Julia)Project.toml file for the package to be registered
 * `tree_hash::AbstractString`: the tree hash (not commit hash) of the package revision to be registered
 
 # Keyword Arguments

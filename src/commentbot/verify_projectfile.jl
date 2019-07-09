@@ -1,7 +1,7 @@
 using ..Registrator: decodeb64
 
 function is_pfile_parseable(c::AbstractString)
-    @debug("Checking whether Project.toml is non-empty and parseable")
+    @debug("Checking whether (Julia)Project.toml is non-empty and parseable")
     if length(c) != 0
         try
             TOML.parse(c)
@@ -23,7 +23,7 @@ function is_pfile_parseable(c::AbstractString)
 end
 
 function pfile_hasfields(p::Pkg.Types.Project)
-    @debug("Checking whether Project.toml contains name, uuid and version")
+    @debug("Checking whether (Julia)Project.toml contains name, uuid and version")
     try
         if p.name === nothing || p.uuid === nothing || p.version === nothing
             err = "Project file should contain name, uuid and version"
@@ -39,7 +39,7 @@ function pfile_hasfields(p::Pkg.Types.Project)
             return false, err
         end
     catch ex
-        err = "Error reading Project.toml: $(ex.msg)"
+        err = "Error reading (Julia)Project.toml: $(ex.msg)"
         @debug(err)
         return false, err
     end
@@ -57,10 +57,10 @@ function verify_projectfile_from_sha(reponame, sha; auth=GitHub.AnonymousAuth())
     @debug("Getting tree object for sha")
     t = tree(reponame, Tree(gcom.tree); auth=auth)
 
-    for tr in t.tree
-        if tr["path"] == "Project.toml"
+    for tr in t.tree, file in Base.project_names
+        if tr["path"] == file
             projectfile_found = true
-            @debug("Project file found")
+            @debug("(Julia)Project file found")
 
             @debug("Getting projectfile blob")
             if isa(auth, GitHub.AnonymousAuth)
