@@ -226,3 +226,44 @@ mention(u::GitLab.User) = "@$(u.username)"
 # If the registry is from the same provider, mention the user, otherwise use the URL.
 display_user(u::U) where U =
     (parentmodule(typeof(REGISTRY[].repo)) === parentmodule(U) ? mention : web_url)(u)
+
+function tagexists(forge::GitHubAPI, repo::GitHub.Repo, tag::VersionNumber)
+    result = @gf get_tags(forge, repo.owner.login, repo.name)
+
+    if result === nothing
+        @debug("Could not fetch tags")
+        return false
+    end
+
+    for t in result
+        v = split(t.ref, "/")[end]
+        if startswith(v, "v")
+            v = v[2:end]
+        end
+        v == string(tag) && return true
+    end
+    false
+end
+
+function tagexists(forge::GitLabAPI, project::GitLab.Project, tag::VersionNumber)
+    # Using Registrator's token here instead of the users. This is
+    # because the user oauth scope needs to include "api" in order to
+    # get the tags which we can't ask for since "api" is `write` privilege.
+    # Below line will not work for private packages. For private packages
+    # we need to ask for "api" scope.
+    result = @gf get_tags(PROVIDERS["gitlab"].client, project.id)
+
+    if result === nothing
+        @debug("Could not fetch tags")
+        return false
+    end
+
+    for t in result
+        v = t.name
+        if startswith(v, "v")
+            v = v[2:end]
+        end
+        v == string(tag) && return true
+    end
+    false
+end
