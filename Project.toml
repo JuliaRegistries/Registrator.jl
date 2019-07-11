@@ -26,7 +26,7 @@ UUIDs = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 ZMQ = "c2297ded-f4af-51ae-bb23-16f91089e4e1"
 
 [compat]
-GitForge = ">= 0.1.3"
+GitForge = ">= 0.1.4"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
