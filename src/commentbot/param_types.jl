@@ -168,27 +168,12 @@ struct ProcessedParams
             end
         end
 
+        wrongtag = false
         if err === nothing
-            # Look for tag in last 15 tags
-            tag_exists = false
-            ts = try
-                tags(rp.reponame; auth=auth, page_limit=1,
-                     params=Dict("per_page" => 15))[1]
-            catch ex
-                []
-            end
-            ver = project.version
-            for t in ts
-                if split(t.url.path, "/")[end] == "v$ver"
-                    tag_exists = true
-                    err = "Tag already exists on project repository"
-                    @debug(err, rp.reponame, ver)
-                    break
-                end
-            end
+            wrongtag = istagwrong(rp, sha, auth)
         end
 
-        isvalid = rp.commenter_can_register && projectfile_found && projectfile_valid && !tag_exists
+        isvalid = rp.commenter_can_register && projectfile_found && projectfile_valid && wrongtag
         @debug("Event validity: $(isvalid)")
 
         new(project, projectfile_found, projectfile_valid, sha, tree_sha, cloneurl,

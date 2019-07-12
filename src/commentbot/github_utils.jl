@@ -256,3 +256,29 @@ function create_or_find_pull_request(repo::AbstractString,
 
     return pr, msg
 end
+
+function istagwrong(rp::RegisterParams, commit_sha::String, auth)
+    # Look for tag in last 15 tags
+    ts = try
+        tags(rp.reponame; auth=auth, page_limit=1,
+             params=Dict("per_page" => 15))[1]
+    catch ex
+        []
+    end
+    ver = string(project.version)
+    for t in ts
+        tag_name = split(t.url.path, "/")[end]
+        if startswith(tag_name, "v")
+            tag_name = tag_name[2:end]
+        end
+        if tag_name == ver
+            if t.object["sha"] != commit_sha
+                err = "Tag with name `v$ver` already exists and points to a different commit"
+                @debug(err, rp.reponame, ver)
+                return true
+            end
+            break
+        end
+    end
+    false
+end
