@@ -127,6 +127,35 @@ function get_cloneurl_and_sha(rp::RequestParams{IssueTrigger}, auth)
     cloneurl, sha, err
 end
 
+function istagwrong(
+    rp::RequestParams,
+    commit_sha::String,
+    ver::VersionNumber,
+    auth,
+)
+    # Look for tag in last 15 tags
+    ts = try
+        tags(rp.reponame; auth=auth, page_limit=1,
+             params=Dict("per_page" => 15))[1]
+    catch ex
+        []
+    end
+    ver = string(ver)
+    for t in ts
+        tag_name = split(t.url.path, "/")[end]
+        if startswith(tag_name, "v")
+            tag_name = tag_name[2:end]
+        end
+        if tag_name == ver
+            if t.object["sha"] != commit_sha
+                return true
+            end
+            break
+        end
+    end
+    false
+end
+
 struct ProcessedParams
     project::Union{Nothing, Pkg.Types.Project}
     projectfile_found::Bool
@@ -170,10 +199,14 @@ struct ProcessedParams
 
         wrongtag = false
         if err === nothing
-            wrongtag = istagwrong(rp, sha, auth)
+            wrongtag = istagwrong(rp, sha, project.version, auth)
+            if wrongtag
+                err = "Tag with name `$(project.version)` already exists and points to a different commit"
+                @debug(err, rp.reponame, project.version)
+            end
         end
 
-        isvalid = rp.commenter_can_register && projectfile_found && projectfile_valid && wrongtag
+        isvalid = rp.commenter_can_register && projectfile_found && projectfile_valid && !wrongtag
         @debug("Event validity: $(isvalid)")
 
         new(project, projectfile_found, projectfile_valid, sha, tree_sha, cloneurl,
