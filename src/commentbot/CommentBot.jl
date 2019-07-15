@@ -133,7 +133,7 @@ function action(rp::RequestParams{T}, zsock::RequestSocket) where T <: RegisterT
     pp = ProcessedParams(rp)
     @info("Processing register event", reponame=rp.reponame, target_registry_name)
     try
-        if pp.cparams.isvalid && pp.cparams.error === nothing
+        if pp.cparams.isvalid
             registry_deps=map(String, get(CONFIG, "registry_deps", String[]))
             regp = RegisterParams(pp.cloneurl,
                                   pp.project,
@@ -157,10 +157,10 @@ function action(rp::RequestParams{T}, zsock::RequestSocket) where T <: RegisterT
                 make_pull_request(pp, rp, rbrn, target_registry)
                 set_success_status(rp)
             end
-        elseif pp.cparams.error !== nothing
-            @info("Error while processing event: $(pp.cparams.error)")
+        else
+            @info("Error while processing event: $(repr(pp.cparams.error))")
             if pp.cparams.report_error
-                msg = "Error while trying to register: $(pp.cparams.error)"
+                msg = "Error while trying to register: $(repr(pp.cparams.error))"
                 @debug(msg)
                 make_comment(rp.evt, msg)
             end

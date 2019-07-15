@@ -38,12 +38,12 @@ function register(r::HTTP.Request)
         getfield(project, k) === nothing && return json(400; error="In (Julia)Project.toml, `$k` is missing or invalid")
     end
 
-    if tagexists(u.forge, repo, project.version)
-        return json(400; error="Tag already exists for version mentioned in (Julia)Project.toml")
-    end
-
     commit = getcommithash(u.forge, repo, ref)
     commit === nothing && return json(500, error="Looking up the commit hash failed")
+
+    if istagwrong(u.forge, repo, project.version, commit)
+        return json(400; error="Tag with a different commit already exists for the version mentioned in (Julia)Project.toml")
+    end
 
     # Register the package,
     tree = gettreesha(u.forge, repo, ref)

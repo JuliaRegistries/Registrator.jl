@@ -227,7 +227,12 @@ mention(u::GitLab.User) = "@$(u.username)"
 display_user(u::U) where U =
     (parentmodule(typeof(REGISTRY[].repo)) === parentmodule(U) ? mention : web_url)(u)
 
-function tagexists(forge::GitHubAPI, repo::GitHub.Repo, tag::VersionNumber)
+function istagwrong(
+    forge::GitHubAPI,
+    repo::GitHub.Repo,
+    tag::VersionNumber,
+    commit::String,
+)
     result = @gf get_tags(forge, repo.owner.login, repo.name)
 
     if result === nothing
@@ -240,12 +245,22 @@ function tagexists(forge::GitHubAPI, repo::GitHub.Repo, tag::VersionNumber)
         if startswith(v, "v")
             v = v[2:end]
         end
-        v == string(tag) && return true
+        if v == string(tag)
+            if t.object !== nothing && t.object.sha != commit
+                return true
+            end
+            break
+        end
     end
     false
 end
 
-function tagexists(forge::GitLabAPI, project::GitLab.Project, tag::VersionNumber)
+function istagwrong(
+    forge::GitLabAPI,
+    project::GitLab.Project,
+    tag::VersionNumber,
+    commit::String,
+)
     # Using Registrator's token here instead of the users. This is
     # because the user oauth scope needs to include "api" in order to
     # get the tags which we can't ask for since "api" is `write` privilege.
@@ -263,7 +278,12 @@ function tagexists(forge::GitLabAPI, project::GitLab.Project, tag::VersionNumber
         if startswith(v, "v")
             v = v[2:end]
         end
-        v == string(tag) && return true
+        if v == string(tag)
+            if t.commit !== nothing && t.commit.id != commit
+                return true
+            end
+            break
+        end
     end
     false
 end
