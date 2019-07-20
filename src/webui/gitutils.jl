@@ -22,28 +22,33 @@ end
 # Look up a repository.
 getrepo(::GitLabAPI, owner::AbstractString, name::AbstractString) =
     @gf get_repo(PROVIDERS["gitlab"].client, owner, name)
-getrepo(f::GitHubAPI, owner::AbstractString, name::AbstractString) =
-    @gf get_repo(f, owner, name)
+getrepo(::GitHubAPI, owner::AbstractString, name::AbstractString) =
+    @gf get_repo(PROVIDERS["github"].client, owner, name)
 
 # Check for a user's authorization to release a package.
 # The criteria is simply whether the user is a collaborator for user-owned repos,
 # or whether they're an organization member or collaborator for organization-owned repos.
 isauthorized(u, repo) = false
 function isauthorized(u::User{GitHub.User}, repo::GitHub.Repo)
-    repo.private && return false
+    if !get(CONFIG, "allow_private", false)
+        repo.private && return false
+    end
+    forge = PROVIDERS["github"].client
     hasauth = if repo.organization === nothing
-        @gf is_collaborator(u.forge, repo.owner.login, repo.name, u.user.login)
+        @gf is_collaborator(forge, repo.owner.login, repo.name, u.user.login)
     else
         # First check for organization membership, and fall back to collaborator status.
-        ismember = @gf is_member(u.forge, repo.organization.login, u.user.login)
+        ismember = @gf is_member(forge, repo.organization.login, u.user.login)
         something(ismember, false) ||
-            @gf is_collaborator(u.forge, repo.organization.login, repo.name, u.user.login)
+            @gf is_collaborator(forge, repo.organization.login, repo.name, u.user.login)
     end
     return something(hasauth, false)
 end
 
 function isauthorized(u::User{GitLab.User}, repo::GitLab.Project)
-    repo.visibility == "private" && return false
+    if !get(CONFIG, "allow_private", false)
+        repo.visibility == "private" && return false
+    end
     forge = PROVIDERS["gitlab"].client
     hasauth = if repo.namespace.kind == "user"
         @gf is_collaborator(forge, repo.owner.username, repo.name, u.user.id)
@@ -57,9 +62,10 @@ function isauthorized(u::User{GitLab.User}, repo::GitLab.Project)
 end
 
 # Get the raw (Julia)Project.toml text from a repository.
-function gettoml(f::GitHubAPI, repo::GitHub.Repo, ref::AbstractString)
+function gettoml(::GitHubAPI, repo::GitHub.Repo, ref::AbstractString)
+    forge = PROVIDERS["github"].client
     for file in Base.project_names
-        fc = @gf get_file_contents(f, repo.owner.login, repo.name, file; ref=ref)
+        fc = @gf get_file_contents(forge, repo.owner.login, repo.name, file; ref=ref)
         fc === nothing || return decodeb64(fc.content)
     end
     return nothing
@@ -74,12 +80,13 @@ function gettoml(::GitLabAPI, repo::GitLab.Project, ref::AbstractString)
     return nothing
 end
 
-function getcommithash(f::GitHubAPI, repo::GitHub.Repo, ref::AbstractString)
-    commit = @gf get_commit(f, repo.owner.login, repo.name, ref)
+function getcommithash(::GitHubAPI, repo::GitHub.Repo, ref::AbstractString)
+    forge = PROVIDERS["github"].client
+    commit = @gf get_commit(forge, repo.owner.login, repo.name, ref)
     return commit === nothing ? nothing : commit.sha
 end
 
-function getcommithash(f::GitLabAPI, repo::GitLab.Project, ref::AbstractString)
+function getcommithash(::GitLabAPI, repo::GitLab.Project, ref::AbstractString)
     forge = PROVIDERS["gitlab"].client
     commit = @gf get_commit(forge, repo.id, ref)
     return commit === nothing ? nothing : commit.id
@@ -90,8 +97,9 @@ cloneurl(r::GitHub.Repo) = r.clone_url
 cloneurl(r::GitLab.Project) = r.http_url_to_repo
 
 # Get a repo's tree hash.
-function gettreesha(f::GitHubAPI, r::GitHub.Repo, ref::AbstractString)
-    branch = @gf get_branch(f, r.owner.login, r.name, ref)
+function gettreesha(::GitHubAPI, r::GitHub.Repo, ref::AbstractString)
+    forge = PROVIDERS["github"].client
+    branch = @gf get_branch(forge, r.owner.login, r.name, ref)
     return branch === nothing ? nothing : branch.commit.commit.tree.sha
 end
 
@@ -228,12 +236,12 @@ display_user(u::U) where U =
     (parentmodule(typeof(REGISTRY[].repo)) === parentmodule(U) ? mention : web_url)(u)
 
 function istagwrong(
-    forge::GitHubAPI,
+    ::GitHubAPI,
     repo::GitHub.Repo,
     tag::VersionNumber,
     commit::String,
 )
-    result = @gf get_tags(forge, repo.owner.login, repo.name)
+    result = @gf get_tags(PROVIDERS["github"].client, repo.owner.login, repo.name)
 
     if result === nothing
         @debug("Could not fetch tags")
@@ -256,7 +264,7 @@ function istagwrong(
 end
 
 function istagwrong(
-    forge::GitLabAPI,
+    ::GitLabAPI,
     project::GitLab.Project,
     tag::VersionNumber,
     commit::String,

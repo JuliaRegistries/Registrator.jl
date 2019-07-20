@@ -104,6 +104,7 @@ It's important to note that optional values **must** be omitted or commented out
   For example, use `/registrator` to serve the UI on `<your-hostname>/registrator/`.
 - `log_level`: The log level. Can be "INFO", "DEBUG", "WARN", "ERROR". Default is "INFO".
 - `backend_port`: Port number of the backend registration service. Default is 5555.
+- `allow_private`: Set this to `true` if you want to register private packages. Default is `false`.
 
 ### `[web.git{hub,lab}]` Section
 
