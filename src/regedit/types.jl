@@ -31,6 +31,7 @@ function get_registry(
     registry_url::AbstractString;
     gitconfig::Dict=Dict(),
     cache::RegistryCache=REGISTRY_CACHE,
+    force_reset::Bool=true,
 )
     if haskey(cache.registries, registry_url)
         registry_path = path(cache, registry_url)
@@ -45,7 +46,9 @@ function get_registry(
             run(`$git checkout -q -f master`)
             # uses config because git versions <2.17.0 did not have the -P option
             run(`$git -c fetch.pruneTags fetch -q origin master`)
-            run(`$git reset -q --hard origin/master`)
+            if force_reset
+                run(`$git reset -q --hard origin/master`)
+            end
         end
     else
         registry_temp = mktempdir(mkpath(path(cache)))

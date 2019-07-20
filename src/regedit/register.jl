@@ -473,13 +473,13 @@ function register(
     registry::AbstractString = DEFAULT_REGISTRY_URL,
     registry_deps::Vector{<:AbstractString} = AbstractString[],
     push::Bool = false,
+    force_reset::Bool = true,
+    branch::String = registration_branch(pkg),
     gitconfig::Dict = Dict()
 )
     # get info from package registry
     @debug("get info from package registry")
     package_repo = GitTools.normalize_url(package_repo)
-    #pkg, tree_hash = get_project(package_repo, tree_spec)
-    branch = registration_branch(pkg)
 
     # return object
     regbr = RegBranch(pkg, branch)
@@ -487,12 +487,12 @@ function register(
     # get up-to-date clone of registry
     @debug("get up-to-date clone of registry")
     registry = GitTools.normalize_url(registry)
-    registry_repo = get_registry(registry; gitconfig=gitconfig)
+    registry_repo = get_registry(registry; gitconfig=gitconfig, force_reset=force_reset)
     registry_path = LibGit2.path(registry_repo)
 
     isempty(registry_deps) || @debug("get up-to-date clones of registry dependencies")
     registry_deps_paths = map(registry_deps) do registry
-        LibGit2.path(get_registry(GitTools.normalize_url(registry); gitconfig=gitconfig))
+        LibGit2.path(get_registry(GitTools.normalize_url(registry); gitconfig=gitconfig, force_reset=force_reset))
     end
 
     clean_registry = true
