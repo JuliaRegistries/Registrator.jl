@@ -436,7 +436,7 @@ function get_registrator_tree_sha()
         regtreesha = reg_pkgs[1].new.hash
     end
     if regtreesha === nothing
-        regpath = abspath(joinpath(pathof(Main.Registrator), "..", ".."))
+        regpath = abspath(joinpath(@__DIR__, "..", ".."))
         if isdir(joinpath(regpath, ".git"))
             regtreesha = LibGit2.head(regpath)
         else
