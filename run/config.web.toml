@@ -14,6 +14,7 @@ stop_file = "stopwebui"
 # disable_release_notes = false
 # route_prefix = ""
 # backend_port = 5555
+# allow_private = false
 
 [web.github]
 token = ""
