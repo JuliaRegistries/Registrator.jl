@@ -475,6 +475,7 @@ function register(
     push::Bool = false,
     force_reset::Bool = true,
     branch::String = registration_branch(pkg),
+    cache::RegistryCache=REGISTRY_CACHE,
     gitconfig::Dict = Dict()
 )
     # get info from package registry
@@ -487,12 +488,12 @@ function register(
     # get up-to-date clone of registry
     @debug("get up-to-date clone of registry")
     registry = GitTools.normalize_url(registry)
-    registry_repo = get_registry(registry; gitconfig=gitconfig, force_reset=force_reset)
+    registry_repo = get_registry(registry; gitconfig=gitconfig, force_reset=force_reset, cache=cache)
     registry_path = LibGit2.path(registry_repo)
 
     isempty(registry_deps) || @debug("get up-to-date clones of registry dependencies")
     registry_deps_paths = map(registry_deps) do registry
-        LibGit2.path(get_registry(GitTools.normalize_url(registry); gitconfig=gitconfig, force_reset=force_reset))
+        LibGit2.path(get_registry(GitTools.normalize_url(registry); gitconfig=gitconfig, force_reset=force_reset, cache=cache))
     end
 
     clean_registry = true
