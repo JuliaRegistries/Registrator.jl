@@ -30,7 +30,9 @@ getrepo(::GitHubAPI, owner::AbstractString, name::AbstractString) =
 # or whether they're an organization member or collaborator for organization-owned repos.
 isauthorized(u, repo) = false
 function isauthorized(u::User{GitHub.User}, repo::GitHub.Repo)
-    get(CONFIG, "allow_private", false) || return false
+    if !get(CONFIG, "allow_private", false)
+        repo.private && return false
+    end
     forge = PROVIDERS["github"].client
     hasauth = if repo.organization === nothing
         @gf is_collaborator(forge, repo.owner.login, repo.name, u.user.login)
@@ -44,7 +46,9 @@ function isauthorized(u::User{GitHub.User}, repo::GitHub.Repo)
 end
 
 function isauthorized(u::User{GitLab.User}, repo::GitLab.Project)
-    get(CONFIG, "allow_private", false) || return false
+    if !get(CONFIG, "allow_private", false)
+        repo.visibility == "private" && return false
+    end
     forge = PROVIDERS["gitlab"].client
     hasauth = if repo.namespace.kind == "user"
         @gf is_collaborator(forge, repo.owner.username, repo.name, u.user.id)
