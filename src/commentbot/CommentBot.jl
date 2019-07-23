@@ -132,8 +132,10 @@ function action(rp::RequestParams{T}, zsock::RequestSocket) where T <: RegisterT
     
     # Here we will check if the target registry has a repo argument, and if not,
     # assign it a default one, obtained from ENV.
-    if !haskey(target_registry, "repo") && haskey(ENV, "DEFAULT_REGISTRY_URL")
-        target_registry["repo"] = ENV["DEFAULT_REGISTRY_URL"]
+    if !haskey(target_registry, "repo")
+        specific_env_key = string(uppercase(target_registry_name), "_REGISTRY_URL")
+        envkey = ifelse(haskey(ENV, specific_env_key), specific_env_key, "DEFAULT_REGISTRY_URL")
+        target_registry["repo"] = ENV[envkey]
     end
 
     pp = ProcessedParams(rp)
