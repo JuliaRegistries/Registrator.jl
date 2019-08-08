@@ -5,6 +5,7 @@ using GitForge.GitHub: GitHub, GitHubAPI, NoToken, Token
 using HTTP: HTTP
 using Sockets: Sockets
 using Distributed
+using JWTs
 
 const UI = Registrator.WebUI
 
@@ -177,6 +178,87 @@ end
 
         body = "package=http://github.com/JuliaLang/julia&ref=master"
         resp = HTTP.post(url; body=body, cookies=cookies, status_exception=false)
+        @test resp.status == 400
+        @test occursin("Unauthorized to release this package", String(resp.body))
+    end
+
+    @testset "Route: /register_jwt (validation)" begin
+        url = UI.CONFIG["server_url"] * UI.ROUTES[:REGISTER_JWT]
+        resp = HTTP.get(url; status_exception=false)
+        @test resp.status == 405
+        @test occursin("Method not allowed", String(resp.body))
+
+        resp = HTTP.post(url; status_exception=false)
+        @test resp.status == 400
+        @test occursin("`jwt` not found in headers", String(resp.body))
+
+        # Pretend we've gone through authentication.
+        payload = JSON.parse("""{
+           "iss": "https://auth.example.com",
+           "sub": "ChUxjfgsajfurjsjdut0483672kdhgstgy283jssZQ",
+           "aud": "example-audience",
+           "exp": 1536080651,
+           "iat": 1535994251,
+           "nonce": "1777777777777aaaaaaaaabbbbbbbbbb",
+           "at_hash": "222222-G-JJJJJJJJJJJJJ",
+           "name": "Example User"
+        }""");
+        jwt = JWT(; payload=payload)
+        UI.KEYSET = JWKSet("https://raw.githubusercontent.com/tanmaykm/JWTs.jl/master/test/jwkkey.json")
+        UI.KEYID = first(first(UI.KEYSET.keys))
+
+        headers = HTTP.Headers(["jwt" => jwt])
+        body = "package=&ref=master"
+        resp = HTTP.post(url; body=body, headers=headers, status_exception=false)
+        @test resp.status == 400
+        @test occursin("Invalid JWT", String(resp.body))
+
+        sign!(jwt, UI.KEYSET, UI.KEYID)
+
+        headers = HTTP.Headers(["jwt" => jwt])
+        body = "package=&ref=master"
+        resp = HTTP.post(url; body=body, headers=headers, status_exception=false)
+        @test resp.status == 400
+        @test occursin("`email` not found", String(resp.body))
+
+        payload = JSON.parse("""{
+           "iss": "https://auth.example.com",
+           "sub": "ChUxjfgsajfurjsjdut0483672kdhgstgy283jssZQ",
+           "aud": "example-audience",
+           "exp": 1536080651,
+           "iat": 1535994251,
+           "nonce": "1777777777777aaaaaaaaabbbbbbbbbb",
+           "at_hash": "222222-G-JJJJJJJJJJJJJ",
+           "email": "user@example.com",
+           "email_verified": true,
+           "name": "Example User"
+        }""");
+        jwt = JWT(; payload=payload)
+        sign!(jwt, UI.KEYSET, UI.KEYID)
+
+        headers = HTTP.Headers(["jwt" => jwt])
+        body = "package=&ref=master"
+        resp = HTTP.post(url; body=body, headers=headers, status_exception=false)
+        @test resp.status == 400
+        @test occursin("Package URL was not provided", String(resp.body))
+
+        body = "package=foo&ref=master"
+        resp = HTTP.post(url; body=body, headers=headers, status_exception=false)
+        @test resp.status == 400
+        @test occursin("Package URL is invalid", String(resp.body))
+
+        body = "package=https://github.com/foo/bar&ref="
+        resp = HTTP.post(url; body=body, headers=headers, status_exception=false)
+        @test resp.status == 400
+        @test occursin("Branch was not provided", String(resp.body))
+
+        body = "package=https://github.com/JuliaLang/NotARealRepo&ref=master"
+        resp = HTTP.post(url; body=body, headers=headers, status_exception=false)
+        @test resp.status == 400
+        @test occursin("Repository was not found", String(resp.body))
+
+        body = "package=http://github.com/JuliaLang/julia&ref=master"
+        resp = HTTP.post(url; body=body, headers=headers, status_exception=false)
         @test resp.status == 400
         @test occursin("Unauthorized to release this package", String(resp.body))
     end

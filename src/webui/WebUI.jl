@@ -87,7 +87,9 @@ include("routes/index.jl")
 include("routes/auth.jl")
 include("routes/callback.jl")
 include("routes/select.jl")
+include("routes/register_common.jl")
 include("routes/register.jl")
+include("routes/register_jwt.jl")
 include("routes/status.jl")
 
 ##############

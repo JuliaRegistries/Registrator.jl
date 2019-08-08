@@ -1,0 +1,31 @@
+# Web API to register with JWT token
+function register_jwt(r::HTTP.Request)
+    r.method == "POST" || return json(405; error="Method not allowed")
+
+    h = Dict(r.headers)
+    haskey(h, "jwt") || return json(400; error="`jwt` not found in headers")
+    jwt = h["jwt"]
+    validate!(jwt, KEYSET, KEYID) || return json(400; error="Invalid JWT")
+    c = claims(jwt)
+    haskey(claims, "email") || return json(400; error="`email` not found in JWT")
+    email = c["email"]
+
+    form = parseform(String(r.body))
+    package = get(form, "package", "")
+    if startswith(package, "https://github.com")
+        forge = PROVIDERS["github"].client
+    elseif startswith(package, "https://gitlab.com")
+        forge = PROVIDERS["gitlab"].client
+    else
+        return json(400; error="Unsupported git service")
+    end
+
+    ret = extract_form_data(r)
+    length(ret) == 1 && return json(400; error=ret)
+    package, ref, notes = ret
+
+    repo = getrepo(forge, package)
+    repo === nothing && return json(400; error="Repository was not found")
+
+    return check_and_register(forge, repo, ref, notes, email)
+end
