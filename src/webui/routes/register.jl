@@ -9,11 +9,11 @@ function register(r::HTTP.Request)
     u = USERS[state]
 
     ret = extract_form_data(r)
-    length(ret) == 1 && return json(400; error=ret)
+    ret isa String && return json(400; error=ret)
     package, ref, notes = ret
 
     repo = getrepo(u.forge, package)
-    repo === nothing && return json(400; error="Repository not found")
+    repo === nothing && return json(400; error="Repository was not found")
 
     isauthorized(u, repo) || return json(400; error="Unauthorized to release this package")
 

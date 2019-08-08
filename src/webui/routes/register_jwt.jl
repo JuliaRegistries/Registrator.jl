@@ -4,10 +4,10 @@ function register_jwt(r::HTTP.Request)
 
     h = Dict(r.headers)
     haskey(h, "jwt") || return json(400; error="`jwt` not found in headers")
-    jwt = h["jwt"]
+    jwt = JWTs.JWT(; jwt=string(h["jwt"]))
     validate!(jwt, KEYSET, KEYID) || return json(400; error="Invalid JWT")
     c = claims(jwt)
-    haskey(claims, "email") || return json(400; error="`email` not found in JWT")
+    haskey(c, "email") || return json(400; error="`email` not found in JWT")
     email = c["email"]
 
     form = parseform(String(r.body))
@@ -21,7 +21,7 @@ function register_jwt(r::HTTP.Request)
     end
 
     ret = extract_form_data(r)
-    length(ret) == 1 && return json(400; error=ret)
+    ret isa String && return json(400; error=ret)
     package, ref, notes = ret
 
     repo = getrepo(forge, package)

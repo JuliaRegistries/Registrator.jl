@@ -31,6 +31,8 @@ GitForge = ">= 0.1.4"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
+JWTs = "d850fbd6-035d-5a70-a269-1ca2e636ac6c"
 
 [targets]
-test = ["Test"]
+test = ["Test", "JSON", "JWTs"]

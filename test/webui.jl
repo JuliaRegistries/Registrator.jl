@@ -5,7 +5,7 @@ using GitForge.GitHub: GitHub, GitHubAPI, NoToken, Token
 using HTTP: HTTP
 using Sockets: Sockets
 using Distributed
-using JWTs
+using JSON, JWTs
 
 const UI = Registrator.WebUI
 
@@ -203,11 +203,10 @@ end
            "at_hash": "222222-G-JJJJJJJJJJJJJ",
            "name": "Example User"
         }""");
-        jwt = JWT(; payload=payload)
-        UI.KEYSET = JWKSet("https://raw.githubusercontent.com/tanmaykm/JWTs.jl/master/test/jwkkey.json")
-        UI.KEYID = first(first(UI.KEYSET.keys))
+        jwt = JWTs.JWT(; payload=payload)
+        UI.setkeys("https://raw.githubusercontent.com/tanmaykm/JWTs.jl/master/test/jwkkey.json")
 
-        headers = HTTP.Headers(["jwt" => jwt])
+	headers = HTTP.Headers(["jwt" => string(jwt)])
         body = "package=&ref=master"
         resp = HTTP.post(url; body=body, headers=headers, status_exception=false)
         @test resp.status == 400
@@ -215,7 +214,7 @@ end
 
         sign!(jwt, UI.KEYSET, UI.KEYID)
 
-        headers = HTTP.Headers(["jwt" => jwt])
+	headers = HTTP.Headers(["jwt" => string(jwt)])
         body = "package=&ref=master"
         resp = HTTP.post(url; body=body, headers=headers, status_exception=false)
         @test resp.status == 400
@@ -236,30 +235,33 @@ end
         jwt = JWT(; payload=payload)
         sign!(jwt, UI.KEYSET, UI.KEYID)
 
-        headers = HTTP.Headers(["jwt" => jwt])
+	headers = HTTP.Headers(["jwt" => string(jwt)])
         body = "package=&ref=master"
         resp = HTTP.post(url; body=body, headers=headers, status_exception=false)
         @test resp.status == 400
-        @test occursin("Package URL was not provided", String(resp.body))
+        @test occursin("Unsupported git service", String(resp.body))
 
         body = "package=foo&ref=master"
         resp = HTTP.post(url; body=body, headers=headers, status_exception=false)
         @test resp.status == 400
-        @test occursin("Package URL is invalid", String(resp.body))
+        @test occursin("Unsupported git service", String(resp.body))
 
-        body = "package=https://github.com/foo/bar&ref="
+	body = "package=$(HTTP.escape("https://github.com/foo/bar"))&ref="
         resp = HTTP.post(url; body=body, headers=headers, status_exception=false)
         @test resp.status == 400
+	@show String(copy(resp.body))
         @test occursin("Branch was not provided", String(resp.body))
 
-        body = "package=https://github.com/JuliaLang/NotARealRepo&ref=master"
+	body = "package=$(HTTP.escape("https://github.com/JuliaLang/NotARealRepo"))&ref=master"
         resp = HTTP.post(url; body=body, headers=headers, status_exception=false)
         @test resp.status == 400
+	@show String(copy(resp.body))
         @test occursin("Repository was not found", String(resp.body))
 
-        body = "package=http://github.com/JuliaLang/julia&ref=master"
+	body = "package=$(HTTP.escape("https://github.com/JuliaLang/julia"))&ref=master"
         resp = HTTP.post(url; body=body, headers=headers, status_exception=false)
         @test resp.status == 400
+	@show String(copy(resp.body))
         @test occursin("Unauthorized to release this package", String(resp.body))
     end
 

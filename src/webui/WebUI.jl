@@ -195,11 +195,16 @@ function start_server(ip::IPAddr, port::Int)
     recover("webui", keep_running, do_action, handle_exception)
 end
 
+function setkeys(keyset, keyid=nothing)
+    global KEYSET = JWKSet(keyset)
+    refresh!(KEYSET)
+    global KEYID = keyid === nothing ? first(first(KEYSET.keys)) : keyid
+end
+
 function main(config::AbstractString=isempty(ARGS) ? "config.toml" : first(ARGS))
     merge!(CONFIG, TOML.parsefile(config)["web"])
     if haskey(CONFIG, "keyset")
-        global KEYSET = JWKSet(CONFIG["keyset"])
-        global KEYID = get(CONFIG, "keyid", first(first(KEYSET.keys)))
+        setkeys(CONFIG["keyset"], get(CONFIG, "keyid", nothing))
     end
     global_logger(SimpleLogger(stdout, get_log_level(get(CONFIG, "log_level", "INFO"))))
     zsock = RequestSocket(get(CONFIG, "backend_port", 5555))

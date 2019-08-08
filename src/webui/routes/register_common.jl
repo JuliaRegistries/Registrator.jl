@@ -10,7 +10,7 @@ function extract_form_data(r::HTTP.Request)
     package, ref, notes
 end
 
-function get_repo(forge, package::String)
+function getrepo(forge, package::AbstractString)
     owner, name = splitrepo(package)
     repo = getrepo(forge, owner, name)
     return repo
