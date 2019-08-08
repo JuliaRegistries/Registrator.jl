@@ -48,7 +48,7 @@ function register(r::HTTP.Request)
     # Register the package,
     tree = gettreesha(u.forge, repo, ref)
     tree === nothing && return json(500, error="Looking up the tree hash failed")
-    regdata = RegistrationData(project, tree, repo, u.user, ref, commit, notes)
+    regdata = RegistrationData(project, tree, repo, display_user(u.user), ref, commit, notes)
     REGISTRATIONS[commit] = RegistrationState("Please wait...", :pending)
     put!(event_queue, regdata)
     return json(; message="Registration in progress...", id=commit)

@@ -29,34 +29,34 @@ getrepo(::GitHubAPI, owner::AbstractString, name::AbstractString) =
 # The criteria is simply whether the user is a collaborator for user-owned repos,
 # or whether they're an organization member or collaborator for organization-owned repos.
 isauthorized(u, repo) = false
-function isauthorized(u::User{GitHub.User}, repo::GitHub.Repo)
+function isauthorized(userid::String, repo::GitHub.Repo)
     if !get(CONFIG, "allow_private", false)
         repo.private && return false
     end
     forge = PROVIDERS["github"].client
     hasauth = if repo.organization === nothing
-        @gf is_collaborator(forge, repo.owner.login, repo.name, u.user.login)
+        @gf is_collaborator(forge, repo.owner.login, repo.name, userid)
     else
         # First check for organization membership, and fall back to collaborator status.
-        ismember = @gf is_member(forge, repo.organization.login, u.user.login)
+        ismember = @gf is_member(forge, repo.organization.login, userid)
         something(ismember, false) ||
-            @gf is_collaborator(forge, repo.organization.login, repo.name, u.user.login)
+            @gf is_collaborator(forge, repo.organization.login, repo.name, userid)
     end
     return something(hasauth, false)
 end
 
-function isauthorized(u::User{GitLab.User}, repo::GitLab.Project)
+function isauthorized(userid::String, repo::GitLab.Project)
     if !get(CONFIG, "allow_private", false)
         repo.visibility == "private" && return false
     end
     forge = PROVIDERS["gitlab"].client
     hasauth = if repo.namespace.kind == "user"
-        @gf is_collaborator(forge, repo.owner.username, repo.name, u.user.id)
+        @gf is_collaborator(forge, repo.owner.username, repo.name, userid)
     else
         # Same as above: group membership then collaborator check.
-        ismember = @gf is_member(forge, repo.namespace.full_path, u.user.id)
+        ismember = @gf is_member(forge, repo.namespace.full_path, userid)
         something(ismember, false) ||
-            @gf is_collaborator(u.forge, repo.namespace.full_path, repo.name, u.user.id)
+            @gf is_collaborator(u.forge, repo.namespace.full_path, repo.name, userid)
     end
     return something(hasauth, false)
 end

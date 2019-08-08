@@ -12,6 +12,7 @@ using Sockets
 using TimeToLive
 using Logging
 using Mustache
+using JWTs
 
 using ..Messaging
 
@@ -21,6 +22,7 @@ const ROUTES = Dict(
     :CALLBACK => "/callback",
     :SELECT => "/select",
     :REGISTER => "/register",
+    :REGISTER_JWT => "/register_jwt",
     :STATUS => "/status",
 )
 
@@ -52,7 +54,7 @@ struct RegistrationData
     project::Pkg.Types.Project
     tree::String
     repo::Union{GitForge.GitHub.Repo, GitForge.GitLab.Project}
-    user::Union{GitForge.GitHub.User, GitForge.GitLab.User}
+    user::String
     ref::String
     commit::String
     notes::String
@@ -143,7 +145,7 @@ function action(regdata::RegistrationData, zsock::RequestSocket)
             registration_type=get(branch.metadata, "kind", ""),
             package=regdata.project.name,
             repo=web_url(regdata.repo),
-            user=display_user(regdata.user),
+            user=regdata.user,
             gitref=regdata.ref,
             version=regdata.project.version,
             commit=regdata.commit,
@@ -181,6 +183,7 @@ function start_server(ip::IPAddr, port::Int)
         pathmatch(ROUTES[:CALLBACK], callback),
         pathmatch(ROUTES[:SELECT], select),
         pathmatch(ROUTES[:REGISTER], register),
+        pathmatch(ROUTES[:REGISTER_JWT], register_jwt),
         pathmatch(ROUTES[:STATUS], status),
         r -> html(404, "Page not found"),
     )
@@ -192,6 +195,10 @@ end
 
 function main(config::AbstractString=isempty(ARGS) ? "config.toml" : first(ARGS))
     merge!(CONFIG, TOML.parsefile(config)["web"])
+    if haskey(CONFIG, "keyset")
+        global KEYSET = JWKSet(CONFIG["keyset"])
+        global KEYID = get(CONFIG, "keyid", first(first(KEYSET.keys)))
+    end
     global_logger(SimpleLogger(stdout, get_log_level(get(CONFIG, "log_level", "INFO"))))
     zsock = RequestSocket(get(CONFIG, "backend_port", 5555))
 

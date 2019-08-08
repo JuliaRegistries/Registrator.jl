@@ -105,6 +105,8 @@ It's important to note that optional values **must** be omitted or commented out
 - `log_level`: The log level. Can be "INFO", "DEBUG", "WARN", "ERROR". Default is "INFO".
 - `backend_port`: Port number of the backend registration service. Default is 5555.
 - `allow_private`: Set this to `true` if you want to register private packages. Default is `false`.
+- `keyset`: The keyset to use to validate JWT tokens when using the `register_jwt` api.
+- `keyid`: The key ID for the above keyset. The default is the first key in the keyset.
 
 ### `[web.git{hub,lab}]` Section
 
