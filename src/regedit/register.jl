@@ -72,7 +72,8 @@ end
 # error in regbr.metadata["errors"]
 # warning in regbr.metadata["warning"]
 # version labels for the PR in in regbr.metadata["labels"]
-function check_version!(regbr::RegBranch, existing::Vector{VersionNumber}, ver::VersionNumber)
+function check_version!(regbr::RegBranch, existing::Vector{VersionNumber})
+    ver = regbr.version
     if ver == v"0"
         regbr.metadata["error"] = "Package version must be greater than 0.0.0"
         return regbr
@@ -284,7 +285,7 @@ function update_versions_file(pkg::Pkg.Types.Project,
     versions_data = isfile(versions_file) ? TOML.parsefile(versions_file) : Dict()
     versions = sort!([VersionNumber(v) for v in keys(versions_data)])
 
-    check_version!(regbr, versions, pkg.version)
+    check_version!(regbr, versions)
     if get(regbr.metadata, "error", nothing) !== nothing
         return regbr
     end

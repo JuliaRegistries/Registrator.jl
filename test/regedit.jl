@@ -126,4 +126,62 @@ end
     end
 end
 
+@testset "check_version!" begin
+    import Registrator.RegEdit: RegBranch, check_version!
+    import Pkg.Types: Project
+
+    for ver in ["0.0.2", "0.3.2", "4.3.2"]
+        pkg = Project(Dict("name" => "TestTools", "version" => ver))
+        regbr = RegBranch(pkg, "test")
+        check_version!(regbr, VersionNumber[])
+        @test haskey(regbr.metadata, "warning")
+        @test length(regbr.metadata["warning"]) != 0
+        @test !haskey(regbr.metadata, "error")
+    end
+
+    for ver in ["0.0.1", "0.1.0", "1.0.0"]
+        pkg = Project(Dict("name" => "TestTools", "version" => ver))
+        regbr = RegBranch(pkg, "test")
+        check_version!(regbr, VersionNumber[])
+        @test !haskey(regbr.metadata, "warning")
+        @test !haskey(regbr.metadata, "error")
+    end
+
+    versions_list = [v"0.0.5", v"0.1.0", v"0.1.5", v"1.0.0"]
+    let    # Less than least existing version
+        pkg = Project(Dict("name" => "TestTools", "version" => "0.0.4"))
+        regbr = RegBranch(pkg, "test")
+        check_version!(regbr, versions_list)
+        @test haskey(regbr.metadata, "error")
+        @test length(regbr.metadata["error"]) != 0
+        @test !haskey(regbr.metadata, "warning")
+    end
+
+    let    # Existing version
+        pkg = Project(Dict("name" => "TestTools", "version" => "0.0.5"))
+        regbr = RegBranch(pkg, "test")
+        check_version!(regbr, versions_list)
+        @test haskey(regbr.metadata, "error")
+        @test length(regbr.metadata["error"]) != 0
+        @test !haskey(regbr.metadata, "warning")
+    end
+
+    let    # Non-existing version
+        pkg = Project(Dict("name" => "TestTools", "version" => "0.0.6"))
+        regbr = RegBranch(pkg, "test")
+        check_version!(regbr, versions_list)
+        @test !haskey(regbr.metadata, "error")
+        @test !haskey(regbr.metadata, "warning")
+    end
+
+    let    # Skip a version
+        pkg = Project(Dict("name" => "TestTools", "version" => "0.0.7"))
+        regbr = RegBranch(pkg, "test")
+        check_version!(regbr, versions_list)
+        @test !haskey(regbr.metadata, "error")
+        @test haskey(regbr.metadata, "warning")
+        @test length(regbr.metadata["warning"]) != 0
+    end
+end
+
 end
