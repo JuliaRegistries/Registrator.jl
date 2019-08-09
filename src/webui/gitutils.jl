@@ -295,3 +295,6 @@ function istagwrong(
     end
     false
 end
+
+siteurl(::GitHubAPI) = "https://github.com"
+siteurl(::GitLabAPI) = "https://gitlab.com"

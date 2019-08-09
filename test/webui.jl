@@ -201,6 +201,8 @@ end
            "iat": 1535994251,
            "nonce": "1777777777777aaaaaaaaabbbbbbbbbb",
            "at_hash": "222222-G-JJJJJJJJJJJJJ",
+           "email": "user@example.com",
+           "email_verified": true,
            "name": "Example User"
         }""");
         jwt = JWTs.JWT(; payload=payload)
@@ -213,11 +215,10 @@ end
 
         sign!(jwt, UI.KEYSET, UI.KEYID)
 
-	headers = HTTP.Headers(["jwt" => string(jwt)])
         body = "package=&ref=master"
         resp = HTTP.post(url; body=body, headers=["JWT" => string(jwt)], status_exception=false)
         @test resp.status == 400
-        @test occursin("`email` not found", String(resp.body))
+        @test occursin("`userid` not found", String(resp.body))
 
         payload = JSON.parse("""{
            "iss": "https://auth.example.com",
@@ -229,6 +230,7 @@ end
            "at_hash": "222222-G-JJJJJJJJJJJJJ",
            "email": "user@example.com",
            "email_verified": true,
+           "userid": "nkottary",
            "name": "Example User"
         }""");
         jwt = JWT(; payload=payload)
@@ -244,15 +246,20 @@ end
         @test resp.status == 400
         @test occursin("Unsupported git service", String(resp.body))
 
-	body = "package=https://github.com/foo/bar&ref="
+        body = "package=https://github.com/foo/bar&ref="
         resp = HTTP.post(url; body=body, headers=["JWT" => string(jwt)], status_exception=false)
         @test resp.status == 400
         @test occursin("Branch was not provided", String(resp.body))
 
-	body = "package=https://github.com/JuliaLang/NotARealRepo&ref=master"
+        body = "package=https://github.com/JuliaLang/NotARealRepo&ref=master"
         resp = HTTP.post(url; body=body, headers=["JWT" => string(jwt)], status_exception=false)
         @test resp.status == 400
         @test occursin("Repository was not found", String(resp.body))
+
+        body = "package=http://github.com/JuliaLang/julia&ref=master"
+        resp = HTTP.post(url; body=body, headers=["JWT" => string(jwt)], status_exception=false)
+        @test resp.status == 400
+        @test occursin("Unauthorized to release this package", String(resp.body))
     end
 
 end

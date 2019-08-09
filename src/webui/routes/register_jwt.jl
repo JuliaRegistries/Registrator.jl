@@ -7,8 +7,8 @@ function register_jwt(r::HTTP.Request)
     jwt = JWTs.JWT(; jwt=string(h["JWT"]))
     validate!(jwt, KEYSET, KEYID) || return json(400; error="Invalid JWT")
     c = claims(jwt)
-    haskey(c, "email") || return json(400; error="`email` not found in JWT")
-    email = c["email"]
+    haskey(c, "userid") || return json(400; error="`userid` not found in JWT")
+    userid = c["userid"]
 
     form = parseform(String(copy(r.body)))
     package = get(form, "package", "")
@@ -20,12 +20,10 @@ function register_jwt(r::HTTP.Request)
         return json(400; error="Unsupported git service")
     end
 
-    ret = extract_form_data(r)
-    ret isa String && return json(400; error=ret)
-    package, ref, notes = ret
-
-    repo = getrepo(forge, package)
-    repo === nothing && return json(400; error="Repository was not found")
-
-    return check_and_register(forge, repo, ref, notes, email)
+    if parentmodule(typeof(REGISTRY[].repo)) === parentmodule(forge)
+        u = "@$userid"
+    else
+        u = joinpath(siteurl(forge), userid)
+    end
+    return register_common(forge, u)
 end

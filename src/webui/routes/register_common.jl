@@ -1,4 +1,4 @@
-function extract_form_data(r::HTTP.Request)
+function register_common(forge::F, userid::AbstractString) where F <: GitForge.Forge
     form = parseform(String(r.body))
     package = get(form, "package", "")
     isempty(package) && return "Package URL was not provided"
@@ -7,16 +7,13 @@ function extract_form_data(r::HTTP.Request)
     ref = get(form, "ref", "")
     isempty(ref) && return "Branch was not provided"
     notes = get(form, "notes", "")
-    package, ref, notes
-end
 
-function getrepo(forge, package::AbstractString)
     owner, name = splitrepo(package)
     repo = getrepo(forge, owner, name)
-    return repo
-end
+    repo === nothing && return json(400; error="Repository was not found")
 
-function check_and_register(forge, repo, ref, notes, userid)
+    isauthorized(u, repo) || return json(400; error="Unauthorized to release this package")
+
     # Get the (Julia)Project.toml, and make sure it is valid.
     toml = gettoml(forge, repo, ref)
     toml === nothing && return json(400; error="(Julia)Project.toml was not found")
