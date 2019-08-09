@@ -348,6 +348,9 @@ You can register packages by sending a `POST` request to `register_jwt`. The API
 Example API call in julia:
 ```
 using JWTs
+using JSON
+using HTTP
+
 payload = JSON.parse("""{
    "userid": "exampleid",
    "email": "user@example.com",
