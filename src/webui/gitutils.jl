@@ -45,7 +45,7 @@ function isauthorized(userid::String, repo::GitHub.Repo)
     return something(hasauth, false)
 end
 
-function isauthorized(userid::String, repo::GitLab.Project)
+function isauthorized(userid::Int, repo::GitLab.Project)
     if !get(CONFIG, "allow_private", false)
         repo.visibility == "private" && return false
     end
@@ -298,3 +298,5 @@ end
 
 siteurl(::GitHubAPI) = "https://github.com"
 siteurl(::GitLabAPI) = "https://gitlab.com"
+getuserid(u::GitHub.User) = u.login
+getuserid(u::GitLab.User) = u.id

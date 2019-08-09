@@ -8,5 +8,5 @@ function register(r::HTTP.Request)
     end
     u = USERS[state]
 
-    return register_common(r, u.forge, display_user(u.user))
+    return register_common(r, u.forge, getuserid(u.user), display_user(u.user))
 end

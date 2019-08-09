@@ -21,9 +21,9 @@ function register_jwt(r::HTTP.Request)
     end
 
     if parentmodule(typeof(REGISTRY[].repo)) === parentmodule(typeof(forge))
-        u = "@$userid"
+        userlink = "@$userid"
     else
-        u = joinpath(siteurl(forge), userid)
+        userlink = joinpath(siteurl(forge), userid)
     end
-    return register_common(r, forge, u)
+    return register_common(r, forge, userid, userlink)
 end

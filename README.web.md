@@ -362,7 +362,7 @@ keyid = first(first(keyset.keys))
 sign!(jwt, keyset, keyid)
 
 body = "package=https://github.com/me/mypkg&ref=master"
-resp = HTTP.post(url; body=body, headers=["JWT" => string(jwt)], status_exception=false)
+resp = HTTP.post("https://registrator.org/register_jwt"; body=body, headers=["JWT" => string(jwt)])
 ```
 
 Note that the public Registrator is *not* configured to support this feature.

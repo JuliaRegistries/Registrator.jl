@@ -1,4 +1,10 @@
-function register_common(r::HTTP.Request, forge::F, userid::AbstractString) where F <: GitForge.Forge
+function register_common(
+    r::HTTP.Request,
+    forge::F,
+    userid::Union{Int, AbstractString},
+    userlink::AbstractString
+) where F <: GitForge.Forge
+
     form = parseform(String(r.body))
     package = get(form, "package", "")
     isempty(package) && return json(400; error="Package URL was not provided")
@@ -38,7 +44,7 @@ function register_common(r::HTTP.Request, forge::F, userid::AbstractString) wher
     # Register the package,
     tree = gettreesha(forge, repo, ref)
     tree === nothing && return json(500, error="Looking up the tree hash failed")
-    regdata = RegistrationData(project, tree, repo, display_user(u.user), ref, commit, notes)
+    regdata = RegistrationData(project, tree, repo, userlink, ref, commit, notes)
     REGISTRATIONS[commit] = RegistrationState("Please wait...", :pending)
     put!(event_queue, regdata)
     return json(; message="Registration in progress...", id=commit)
