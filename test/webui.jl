@@ -190,7 +190,7 @@ end
 
         resp = HTTP.post(url; status_exception=false)
         @test resp.status == 400
-        @test occursin("`jwt` not found in headers", String(resp.body))
+        @test occursin("`JWT` not found in headers", String(resp.body))
 
         # Pretend we've gone through authentication.
         payload = JSON.parse("""{
@@ -206,9 +206,8 @@ end
         jwt = JWTs.JWT(; payload=payload)
         UI.setkeys("https://raw.githubusercontent.com/tanmaykm/JWTs.jl/master/test/jwkkey.json")
 
-	headers = HTTP.Headers(["jwt" => string(jwt)])
         body = "package=&ref=master"
-        resp = HTTP.post(url; body=body, headers=headers, status_exception=false)
+        resp = HTTP.post(url; body=body, headers=["JWT" => string(jwt)], status_exception=false)
         @test resp.status == 400
         @test occursin("Invalid JWT", String(resp.body))
 
@@ -216,7 +215,7 @@ end
 
 	headers = HTTP.Headers(["jwt" => string(jwt)])
         body = "package=&ref=master"
-        resp = HTTP.post(url; body=body, headers=headers, status_exception=false)
+        resp = HTTP.post(url; body=body, headers=["JWT" => string(jwt)], status_exception=false)
         @test resp.status == 400
         @test occursin("`email` not found", String(resp.body))
 
@@ -235,34 +234,25 @@ end
         jwt = JWT(; payload=payload)
         sign!(jwt, UI.KEYSET, UI.KEYID)
 
-	headers = HTTP.Headers(["jwt" => string(jwt)])
         body = "package=&ref=master"
-        resp = HTTP.post(url; body=body, headers=headers, status_exception=false)
+        resp = HTTP.post(url; body=body, headers=["JWT" => string(jwt)], status_exception=false)
         @test resp.status == 400
         @test occursin("Unsupported git service", String(resp.body))
 
         body = "package=foo&ref=master"
-        resp = HTTP.post(url; body=body, headers=headers, status_exception=false)
+        resp = HTTP.post(url; body=body, headers=["JWT" => string(jwt)], status_exception=false)
         @test resp.status == 400
         @test occursin("Unsupported git service", String(resp.body))
 
-	body = "package=$(HTTP.escape("https://github.com/foo/bar"))&ref="
-        resp = HTTP.post(url; body=body, headers=headers, status_exception=false)
+	body = "package=https://github.com/foo/bar&ref="
+        resp = HTTP.post(url; body=body, headers=["JWT" => string(jwt)], status_exception=false)
         @test resp.status == 400
-	@show String(copy(resp.body))
         @test occursin("Branch was not provided", String(resp.body))
 
-	body = "package=$(HTTP.escape("https://github.com/JuliaLang/NotARealRepo"))&ref=master"
-        resp = HTTP.post(url; body=body, headers=headers, status_exception=false)
+	body = "package=https://github.com/JuliaLang/NotARealRepo&ref=master"
+        resp = HTTP.post(url; body=body, headers=["JWT" => string(jwt)], status_exception=false)
         @test resp.status == 400
-	@show String(copy(resp.body))
         @test occursin("Repository was not found", String(resp.body))
-
-	body = "package=$(HTTP.escape("https://github.com/JuliaLang/julia"))&ref=master"
-        resp = HTTP.post(url; body=body, headers=headers, status_exception=false)
-        @test resp.status == 400
-	@show String(copy(resp.body))
-        @test occursin("Unauthorized to release this package", String(resp.body))
     end
 
 end

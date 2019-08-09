@@ -3,14 +3,14 @@ function register_jwt(r::HTTP.Request)
     r.method == "POST" || return json(405; error="Method not allowed")
 
     h = Dict(r.headers)
-    haskey(h, "jwt") || return json(400; error="`jwt` not found in headers")
-    jwt = JWTs.JWT(; jwt=string(h["jwt"]))
+    haskey(h, "JWT") || return json(400; error="`JWT` not found in headers")
+    jwt = JWTs.JWT(; jwt=string(h["JWT"]))
     validate!(jwt, KEYSET, KEYID) || return json(400; error="Invalid JWT")
     c = claims(jwt)
     haskey(c, "email") || return json(400; error="`email` not found in JWT")
     email = c["email"]
 
-    form = parseform(String(r.body))
+    form = parseform(String(copy(r.body)))
     package = get(form, "package", "")
     if startswith(package, "https://github.com")
         forge = PROVIDERS["github"].client
