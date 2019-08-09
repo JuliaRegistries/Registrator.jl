@@ -340,3 +340,29 @@ julia -e '
     using Registrator;
     Registrator.WebUI.main("myconfig.toml")'
 ```
+
+## Registering through API
+
+You can register packages by sending a `POST` request to `register_jwt`. The API expects the `package`, `ref` and `notes` fields as arguments in the body of the request. The request is authenticated using JSON Web Tokens (JWT). The request header must have a `JWT` field with a signed JWT as value. The JWT must contain a `userid` field set to your GitHub or GitLab user ID. The JWT must be signed with the same key-set and key used to configure Registrator.
+
+Example API call in julia:
+```
+using JWTs
+payload = JSON.parse("""{
+   "userid": "exampleid",
+   "email": "user@example.com",
+   "email_verified": true,
+   "name": "Example User"
+}""");
+jwt = JWT(; payload=payload)
+
+keyset = JWKSet("file:///home/me/mykey.json")
+refresh!(keyset)
+keyid = first(first(keyset.keys))
+sign!(jwt, keyset, keyid)
+
+body = "package=https://github.com/me/mypkg&ref=master"
+resp = HTTP.post(url; body=body, headers=["JWT" => string(jwt)], status_exception=false)
+```
+
+Note that the public Registrator is *not* configured to support this feature.
