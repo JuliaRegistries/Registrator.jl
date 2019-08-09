@@ -1,18 +1,18 @@
-function register_common(forge::F, userid::AbstractString) where F <: GitForge.Forge
+function register_common(r::HTTP.Request, forge::F, userid::AbstractString) where F <: GitForge.Forge
     form = parseform(String(r.body))
     package = get(form, "package", "")
-    isempty(package) && return "Package URL was not provided"
+    isempty(package) && return json(400; error="Package URL was not provided")
     occursin("://", package) || (package = "https://$package")
-    match(r"https?://.*\..*/.*/.*", package) === nothing && return "Package URL is invalid"
+    match(r"https?://.*\..*/.*/.*", package) === nothing && return json(400; error="Package URL is invalid")
     ref = get(form, "ref", "")
-    isempty(ref) && return "Branch was not provided"
+    isempty(ref) && return json(400; error="Branch was not provided")
     notes = get(form, "notes", "")
 
     owner, name = splitrepo(package)
     repo = getrepo(forge, owner, name)
     repo === nothing && return json(400; error="Repository was not found")
 
-    isauthorized(u, repo) || return json(400; error="Unauthorized to release this package")
+    isauthorized(userid, repo) || return json(400; error="Unauthorized to release this package")
 
     # Get the (Julia)Project.toml, and make sure it is valid.
     toml = gettoml(forge, repo, ref)

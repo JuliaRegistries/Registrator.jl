@@ -20,10 +20,10 @@ function register_jwt(r::HTTP.Request)
         return json(400; error="Unsupported git service")
     end
 
-    if parentmodule(typeof(REGISTRY[].repo)) === parentmodule(forge)
+    if parentmodule(typeof(REGISTRY[].repo)) === parentmodule(typeof(forge))
         u = "@$userid"
     else
         u = joinpath(siteurl(forge), userid)
     end
-    return register_common(forge, u)
+    return register_common(r, forge, u)
 end

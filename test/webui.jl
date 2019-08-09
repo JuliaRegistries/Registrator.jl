@@ -256,7 +256,7 @@ end
         @test resp.status == 400
         @test occursin("Repository was not found", String(resp.body))
 
-        body = "package=http://github.com/JuliaLang/julia&ref=master"
+        body = "package=https://github.com/JuliaLang/julia&ref=master"
         resp = HTTP.post(url; body=body, headers=["JWT" => string(jwt)], status_exception=false)
         @test resp.status == 400
         @test occursin("Unauthorized to release this package", String(resp.body))
