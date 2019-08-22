@@ -504,8 +504,10 @@ function register(
         @debug("branch registry repo")
         git = gitcmd(registry_path, gitconfig)
         run(pipeline(`$git checkout -f master`; stdout=devnull))
-        run(pipeline(`$git branch -f $branch`; stdout=devnull))
-        run(pipeline(`$git checkout -f $branch`; stdout=devnull))
+        if branch != "master"
+            run(pipeline(`$git branch -f $branch`; stdout=devnull))
+            run(pipeline(`$git checkout -f $branch`; stdout=devnull))
+        end
 
         # find package in registry
         @debug("find package in registry")
