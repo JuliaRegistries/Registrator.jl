@@ -33,7 +33,13 @@ function isauthorized(u::User{GitHub.User}, repo::GitHub.Repo)
     if !get(CONFIG, "allow_private", false)
         repo.private && return false
     end
-    forge = PROVIDERS["github"].client
+
+    if repo.private
+        forge = PROVIDERS["github"].client
+    else
+        forge = u.forge
+    end
+
     hasauth = if repo.organization === nothing
         @gf is_collaborator(forge, repo.owner.login, repo.name, u.user.login)
     else
@@ -49,7 +55,13 @@ function isauthorized(u::User{GitLab.User}, repo::GitLab.Project)
     if !get(CONFIG, "allow_private", false)
         repo.visibility == "private" && return false
     end
-    forge = PROVIDERS["gitlab"].client
+
+    if repo.private
+        forge = PROVIDERS["gitlab"].client
+    else
+        forge = u.forge
+    end
+
     hasauth = if repo.namespace.kind == "user"
         @gf is_collaborator(forge, repo.owner.username, repo.name, u.user.id)
     else
