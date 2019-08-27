@@ -2,17 +2,17 @@
 
 [web]
 ip = ""
-port = 0
+port = 8003
 server_url = ""
 registry_url = ""
-stop_file = "stopwebui"
-# log_level = "INFO"
-# registry_clone_url = ""
+stop_file = "/tmp/stopwebui"
+log_level = "DEBUG"
+registry_clone_url = ""
 # extra_providers = ""
 # registry_provider = ""
-# registry_deps = []
+registry_deps = []
 # disable_release_notes = false
-# route_prefix = ""
+route_prefix = "/registrator/web"
 # backend_port = 5555
 # allow_private = false
 
