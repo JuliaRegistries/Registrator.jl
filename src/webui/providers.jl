@@ -42,7 +42,7 @@ function init_providers()
             client_secret=gitlab["client_secret"],
             auth_url=get(gitlab, "auth_url", "https://gitlab.com/oauth/authorize"),
             token_url=get(gitlab, "token_url", "https://gitlab.com/oauth/token"),
-            scope="read_user",
+            scope="read_user api",
             include_state=false,
             token_type=OAuth2Token,
         )
