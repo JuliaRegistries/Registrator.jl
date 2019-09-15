@@ -56,7 +56,7 @@ function isauthorized(u::User{GitLab.User}, repo::GitLab.Project)
         repo.visibility == "private" && return false
     end
 
-    if repo.private
+    if repo.visibility == "private"
         forge = PROVIDERS["gitlab"].client
     else
         forge = u.forge
