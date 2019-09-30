@@ -173,10 +173,10 @@ function compress_versions(pool::Vector{VersionNumber}, subset::Vector{VersionNu
     a = first(subset)
     for b in reverse(subset)
         a.major == b.major || continue
-        for m = 1:4
-            lo = VersionBound((a.major, a.minor, a.patch, a.build)[1:m]...)
-            for n = 1:4
-                hi = VersionBound((b.major, b.minor, b.patch, b.build)[1:n]...)
+        for m = 1:3
+            lo = VersionBound((a.major, a.minor, a.patch)[1:m]...)
+            for n = 1:3
+                hi = VersionBound((b.major, b.minor, b.patch)[1:n]...)
                 r = versionrange(lo, hi)
                 if !any(v in r for v in complement)
                     filter!(!in(r), subset)
