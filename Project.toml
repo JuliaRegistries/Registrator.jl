@@ -1,7 +1,7 @@
 name = "Registrator"
 uuid = "4418983a-e44d-11e8-3aec-9789530b3b3e"
 authors = ["Stefan Karpinski <stefan@karpinski.org>"]
-version = "0.1.0"
+version = "1.0.0"
 
 [deps]
 AutoHashEquals = "15f4f7f2-30c1-5605-9d31-71845cf9641f"
