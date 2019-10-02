@@ -1,17 +1,17 @@
 # Registrator Web UI
 
-# Usage (For Package Maintainers)
+## Usage (For Package Maintainers)
 
 This section is for people who want to use Registrator to register their packages.
 
-## Before Registering
+### Before Registering
 
-### Who Can Register a Package?
+#### Who Can Register a Package?
 
 If the package is owned by an individual, then you must be that individual, or a collaborator on the repository.
 If the package is owned by an organization/group, then you must be a member of that organization.
 
-### Validating `(Julia)Project.toml`
+#### Validating `(Julia)Project.toml`
 
 Your package must have a `JuliaProject.toml` or `Project.toml` file at the repository root.
 It should contain at least three keys:
@@ -20,7 +20,7 @@ It should contain at least three keys:
 - `uuid`: The package's UUID, which was likely generated automatically for you.
 - `version`: The package's version number, which cannot have been previously registered.
 
-## Registering
+### Registering
 
 Once you've prepared your repository, using Registrator is simple.
 
@@ -38,11 +38,11 @@ Once you've prepared your repository, using Registrator is simple.
 
 <!-- TODO: Screenshots. -->
 
-# Setup (For Registry Maintainers)
+## Setup (For Registry Maintainers)
 
 This section is for people who want to host an instance of Registrator for their own registry.
 
-## Provider Setup
+### Provider Setup
 
 Here, the term `$PROVIDER` indicates the provider of your registry repository.
 In most cases, that will be GitHub, or perhaps GitLab.
@@ -64,21 +64,21 @@ For each provider that you support, you will need:
   GitLab will ask you what scopes you want at application creation time, you want `read_user`.
 - A user and API key: This can be the same as you created above for `$PROVIDER`.
 
-## Git Setup
+### Git Setup
 
 Git must be installed on the host computer.
 Additionally, it must be configured so that it can push to the registry, preferably as the user you just created.
 You should make sure that you've set up any credential handling such as SSH keys.
 
-## Configuration
+### Configuration
 
 Registrator configuration is done with a config file.
 Some of its values are required, and some are optional.
 It's important to note that optional values **must** be omitted or commented out when not in use.
 
-### `[web]` Section
+#### `[web]` Section
 
-#### Required
+##### Required
 
 - `ip`: The address that your server will listen on.
   For example, `localhost` or `0.0.0.0`.
@@ -88,7 +88,7 @@ It's important to note that optional values **must** be omitted or commented out
 - `registry_url`: Your registry repository's web URL, for example `https://github.com/foo/bar`.
 - `stop_file`: Create this file to signal WebUI to shutdown.
 
-#### Optional
+##### Optional
 
 - `registry_clone_url`: Your registry's clone URL.
   This defaults to `registry_url`, but you can use this value to clone the registry via SSH, for example.
@@ -106,18 +106,18 @@ It's important to note that optional values **must** be omitted or commented out
 - `backend_port`: Port number of the backend registration service. Default is 5555.
 - `allow_private`: Set this to `true` if you want to register private packages. Default is `false`.
 
-### `[web.git{hub,lab}]` Section
+#### `[web.git{hub,lab}]` Section
 
 If you want to disable a provider, simply omit its section.
 For example, to support GitHub packages but not GitLab packages, only provide a `[web.github]` section.
 
-#### Required
+##### Required
 
 - `token`: Your user's API key.
 - `client_id`: Your OAuth2 application's client ID.
 - `client_secret`: Your OAuth2 application's client secret.
 
-#### Optional
+##### Optional
 
 - `api_url`: Provider API base URL.
   You should only set this variable if your provider is self-hosted (i.e. with a non-default URL).
@@ -128,7 +128,7 @@ For example, to support GitHub packages but not GitLab packages, only provide a 
 - `disable_rate_limits`: Set to `true` to disable rate limit processing.
   Only set this for self-hosted instances that don't use rate limiting.
 
-## Adding Extra Providers
+### Adding Extra Providers
 
 In almost all cases, you shouldn't need to do this.
 The only real use case is when your registry is on a self-hosted GitHub or GitLab instance, and you also want to allow registering of packages from the public instance of that provider.
@@ -175,7 +175,7 @@ PROVIDERS["mygitlab"] = Provider(;
 The OAuth2 application info and URLs are covered above.
 When setting your OAuth2 application's callback URL, make sure that it ends with `?provider=$PROVIDER`, where `$PROVIDER` is `mygithub` for the GitHub example above.
 
-## Running the Server
+### Running the Server
 
 To run the server, first add Registrator to your Julia environment.
 Then, make sure that your configuration file is written correctly.
@@ -189,7 +189,7 @@ Registrator.WebUI.main()
 A directory called `registries` will be created, which contains your registry.
 It's not important to keep it intact, as it is synchronized before registering any package.
 
-## Basic Recipe: Public Registry
+### Basic Recipe: Public Registry
 
 Here's a general case of hosting a registry on GitHub and allowing package registrations from both GitHub and GitLab.
 The registry will be owned by `RegistryOwner` and the name will be `MyRegistry`.
@@ -287,7 +287,7 @@ julia -e '
     Registrator.WebUI.main()'
 ```
 
-## Basic Recipe: Private Registry
+### Basic Recipe: Private Registry
 
 This guide will be almost identical to the one above, but we'll set up a private, self-hosted registry and only allow packages from that provider.
 
