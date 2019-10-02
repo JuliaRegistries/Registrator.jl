@@ -2,6 +2,7 @@
 
 [![Build Status](https://travis-ci.com/JuliaRegistries/Registrator.jl.svg?branch=master)](https://travis-ci.com/JuliaRegistries/Registrator.jl)
 [![CodeCov](https://codecov.io/gh/JuliaRegistries/Registrator.jl/branch/master/graph/badge.svg)](https://codecov.io/gh/JuliaRegistries/Registrator.jl)
+[![](https://img.shields.io/badge/docs-latest-blue.svg)](https://JuliaRegistries.github.io/Registrator.jl/dev)
 
 !["amelia robot logo"](graphics/logo.png)
 
