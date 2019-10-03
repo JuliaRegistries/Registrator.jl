@@ -2,7 +2,7 @@ import Pkg: TOML
 
 all_pkgs = Dict()
 reg_pkgs = Dict()
-regpath = joinpath("/home", "registrator", ".julia", "registries", "General")
+regpath = joinpath(homedir(), ".julia", "registries", "General")
 cd(regpath)
 isvaliddir(d) = isdir(d) && !startswith(d, ".")
 for d in readdir()
