@@ -1,5 +1,1 @@
-using Pkg
-
-stdlibs = Pkg.Types.stdlib()
-
-const BUILTIN_PKGS = Dict(v=>string(k) for (k, v) in stdlibs)
+const BUILTIN_PKGS = Dict(v=>string(k) for (k, v) in Pkg.Types.stdlib())
