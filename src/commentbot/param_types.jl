@@ -47,7 +47,7 @@ struct RequestParams{T<:RequestTrigger}
                 notes = notes_match === nothing ? "" : strip(notes_match[1])
                 if is_pull_request(evt.payload)
                     if CONFIG["disable_pull_request_trigger"]
-                        make_comment(evt, "Pull request comments will not trigger Registrator as it is disabled. Please trying using a commit or issue comment.")
+                        make_comment(evt, "Comments on pull requests will not trigger Registrator, as it is disabled. Please try commenting on a commit or issue.")
                     else
                         @debug("Comment is on a pull request")
                         prid = get_prid(evt.payload)
