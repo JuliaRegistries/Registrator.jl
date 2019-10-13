@@ -84,6 +84,10 @@ Note that if you have not enabled TagBot, no release will be made at all, and so
 
 The Julia package manager **does not** rely on git tags and GitHub releases. However, Registrator will generate a `git tag` command for you to optionally create a corresponding tag with your package version, or you can use TagBot as is mentioned above.
 
+### Note on documentation build
+
+The docs for your project will be automatically built by [DocumentationGenerator.jl](https://github.com/JuliaDocs/DocumentationGenerator.jl). Please see that repo for details. Your docs should show up at pkg.julialang.org/docs.
+
 ## Approving pull requests on the registry
 
 Currently, a registry maintainer will manually merge the pull request made by Registrator.  We will soon have a CI system to check and auto-merge without human intervention.
