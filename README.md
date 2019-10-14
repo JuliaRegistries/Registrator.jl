@@ -88,7 +88,7 @@ The Julia package manager **does not** rely on git tags and GitHub releases. How
 
 The docs for your project will be automatically built by [DocumentationGenerator.jl](https://github.com/JuliaDocs/DocumentationGenerator.jl). Please see that repo for details. Your docs should show up at pkg.julialang.org/docs.
 
-By default, whatever is in `docs/make.jl` will be built, or it will fall back to using your README.md.
+By default, `docs/make.jl` will be run to build the docs. If that is missing, the `README.md` will be used instead.
 
 ## Approving pull requests on the registry
 
