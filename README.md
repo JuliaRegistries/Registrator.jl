@@ -21,7 +21,7 @@ There are two ways to use Registrator: a web interface and a GitHub app.
 This workflow supports repositories hosted on either GitHub or GitLab.
 
 Go to https://pkg.julialang.org/registrator/ and follow the instructions.
-There are also more detailed instructions [here](README.web.md#usage-for-package-maintainers).
+There are also more detailed instructions [here](https://juliaregistries.github.io/Registrator.jl/stable/webui/#Usage-(For-Package-Maintainers)-1).
 
 ### Via the GitHub App
 
@@ -62,7 +62,7 @@ Either:
 
 *Note*: Only *collaborators* on the package repository and *public members* on the organization the package is under are allowed to register. If you are not a collaborator, you can request a collaborator trigger registrator in a GitHub issue or a comment on a commit.
 
-If you want to register as a private member you should host your own instance of Registrator, see [docs.md](https://github.com/JuliaRegistries/Registrator.jl/blob/master/docs.md)
+If you want to register as a private member you should host your own instance of Registrator, see the [documentation](https://juliaregistries.github.io/Registrator.jl/stable/hosting/).
 
 ### Release notes
 
@@ -90,6 +90,5 @@ Currently, a registry maintainer will manually merge the pull request made by Re
 
 ## Private packages and registries
 
-Private packages will be ignored by the current running instance of Registrator. Please see [docs.md](https://github.com/JuliaRegistries/Registrator.jl/blob/master/docs.md) on how to host your own Registrator for private packages.
-
-For more info on running your own instance of Registrator, see the documentation in [docs.md](https://github.com/JuliaRegistries/Registrator.jl/blob/master/docs.md)
+Private packages will be ignored by the current running instance of Registrator. 
+Please see the [documentation](https://juliaregistries.github.io/Registrator.jl/stable/hosting/) on how to host your own Registrator for private packages.
