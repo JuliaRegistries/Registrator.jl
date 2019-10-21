@@ -377,7 +377,23 @@ function update_compat_file(pkg::Pkg.Types.Project,
 
     d = Dict()
     err = nothing
-    for (n,v) in pkg.compat
+
+    invalid_compats = []
+    for (n, v) in pkg.compat
+        indeps = haskey(pkg.deps, n)
+        inextras = haskey(pkg.extras, n)
+        if !indeps && !inextras && n != "julia"
+            push!(invalid_compats, n)
+        end
+    end
+    if !isempty(invalid_compats)
+        err = "Following packages are mentioned in `[compat]` but not found in `[deps]` or `[extras]`:\n" * join(invalid_compats, "\n")
+        @debug(err)
+        regbr.metadata["error"] = err
+        return regbr
+    end
+
+    for (n, v) in pkg.compat
         spec = Pkg.Types.semver_spec(v)
         if n == "julia"
             uuidofdep = julia_uuid
