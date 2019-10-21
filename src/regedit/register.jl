@@ -382,7 +382,7 @@ function update_compat_file(pkg::Pkg.Types.Project,
     for (n, v) in pkg.compat
         indeps = haskey(pkg.deps, n)
         inextras = haskey(pkg.extras, n)
-        if !indeps && !inextras
+        if !indeps && !inextras && n != "julia"
             push!(invalid_compats, n)
         end
     end
