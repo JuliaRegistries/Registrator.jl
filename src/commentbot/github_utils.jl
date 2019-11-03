@@ -220,7 +220,7 @@ function create_or_find_pull_request(repo::AbstractString,
         @debug("Pull request created")
         try # add labels
             if get(rbrn.metadata, "labels", nothing) !== nothing
-                edit_issue(repo, pr; auth = get_user_auth(),
+                edit_issue(repo, pr; auth = auth,
                     params = Dict("labels"=>rbrn.metadata["labels"]))
             end
         catch
@@ -250,7 +250,15 @@ function create_or_find_pull_request(repo::AbstractString,
         if pr === nothing
             error("Registration PR already exists but unable to find it")
         else
-            update_pull_request(repo, pr.number; auth=auth, params=Dict("body" => params["body"]))
+            update_pull_request(repo, pr.number; auth=auth, params=Dict("body" => params["body"], "title" => params["title"]))
+            try # update labels
+                if get(rbrn.metadata, "labels", nothing) !== nothing
+                    edit_issue(repo, pr; auth = auth,
+                        params = Dict("labels"=>rbrn.metadata["labels"]))
+                end
+            catch
+                @debug "Failed to update labels, ignoring."
+            end
         end
     end
 
