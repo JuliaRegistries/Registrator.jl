@@ -97,7 +97,7 @@ function init_registry()
     k = get(CONFIG, "registry_provider") do
         if occursin("github", url)
             "github"
-        elseif occursin("gitlab", url)
+        else
             "gitlab"
         end
     end
