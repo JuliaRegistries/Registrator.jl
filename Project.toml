@@ -19,6 +19,7 @@ MbedTLS = "739be429-bea8-5141-9913-cc70e7f3736d"
 Mustache = "ffc61752-8dc7-55ee-8c37-f3e9cdd09e70"
 Mux = "a975b10e-0019-58db-a62f-e48ff68538c9"
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
+RegistryTools = "d1eb7eb1-105f-429d-abf5-b0f65cb9e2c4"
 Serialization = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 Sockets = "6462fe0b-24de-5631-8697-dd941f90decc"
 TimeToLive = "37f0c46e-897f-50ef-b453-b26c3eed3d6c"
@@ -27,6 +28,7 @@ ZMQ = "c2297ded-f4af-51ae-bb23-16f91089e4e1"
 
 [compat]
 GitForge = "~0.1.4"
+RegistryTools = "1"
 julia = "1.1"
 
 [extras]

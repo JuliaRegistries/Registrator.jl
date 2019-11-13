@@ -1,6 +1,7 @@
 module WebUI
 
-using ..Registrator: RegEdit, pull_request_contents
+using ..Registrator: pull_request_contents
+import RegistryTools
 
 using Dates
 using GitForge, GitForge.GitHub, GitForge.GitLab
@@ -127,7 +128,7 @@ end
 pathmatch(p::AbstractString, f::Function) = branch(r -> first(split(r.target, "?")) == p, f)
 
 function action(regdata::RegistrationData, zsock::RequestSocket)
-    regp = RegEdit.RegisterParams(cloneurl(regdata.repo), regdata.project, regdata.tree;
+    regp = RegistryTools.RegisterParams(cloneurl(regdata.repo), regdata.project, regdata.tree;
         registry=REGISTRY[].clone, registry_deps=REGISTRY[].deps, push=true,
     )
     branch = sendrecv(zsock, regp; nretry=5)
