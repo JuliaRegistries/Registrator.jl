@@ -12,7 +12,7 @@ using MbedTLS
 
 import Pkg: TOML
 import ..Registrator: post_on_slack_channel, pull_request_contents
-import ..RegEdit: RegBranch, RegisterParams
+import RegistryTools: RegBranch, RegisterParams
 import Base: string
 using ..Messaging
 
