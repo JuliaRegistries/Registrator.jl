@@ -8,3 +8,4 @@ nohup.out
 run/stop*
 docs/build/
 docs/Manifest.toml
+.vscode
