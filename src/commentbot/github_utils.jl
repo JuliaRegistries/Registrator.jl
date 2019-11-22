@@ -33,6 +33,7 @@ is_owned_by_organization(event) = event.repository.owner.typ == "Organization"
 function is_comment_by_collaborator(event)
     @debug("Checking if comment is by collaborator")
     user = get_user_login(event.payload)
+    user == "github-actions[bot]" && return true
     return iscollaborator(event.repository, user; auth=get_access_token(event))
 end
 
@@ -40,6 +41,7 @@ function is_comment_by_org_owner_or_member(event)
     @debug("Checking if comment is by repository parent organization owner or member")
     org = event.repository.owner.login
     user = get_user_login(event.payload)
+    user == "github-actions[bot]" && return true
     if get(CONFIG, "check_private_membership", false)
         return GitHub.check_membership(org, user; auth=get_user_auth())
     else
