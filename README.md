@@ -92,7 +92,7 @@ By default, `docs/make.jl` will be run to build the docs. If that is missing, th
 
 ## Approving pull requests on the registry
 
-Currently, a registry maintainer will manually merge the pull request made by Registrator.  We will soon have a CI system to check and auto-merge without human intervention.
+Pull requests that comply with the [automatic merging guidelines](https://github.com/JuliaRegistries/RegistryCI.jl#automatic-merging-guidelines) will be merged without human intervention periodically. On other cases, a registry maintainer will manually merge the pull request made by Registrator.
 
 ## Private packages and registries
 

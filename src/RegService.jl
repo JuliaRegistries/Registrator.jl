@@ -5,7 +5,7 @@ using Distributed
 using Pkg
 using Logging
 
-import ..RegEdit: register
+import RegistryTools: register
 using ..Messaging
 
 const CONFIG = Dict{String,Any}()
@@ -14,9 +14,9 @@ include("management.jl")
 
 """
     service(zsock::ReplySocket)
-Start a server that calls `RegEdit.register` on incoming
+Start a server that calls `RegistryTools.register` on incoming
 registration requests from `zsock`. Registration requests
-must be serialized `RegEdit.RegisterParams` objects. Close
+must be serialized `RegistryTools.RegisterParams` objects. Close
 the socket to halt the server.
 
 Parameters:

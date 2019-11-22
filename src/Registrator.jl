@@ -8,7 +8,6 @@ using UUIDs
 decodeb64(s::AbstractString) = String(base64decode(replace(s, r"\s" => "")))
 
 include("slack.jl")
-include("regedit/RegEdit.jl")
 include("pull_request.jl")
 include("Messaging.jl")
 include("RegService.jl")
