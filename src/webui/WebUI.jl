@@ -25,7 +25,7 @@ const ROUTES = Dict(
     :STATUS => "/status",
 )
 
-const DOCS = "https://github.com/JuliaRegistries/Registrator.jl/blob/master/README.web.md#usage-for-package-maintainers"
+const DOCS = "https://juliaregistries.github.io/Registrator.jl/stable/webui/#Usage-(For-Package-Maintainers)-1"
 const CONFIG = Dict{String, Any}()
 
 include("../management.jl")
