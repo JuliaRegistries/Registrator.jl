@@ -1,8 +1,16 @@
-import Registrator.CommentBot: parse_comment
+using Registrator.CommentBot: make_trigger, parse_comment
 
 using Test
 
 @testset "Server" begin
+
+@testset "Trigger comment" begin
+    trigger = make_trigger(Dict("trigger" => "@JuliaRegistrator"))
+    @test match(trigger, "@JuliaRegistrator hi") !== nothing
+    @test match(trigger, "@juliaregistrator hi") !== nothing
+    @test match(trigger, "@Zuliaregistrator hi") === nothing
+    @test match(trigger, "@zuliaregistrator hi") === nothing
+end
 
 @testset "parse_comment" begin
     @test parse_comment("register()") == ("register", Dict{Symbol,String}())
