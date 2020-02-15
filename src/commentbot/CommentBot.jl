@@ -91,7 +91,7 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
 
         After the above pull request is merged, it is recommended that a tag is created on this repository for the registered package version.
 
-        This will be done automatically if [Julia TagBot](https://github.com/apps/julia-tagbot) is installed, or can be done manually through the github interface, or via:
+        This will be done automatically if the [Julia TagBot GitHub Action](https://github.com/marketplace/actions/julia-tagbot) is installed, or can be done manually through the github interface, or via:
         ```
         git tag -a v$(string(ver)) -m "<description of version>" $(pp.sha)
         git push origin v$(string(ver))
