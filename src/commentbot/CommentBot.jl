@@ -203,10 +203,12 @@ function comment_handler(event::WebhookEvent, phrase::RegexMatch)
     return HTTP.Messages.Response(200)
 end
 
+make_trigger(cfg=CONFIG) = Regex(cfg["trigger"] * "(.*)", "i")
+
 function github_webhook(http_ip=CONFIG["http_ip"],
                         http_port=get(CONFIG, "http_port", parse(Int, get(ENV, "PORT", "8001"))))
     auth = get_jwt_auth()
-    trigger = Regex(CONFIG["trigger"] * "(.*)")
+    trigger = make_trigger()
     listener = GitHub.CommentListener(comment_handler, trigger; check_collab=false, auth=auth, secret=CONFIG["github"]["secret"])
     httpsock[] = Sockets.listen(IPv4(http_ip), http_port)
 
