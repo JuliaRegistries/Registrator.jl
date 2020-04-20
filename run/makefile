@@ -1,11 +1,11 @@
 stop-regservice:
-	touch stopregservice
+	touch /tmp/stopregservice
 
 stop-commentbot:
-	touch stopcommentbot
+	touch /tmp/stopcommentbot
 
 stop-webui:
-	touch stopwebui
+	touch /tmp/stopwebui
 
 stop-all: stop-regservice stop-commentbot stop-webui
 
