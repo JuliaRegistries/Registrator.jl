@@ -102,7 +102,7 @@ function get_html_url(payload::Dict{<:AbstractString})
 end
 
 """
-    raise_issue(event::WebhookEvent, phrase::Regex, bt::String)
+    raise_issue(event::WebhookEvent, phrase::RegexMatch, bt::String)
 Open an issue in the configured Registrator repository. The issue
 body will contain the trigger comment `phrase` and the backtrace
 in `bt`. A link to the opened issue will be posted on the source
@@ -111,7 +111,7 @@ issue, PR or commit from which the `event` comes from.
 This will also post the backtrace on the slack channel if
 configured.
 """
-function raise_issue(event::WebhookEvent, phrase::Regex, bt::String)
+function raise_issue(event::WebhookEvent, phrase::RegexMatch, bt::String)
     repo = event.repository.full_name
     lab = is_commit_comment(event.payload) ? get_comment_commit_id(event) : get_prid(event.payload)
     title = "Error registering $repo#$lab"
