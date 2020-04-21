@@ -60,15 +60,24 @@ function handle_approval(rp::RequestParams{ApprovalTrigger})
     end
 
     tag_exists = false
-    ts = tags(reponame; auth=auth, page_limit=1, params=Dict("per_page" => 15))[1]
-    for t in ts
-        if split(t.url.path, "/")[end] == "v$ver"
-            if t.object["sha"] != tree_sha
-                return "Tag with name `v$ver` already exists and points to a different commit"
+    # Get tags in a try-catch block as GitHub.jl error if no tag exists
+    try
+        ts = tags(reponame; auth=auth, page_limit=1, params=Dict("per_page" => 15))[1]
+        for t in ts
+            if split(t.url.path, "/")[end] == "v$ver"
+                if t.object["sha"] != tree_sha
+                    return "Tag with name `v$ver` already exists and points to a different commit"
+                end
+                tag_exists = true
+                @debug("Tag already exists", reponame, ver, tree_sha)
+                break
             end
-            tag_exists = true
-            @debug("Tag already exists", reponame, ver, tree_sha)
-            break
+        end
+    catch e
+        if occursin("Status Code: 404", e.msg)
+            @debug("No tag exists", reponame)
+        else
+            rethrow(e)
         end
     end
 
