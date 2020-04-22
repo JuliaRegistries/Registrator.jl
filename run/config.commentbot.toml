@@ -47,7 +47,9 @@ registry_deps = ["https://github.com/JuliaRegistries/General"]
 
 [commentbot.github]
 user = ""       # A GitHub user ID, can be same as that set for [regservice]
-
+email = ""      # The email associated with the above user, this is
+                # required for creating the tag in the approval process. Note that this 
+                # is only needed if you want to enable the approval process.
 token = ""      # An access token for the above user ID, this is
                 # required for pushing the commit to the remote registry
 
