@@ -12,6 +12,7 @@ struct RequestParams{T<:RequestTrigger}
     trigger_src::T
     commenter_can_register::Bool
     target::Union{Nothing,String}
+    subdir::String
     cparams::CommonParams
 
     function RequestParams(evt::WebhookEvent, phrase::RegexMatch)
@@ -34,6 +35,7 @@ struct RequestParams{T<:RequestTrigger}
         end
 
         branch = get(action_kwargs, :branch, "master")
+        subdir = get(action_kwargs, :subdir, "")
         target = get(action_kwargs, :target, nothing)
 
         if evt.payload["repository"]["private"] && get(CONFIG, "disable_private_registrations", true)
@@ -100,7 +102,7 @@ struct RequestParams{T<:RequestTrigger}
         @debug("Event pre-check validity: $isvalid")
 
         return new{typeof(trigger_src)}(evt, phrase, reponame, notes, trigger_src,
-                                        commenter_can_register, target,
+                                        commenter_can_register, target, subdir,
                                         CommonParams(isvalid, err, report_error))
     end
 end
@@ -190,7 +192,7 @@ struct ProcessedParams
         cloneurl, sha, err = get_cloneurl_and_sha(rp, auth)
 
         if err === nothing && sha !== nothing
-            project, tree_sha, projectfile_found, projectfile_valid, err = verify_projectfile_from_sha(rp.reponame, sha; auth = auth)
+            project, tree_sha, projectfile_found, projectfile_valid, err = verify_projectfile_from_sha(rp.reponame, sha; auth = auth, subdir = rp.subdir)
             if !projectfile_found
                 err = "File (Julia)Project.toml not found"
                 @debug(err)

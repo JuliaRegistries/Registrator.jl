@@ -138,6 +138,7 @@ function action(rp::RequestParams{T}, zsock::RequestSocket) where T <: RegisterT
             regp = RegisterParams(pp.cloneurl,
                                   pp.project,
                                   pp.tree_sha;
+                                  subdir=rp.subdir,
                                   registry=target_registry["repo"],
                                   registry_deps=registry_deps,
                                   push=true,
