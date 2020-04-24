@@ -133,7 +133,8 @@ function istagwrong(
     rp::RequestParams,
     commit_sha::String,
     ver::VersionNumber,
-    auth,
+    auth;
+    tag_name = "v$ver"
 )
     # Look for tag in last 15 tags
     ts = try
@@ -144,11 +145,8 @@ function istagwrong(
     end
     ver = string(ver)
     for t in ts
-        tag_name = split(t.url.path, "/")[end]
-        if startswith(tag_name, "v")
-            tag_name = tag_name[2:end]
-        end
-        if tag_name == ver
+        name = split(t.url.path, "/")[end]
+        if name == ver
             if t.object["sha"] != commit_sha
                 return true
             end
@@ -201,9 +199,14 @@ struct ProcessedParams
 
         wrongtag = false
         if err === nothing
-            wrongtag = istagwrong(rp, sha, project.version, auth)
+            if rp.subdir == ""
+                tag_name = "v$(project.version)"
+            else
+                tag_name = splitdir(rp.subdir)[end] * "-v$(project.version)"
+            end
+            wrongtag = istagwrong(rp, sha, project.version, auth, tag_name = tag_name)
             if wrongtag
-                err = "Tag with name `$(project.version)` already exists and points to a different commit"
+                err = "Tag with name `$tag_name` already exists and points to a different commit"
                 @debug(err, rp.reponame, project.version)
             end
         end
