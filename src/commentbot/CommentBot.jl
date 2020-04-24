@@ -49,8 +49,10 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
     name = rbrn.name
     ver = rbrn.version
     brn = rbrn.branch
+    subdir = rp.subdir
 
-    @info("Creating pull request name=$name, ver=$ver, branch=$brn")
+    subdir_string = subdir == "" ? "" : ", subdir=$subdir"
+    @info("Creating pull request name=$name, ver=$ver, branch=$brn" * subdir_string)
     payload = rp.evt.payload
     creator = get_user_login(payload)
     reviewer = payload["sender"]["login"]
@@ -62,7 +64,8 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
                           "pkg_repo_name"=> rp.reponame,
                           "trigger_id"=> trigger_id,
                           "tree_sha"=> pp.tree_sha,
-                          "version"=> string(ver)))
+                          "version"=> string(ver),
+                          "subdir"=> subdir))
     key = CONFIG["enc_key"]
     enc_meta = "<!-- " * bytes2hex(encrypt(MbedTLS.CIPHER_AES_128_CBC, key, meta, key)) * " -->"
     params = Dict("base"=>target_registry["base_branch"],
