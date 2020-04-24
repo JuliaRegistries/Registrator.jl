@@ -45,7 +45,7 @@ get_trigger_id(rp::RequestParams{PullRequestTrigger}) = rp.trigger_src.prid
 get_trigger_id(rp::RequestParams{IssueTrigger}) = get_prid(rp.evt.payload)
 get_trigger_id(rp::RequestParams{CommitCommentTrigger}) = get_comment_commit_id(rp.evt)
 
-tag_name(version, subdir) = subdir == "" ? "v$version" : splitdir(subdir)[end] * "-v$ver"
+tag_name(version, subdir) = subdir == "" ? "v$version" : splitdir(subdir)[end] * "-v$version"
 
 function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBranch, target_registry::Dict{String,Any})
     name = rbrn.name
