@@ -90,6 +90,7 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
 
     repo = join(split(target_registry["repo"], "/")[end-1:end], "/")
     pr, msg = create_or_find_pull_request(repo, params, rbrn)
+    tag = tag_name(ver, subdir)
 
     cbody = """
         Registration pull request $msg: [$(repo)/$(pr.number)]($(pr.html_url))
@@ -98,8 +99,8 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
 
         This will be done automatically if the [Julia TagBot GitHub Action](https://github.com/marketplace/actions/julia-tagbot) is installed, or can be done manually through the github interface, or via:
         ```
-        git tag -a v$(string(ver)) -m "<description of version>" $(pp.sha)
-        git push origin v$(string(ver))
+        git tag -a $tag -m "<description of version>" $(pp.sha)
+        git push origin $tag
         ```
         """
 
