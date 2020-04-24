@@ -55,7 +55,8 @@ function verify_projectfile_from_sha(reponame, commit_sha; auth=GitHub.Anonymous
     @debug("Getting gitcommit object for sha")
     gcom = gitcommit(reponame, GitCommit(Dict("sha"=>commit_sha)); auth=auth)
     @debug("Getting tree object for sha")
-    t = tree(reponame, Tree(gcom.tree); auth=auth, params = Dict(:recursive => true))
+    recurse = subdir != ""
+    t = tree(reponame, Tree(gcom.tree); auth=auth, params = Dict(:recursive => recurse))
     tree_sha = t.sha
     project_files = joinpath.(subdir, Base.project_names)
 
