@@ -64,7 +64,7 @@ function handle_approval(rp::RequestParams{ApprovalTrigger})
     if subdir == ""
         tag_name = "v$ver"
     else
-        tag_name = reponame * "-v$ver"
+        tag_name = splitdir(subdir)[end] * "-v$ver"
     end
     # Get tags in a try-catch block as GitHub.jl error if no tag exists
     try
