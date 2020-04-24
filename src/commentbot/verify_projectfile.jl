@@ -47,20 +47,21 @@ function pfile_hasfields(p::Pkg.Types.Project)
     return true, nothing
 end
 
-function verify_projectfile_from_sha(reponame, sha; auth=GitHub.AnonymousAuth(), subdir = "")
+function verify_projectfile_from_sha(reponame, commit_sha; auth=GitHub.AnonymousAuth(), subdir = "")
     project = nothing
     projectfile_found = false
     projectfile_valid = false
     err = nothing
     @debug("Getting gitcommit object for sha")
-    gcom = gitcommit(reponame, GitCommit(Dict("sha"=>sha)); auth=auth)
+    gcom = gitcommit(reponame, GitCommit(Dict("sha"=>commit_sha)); auth=auth)
     @debug("Getting tree object for sha")
     t = tree(reponame, Tree(gcom.tree); auth=auth, params = Dict(:recursive => true))
+    tree_sha = t.sha
     project_files = joinpath.(subdir, Base.project_names)
 
     for tr in t.tree, file in project_files
         if tr["path"] == subdir
-            sha = tr["sha"]
+            tree_sha = tr["sha"]
         elseif tr["path"] == file
             projectfile_found = true
             @debug("(Julia)Project file found")
@@ -87,5 +88,5 @@ function verify_projectfile_from_sha(reponame, sha; auth=GitHub.AnonymousAuth(),
         end
     end
 
-    return project, sha, projectfile_found, projectfile_valid, err
+    return project, tree_sha, projectfile_found, projectfile_valid, err
 end
