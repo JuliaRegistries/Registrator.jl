@@ -23,16 +23,16 @@ set_status = true               # If set to true Registrator will post pending a
 enc_key = "1234567890123456"    # The encryption key to use to encrypt PR metadata. This is
                                 # decrypted and used by Registrator for the approved() call.
 
-disable_pull_request_trigger = false    # If set to true this will disable register()ing from
-                                # Pull requests. Leaving this feature enabled is not recommended 
-                                # as Pull requests need to be merged for the registration 
-                                # process to be complete. This can be ensured if you use the 
-                                # approval process. (See below)
+disable_pull_request_trigger = true    # If set to false this will enable register()ing from
+                                # Pull requests. This is not recommended as Pull requests
+                                # need to be merged for the registration process to be
+                                # complete. This can be ensured if you use the approval
+                                # process. (See below)
 
-disable_approval_process = false    # If set to true this will disable the approved() call.
-                                # Note that enabling this option requires your App to have 
-                                # write access to the repository on which it is installed. 
-                                # Read more about the approved() call in docs.md
+disable_approval_process = true # If set to false this will enable the approved() call.
+                                # Note that this requires your App to have write access
+                                # to the repository on which it is installed. Read more
+                                # about the approved() call in docs.md
 
 disable_private_registrations = true    # If set to false this will enable private packages
                                 # to be registered.
