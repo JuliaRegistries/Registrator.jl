@@ -8,7 +8,7 @@ backend_port = 5555             # Port of the backend regservice
 trigger = "@JuliaRegistrator"   # The comment that should trigger Registrator. Typically
                                 # keep this the same as your GitHub user mention.
 
-stop_file = "/tmp/stopcommentbot" # `touch` this file to stop the comment bot
+stop_file = "stopcommentbot" # `touch` this file to stop the comment bot
 
 issue_repo = "JuliaRegistries/Registrator.jl"
 report_issue = false            # If set to true any unhandled error will be reported as
