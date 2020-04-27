@@ -90,11 +90,15 @@ The docs for your project will be automatically built by [DocumentationGenerator
 
 By default, `docs/make.jl` will be run to build the docs. If that is missing, the `README.md` will be used instead.
 
+### Registering a package in a subdirectory
+
+If the package you want to register is in a subdirectory of your git repository, you can tell Registrator to register it by adding the `subdir` argument to your trigger, e.g. `@JuliaRegistrator register subdir=path/to/my/package`.
+
 ## Approving pull requests on the registry
 
 Pull requests that comply with the [automatic merging guidelines](https://github.com/JuliaRegistries/RegistryCI.jl#automatic-merging-guidelines) will be merged without human intervention periodically. On other cases, a registry maintainer will manually merge the pull request made by Registrator.
 
 ## Private packages and registries
 
-Private packages will be ignored by the current running instance of Registrator. 
+Private packages will be ignored by the current running instance of Registrator.
 Please see the [documentation](https://juliaregistries.github.io/Registrator.jl/stable/hosting/) on how to host your own Registrator for private packages.
