@@ -45,12 +45,16 @@ get_trigger_id(rp::RequestParams{PullRequestTrigger}) = rp.trigger_src.prid
 get_trigger_id(rp::RequestParams{IssueTrigger}) = get_prid(rp.evt.payload)
 get_trigger_id(rp::RequestParams{CommitCommentTrigger}) = get_comment_commit_id(rp.evt)
 
+tag_name(version, subdir) = subdir == "" ? "v$version" : splitdir(subdir)[end] * "-v$version"
+
 function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBranch, target_registry::Dict{String,Any})
     name = rbrn.name
     ver = rbrn.version
     brn = rbrn.branch
+    subdir = rp.subdir
 
-    @info("Creating pull request name=$name, ver=$ver, branch=$brn")
+    subdir_string = subdir == "" ? "" : ", subdir=$subdir"
+    @info("Creating pull request name=$name, ver=$ver, branch=$brn" * subdir_string)
     payload = rp.evt.payload
     creator = get_user_login(payload)
     reviewer = payload["sender"]["login"]
@@ -62,7 +66,8 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
                           "pkg_repo_name"=> rp.reponame,
                           "trigger_id"=> trigger_id,
                           "tree_sha"=> pp.tree_sha,
-                          "version"=> string(ver)))
+                          "version"=> string(ver),
+                          "subdir"=> subdir))
     key = CONFIG["enc_key"]
     enc_meta = "<!-- " * bytes2hex(encrypt(MbedTLS.CIPHER_AES_128_CBC, key, meta, key)) * " -->"
     params = Dict("base"=>target_registry["base_branch"],
@@ -85,6 +90,7 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
 
     repo = join(split(target_registry["repo"], "/")[end-1:end], "/")
     pr, msg = create_or_find_pull_request(repo, params, rbrn)
+    tag = tag_name(ver, subdir)
 
     cbody = """
         Registration pull request $msg: [$(repo)/$(pr.number)]($(pr.html_url))
@@ -93,8 +99,8 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
 
         This will be done automatically if the [Julia TagBot GitHub Action](https://github.com/marketplace/actions/julia-tagbot) is installed, or can be done manually through the github interface, or via:
         ```
-        git tag -a v$(string(ver)) -m "<description of version>" $(pp.sha)
-        git push origin v$(string(ver))
+        git tag -a $tag -m "<description of version>" $(pp.sha)
+        git push origin $tag
         ```
         """
 
@@ -138,6 +144,7 @@ function action(rp::RequestParams{T}, zsock::RequestSocket) where T <: RegisterT
             regp = RegisterParams(pp.cloneurl,
                                   pp.project,
                                   pp.tree_sha;
+                                  subdir=rp.subdir,
                                   registry=target_registry["repo"],
                                   registry_deps=registry_deps,
                                   push=true,

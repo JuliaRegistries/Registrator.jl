@@ -1,10 +1,10 @@
-function tag_package(rname, ver::VersionNumber, mcs, auth)
+function tag_package(rname, ver::VersionNumber, mcs, auth; tag_name = "v$ver")
     tagger = Dict("name" => CONFIG["github"]["user"],
                   "email" => CONFIG["github"]["email"],
                   "date" => Dates.format(now(), dateformat"YYYY-mm-ddTHH:MM:SSZ"))
     create_tag(rname; auth=auth,
-               params=Dict("tag" => "v$ver",
-                           "message" => "Release: v$ver",
+               params=Dict("tag" => tag_name,
+                           "message" => "Release: $tag_name",
                            "object" => mcs,
                            "type" => "commit",
                            "tagger" => tagger))
@@ -46,6 +46,7 @@ function handle_approval(rp::RequestParams{ApprovalTrigger})
     tree_sha = d["tree_sha"]
     trigger_id = d["trigger_id"]
     request_type = d["request_type"]
+    subdir = d["subdir"]
 
     if request_type == "pull_request"
         pr = pull_request(reponame, trigger_id; auth=auth)
@@ -60,13 +61,14 @@ function handle_approval(rp::RequestParams{ApprovalTrigger})
     end
 
     tag_exists = false
+    tag = tag_name(ver, subdir)
     # Get tags in a try-catch block as GitHub.jl error if no tag exists
     try
         ts = tags(reponame; auth=auth, page_limit=1, params=Dict("per_page" => 15))[1]
         for t in ts
-            if split(t.url.path, "/")[end] == "v$ver"
+            if split(t.url.path, "/")[end] == tag
                 if t.object["sha"] != tree_sha
-                    return "Tag with name `v$ver` already exists and points to a different commit"
+                    return "Tag with name `$tag` already exists and points to a different commit"
                 end
                 tag_exists = true
                 @debug("Tag already exists", reponame, ver, tree_sha)
@@ -83,7 +85,7 @@ function handle_approval(rp::RequestParams{ApprovalTrigger})
 
     if !tag_exists
         @debug("Creating new tag", reponame, ver, tree_sha)
-        tag_package(reponame, ver, tree_sha, auth)
+        tag_package(reponame, ver, tree_sha, auth; tag_name = tag)
     end
 
     release_exists = false
@@ -91,7 +93,7 @@ function handle_approval(rp::RequestParams{ApprovalTrigger})
         # Look for release in last 15 releases
         rs = releases(reponame; auth=auth, page_limit=1, params=Dict("per_page"=>15))[1]
         for r in rs
-            if r.name == "v$ver"
+            if r.name == tag
                 release_exists = true
                 @debug("Release already exists", r.name)
                 break
@@ -102,7 +104,7 @@ function handle_approval(rp::RequestParams{ApprovalTrigger})
     if !release_exists
         @debug("Creating new release", ver)
         create_release(reponame; auth=auth,
-                       params=Dict("tag_name" => "v$ver", "name" => "v$ver"))
+                       params=Dict("tag_name" => tag, "name" => tag))
     end
 
     if request_type == "issue"

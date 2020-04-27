@@ -12,6 +12,7 @@ struct RequestParams{T<:RequestTrigger}
     trigger_src::T
     commenter_can_register::Bool
     target::Union{Nothing,String}
+    subdir::String
     cparams::CommonParams
 
     function RequestParams(evt::WebhookEvent, phrase::RegexMatch)
@@ -34,6 +35,7 @@ struct RequestParams{T<:RequestTrigger}
         end
 
         branch = get(action_kwargs, :branch, "master")
+        subdir = get(action_kwargs, :subdir, "")
         target = get(action_kwargs, :target, nothing)
 
         if evt.payload["repository"]["private"] && get(CONFIG, "disable_private_registrations", true)
@@ -100,7 +102,7 @@ struct RequestParams{T<:RequestTrigger}
         @debug("Event pre-check validity: $isvalid")
 
         return new{typeof(trigger_src)}(evt, phrase, reponame, notes, trigger_src,
-                                        commenter_can_register, target,
+                                        commenter_can_register, target, subdir,
                                         CommonParams(isvalid, err, report_error))
     end
 end
@@ -131,7 +133,8 @@ function istagwrong(
     rp::RequestParams,
     commit_sha::String,
     ver::VersionNumber,
-    auth,
+    auth;
+    tag = "v$ver"
 )
     # Look for tag in last 15 tags
     ts = try
@@ -140,13 +143,9 @@ function istagwrong(
     catch ex
         []
     end
-    ver = string(ver)
     for t in ts
-        tag_name = split(t.url.path, "/")[end]
-        if startswith(tag_name, "v")
-            tag_name = tag_name[2:end]
-        end
-        if tag_name == ver
+        name = split(t.url.path, "/")[end]
+        if name == tag
             if t.object["sha"] != commit_sha
                 return true
             end
@@ -190,7 +189,7 @@ struct ProcessedParams
         cloneurl, sha, err = get_cloneurl_and_sha(rp, auth)
 
         if err === nothing && sha !== nothing
-            project, tree_sha, projectfile_found, projectfile_valid, err = verify_projectfile_from_sha(rp.reponame, sha; auth = auth)
+            project, tree_sha, projectfile_found, projectfile_valid, err = verify_projectfile_from_sha(rp.reponame, sha; auth = auth, subdir = rp.subdir)
             if !projectfile_found
                 err = "File (Julia)Project.toml not found"
                 @debug(err)
@@ -199,9 +198,10 @@ struct ProcessedParams
 
         wrongtag = false
         if err === nothing
-            wrongtag = istagwrong(rp, sha, project.version, auth)
+            tag = tag_name(project.version, rp.subdir)
+            wrongtag = istagwrong(rp, sha, project.version, auth, tag = tag)
             if wrongtag
-                err = "Tag with name `$(project.version)` already exists and points to a different commit"
+                err = "Tag with name `$tag` already exists and points to a different commit"
                 @debug(err, rp.reponame, project.version)
             end
         end
