@@ -4,6 +4,7 @@ http_port = 8001
 http_ip = "0.0.0.0"
 log_level = "debug"
 backend_port = 5555             # Port of the backend regservice
+enable_logging = true           # Optional, set to false if you wish to use a custom logger
 
 trigger = "@JuliaRegistrator"   # The comment that should trigger Registrator. Typically
                                 # keep this the same as your GitHub user mention.

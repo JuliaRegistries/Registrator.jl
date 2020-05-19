@@ -193,7 +193,9 @@ end
 
 function main(config::AbstractString=isempty(ARGS) ? "config.toml" : first(ARGS))
     merge!(CONFIG, TOML.parsefile(config)["web"])
-    global_logger(SimpleLogger(stdout, get_log_level(get(CONFIG, "log_level", "INFO"))))
+    if get(CONFIG, "enable_logging", true)
+        global_logger(SimpleLogger(stdout, get_log_level(get(CONFIG, "log_level", "INFO"))))
+    end
     zsock = RequestSocket(get(CONFIG, "backend_port", 5555))
 
     if haskey(CONFIG, "route_prefix")
