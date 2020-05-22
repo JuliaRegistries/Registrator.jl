@@ -12,8 +12,16 @@ function register(r::HTTP.Request)
     form = parseform(String(r.body))
     package = get(form, "package", "")
     isempty(package) && return json(400; error="Package URL was not provided")
-    occursin("://", package) || (package = "https://$package")
-    match(r"https?://.*\..*/.*/.*", package) === nothing && return json(400; error="Package URL is invalid")
+    is_ssh = startswith(package, "git@") && occursin(":", package)
+    if !is_ssh && !occursin("://", package)
+         package = "https://$package"
+    end
+    if endswith(package, ".git")
+        package = package[1:end-length(".git")]
+    end
+    !is_ssh && match(r"https?://.*\..*/.*/.*", package) === nothing && return json(400; error="Package URL is invalid")
+    is_ssh && match(r"git@.*\..*:.*/.*", package) === nothing && return json(400; error="Package URL is invalid")
+
     ref = get(form, "ref", "")
     isempty(ref) && return json(400; error="Branch was not provided")
     notes = get(form, "notes", "")
@@ -48,7 +56,7 @@ function register(r::HTTP.Request)
     # Register the package,
     tree = gettreesha(u.forge, repo, ref)
     tree === nothing && return json(500, error="Looking up the tree hash failed")
-    regdata = RegistrationData(project, tree, repo, u.user, ref, commit, notes)
+    regdata = RegistrationData(project, tree, repo, u.user, ref, commit, notes, is_ssh)
     REGISTRATIONS[commit] = RegistrationState("Please wait...", :pending)
     put!(event_queue, regdata)
     return json(; message="Registration in progress...", id=commit)

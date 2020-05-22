@@ -179,6 +179,11 @@ end
         resp = HTTP.post(url; body=body, cookies=cookies, status_exception=false)
         @test resp.status == 400
         @test occursin("Unauthorized to release this package", String(resp.body))
+
+        body = "package=git@github.com:JuliaLang/julia.git&ref=master"
+        resp = HTTP.post(url; body=body, cookies=cookies, status_exception=false)
+        @test resp.status == 400
+        @test occursin("Unauthorized to release this package", String(resp.body))
     end
 
 end

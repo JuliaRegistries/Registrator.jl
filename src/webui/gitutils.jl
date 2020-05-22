@@ -105,8 +105,8 @@ function getcommithash(::GitLabAPI, repo::GitLab.Project, ref::AbstractString)
 end
 
 # Get a repo's clone URL.
-cloneurl(r::GitHub.Repo) = r.clone_url
-cloneurl(r::GitLab.Project) = r.http_url_to_repo
+cloneurl(r::GitHub.Repo, is_ssh::Bool=false) = is_ssh ? r.ssh_url : r.clone_url
+cloneurl(r::GitLab.Project, is_ssh::Bool=false) = is_ssh ? r.ssh_url_to_repo : r.http_url_to_repo
 
 # Get a repo's tree hash.
 function gettreesha(::GitHubAPI, r::GitHub.Repo, ref::AbstractString)
