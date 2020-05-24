@@ -57,6 +57,7 @@ struct RegistrationData
     ref::String
     commit::String
     notes::String
+    is_ssh::Bool
 end
 
 const event_queue = Channel{RegistrationData}(1024)
@@ -128,7 +129,7 @@ end
 pathmatch(p::AbstractString, f::Function) = branch(r -> first(split(r.target, "?")) == p, f)
 
 function action(regdata::RegistrationData, zsock::RequestSocket)
-    regp = RegistryTools.RegisterParams(cloneurl(regdata.repo), regdata.project, regdata.tree;
+    regp = RegistryTools.RegisterParams(cloneurl(regdata.repo, regdata.is_ssh), regdata.project, regdata.tree;
         registry=REGISTRY[].clone, registry_deps=REGISTRY[].deps, push=true,
     )
     branch = sendrecv(zsock, regp; nretry=5)
