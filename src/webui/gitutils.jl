@@ -66,9 +66,17 @@ function isauthorized(u::User{GitLab.User}, repo::GitLab.Project)
         @gf is_collaborator(forge, repo.owner.username, repo.name, u.user.id)
     else
         # Same as above: group membership then collaborator check.
-        ismember = @gf is_member(forge, repo.namespace.full_path, u.user.id)
-        something(ismember, false) ||
-            @gf is_collaborator(u.forge, repo.namespace.full_path, repo.name, u.user.id)
+        nspath = split(repo.namespace.full_path, "/")
+        ismember = @gf is_collaborator(u.forge, repo.namespace.full_path, repo.name, u.user.id)
+        if !something(ismember, false)
+            accns = ""
+            for ns in nspath
+                accns = joinpath(accns, ns)
+                ismember = @gf is_member(forge, accns, u.user.id)
+                something(ismember, false) && break
+            end
+        end
+        ismember
     end
     return something(hasauth, false)
 end
