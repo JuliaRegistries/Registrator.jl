@@ -108,22 +108,16 @@ end
 cloneurl(r::GitHub.Repo, is_ssh::Bool=false) = is_ssh ? r.ssh_url : r.clone_url
 cloneurl(r::GitLab.Project, is_ssh::Bool=false) = is_ssh ? r.ssh_url_to_repo : r.http_url_to_repo
 
-# Get a repo's tree hash.
-function gettreesha(::GitHubAPI, r::GitHub.Repo, ref::AbstractString)
-    forge = PROVIDERS["github"].client
-    branch = @gf get_branch(forge, r.owner.login, r.name, ref)
-    return branch === nothing ? nothing : branch.commit.commit.tree.sha
-end
-
-function gettreesha(::GitLabAPI, r::GitLab.Project, ref::AbstractString)
+function gettreesha(
+    r::Union{GitLab.Project, GitHub.Repo},
+    ref::AbstractString
+)
     url = cloneurl(r)
 
-    if REGISTRY[] isa Registry{GitLabAPI}
-        # For private repositories, we need to insert the token into the URL.
-        host = HTTP.URI(url).host
-        token = CONFIG["gitlab"]["token"]
-        url = replace(url, host => "oauth2:$token@$host")
-    end
+    # For private repositories, we need to insert the token into the URL.
+    host = HTTP.URI(url).host
+    token = CONFIG[isa(r, GitLab.Project) ? "gitlab" : "github"]["token"]
+    url = replace(url, host => "oauth2:$token@$host")
 
     return try
         mktempdir() do dir
