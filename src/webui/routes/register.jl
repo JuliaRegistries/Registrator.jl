@@ -54,7 +54,7 @@ function register(r::HTTP.Request)
     end
 
     # Register the package,
-    tree = gettreesha(u.forge, repo, ref)
+    tree = gettreesha(repo, ref)
     tree === nothing && return json(500, error="Looking up the tree hash failed")
     regdata = RegistrationData(project, tree, repo, u.user, ref, commit, notes, is_ssh)
     REGISTRATIONS[commit] = RegistrationState("Please wait...", :pending)
