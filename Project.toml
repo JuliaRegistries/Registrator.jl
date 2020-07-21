@@ -28,7 +28,7 @@ ZMQ = "c2297ded-f4af-51ae-bb23-16f91089e4e1"
 
 [compat]
 AutoHashEquals = "0.2"
-GitForge = "~0.1.4"
+GitForge = "~0.1.5"
 GitHub = "5"
 HTTP = "0.8"
 JSON = "0.20, 0.21"
