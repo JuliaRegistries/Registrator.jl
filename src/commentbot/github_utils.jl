@@ -135,11 +135,11 @@ function raise_issue(event::WebhookEvent, phrase::RegexMatch, bt::String)
         params = Dict("title"=>title, "body"=>body)
         regrepo = CONFIG["issue_repo"]
         iss = create_issue(regrepo; params=params, auth=get_user_auth())
-        msg = "Unexpected error occured during registration, see issue: [$(regrepo)#$(iss.number)]($(iss.html_url))"
+        msg = "Unexpected error occurred during registration, see issue: [$(regrepo)#$(iss.number)]($(iss.html_url))"
         @debug(msg)
         make_comment(event, msg)
     else
-        msg = "An unexpected error occured during registration."
+        msg = "An unexpected error occurred during registration."
         @debug(msg)
         make_comment(event, msg)
     end
