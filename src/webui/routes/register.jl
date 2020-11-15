@@ -1,5 +1,5 @@
 # Step 5: Register the package (maybe).
-function register(r::HTTP.Request)
+function register(r::HTTP.Request; check_authorization::Bool=true)
     r.method == "POST" || return json(405; error="Method not allowed")
 
     state = getcookie(r, "state")
@@ -30,8 +30,10 @@ function register(r::HTTP.Request)
     owner, name = splitrepo(package)
     repo = getrepo(u.forge, owner, name)
     repo === nothing && return json(400; error="Repository was not found")
-    isauthorized(u, repo) || return json(400; error="Unauthorized to release this package")
-
+    if check_authorization
+        isauthorized(u, repo) || return json(400; error="Unauthorized to release this package")
+    end
+    
     # Get the (Julia)Project.toml, and make sure it is valid.
     toml = gettoml(u.forge, repo, ref)
     toml === nothing && return json(400; error="(Julia)Project.toml was not found")
