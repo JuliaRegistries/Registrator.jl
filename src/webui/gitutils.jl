@@ -1,4 +1,5 @@
 using ..Registrator: decodeb64
+using Mocking
 
 # # Run some GitForge function, warning on error but still returning the value.
 macro gf(ex::Expr)
@@ -25,13 +26,23 @@ getrepo(::GitLabAPI, owner::AbstractString, name::AbstractString) =
 getrepo(::GitHubAPI, owner::AbstractString, name::AbstractString) =
     @gf get_repo(PROVIDERS["github"].client, owner, name)
 
+
+abstract type AuthResult end
+struct AuthSuccess <: AuthResult end
+struct AuthFailure <: AuthResult
+    reason::AbstractString
+end
+
+is_success(res::AuthSuccess) = true
+is_success(res::AuthFailure) = false
+
 # Check for a user's authorization to release a package.
 # The criteria is simply whether the user is a collaborator for user-owned repos,
 # or whether they're an organization member or collaborator for organization-owned repos.
-isauthorized(u, repo) = false
+isauthorized(u, repo) = AuthFailure("Unkown user type or repo type")
 function isauthorized(u::User{GitHub.User}, repo::GitHub.Repo)
     if !get(CONFIG, "allow_private", false)
-        repo.private && return false
+        repo.private && return AuthFailure("Repo $(repo.name) is private")
     end
 
     if repo.private
@@ -40,20 +51,29 @@ function isauthorized(u::User{GitHub.User}, repo::GitHub.Repo)
         forge = u.forge
     end
 
-    hasauth = if repo.organization === nothing
-        @gf is_collaborator(forge, repo.owner.login, repo.name, u.user.login)
+    if repo.organization === nothing
+        hasauth = @gf @mock is_collaborator(forge, repo.owner.login, repo.name, u.user.login)
+        if hasauth
+            return AuthSuccess()
+        else
+            return AuthFailure("User $(u.user.login) is not a collaborator on repo $(repo.name)")
+        end
     else
         # First check for organization membership, and fall back to collaborator status.
-        ismember = @gf is_member(forge, repo.organization.login, u.user.login)
-        something(ismember, false) ||
-            @gf is_collaborator(forge, repo.organization.login, repo.name, u.user.login)
+        ismember = @gf @mock is_member(forge, repo.organization.login, u.user.login)
+        hasauth = something(ismember, false) ||
+            @gf @mock is_collaborator(forge, repo.organization.login, repo.name, u.user.login)
+        if hasauth
+            return AuthSuccess()
+        else
+            return AuthFailure("User $(u.user.login) is not a member of the org $(repo.organization.login) and not a collaborator on repo $(repo.name)")
+        end
     end
-    return something(hasauth, false)
 end
 
 function isauthorized(u::User{GitLab.User}, repo::GitLab.Project)
     if !get(CONFIG, "allow_private", false)
-        repo.visibility == "private" && return false
+        repo.visibility == "private" && return AuthFailure("Project $(repo.name) is private")
     end
 
     if repo.visibility == "private"
@@ -62,23 +82,31 @@ function isauthorized(u::User{GitLab.User}, repo::GitLab.Project)
         forge = u.forge
     end
 
-    hasauth = if repo.namespace.kind == "user"
-        @gf is_collaborator(forge, repo.owner.username, repo.name, u.user.id)
+    if repo.namespace.kind == "user"
+        hasauth = @gf @mock is_collaborator(forge, repo.owner.username, repo.name, u.user.id)
+        if hasauth
+            return AuthSuccess()
+        else
+            return AuthFailure("User $(u.user.name) is not a member of project $(repo.name)") # GitLab terminology "member" (not "collaborator")
+        end
     else
         # Same as above: group membership then collaborator check.
         nspath = split(repo.namespace.full_path, "/")
-        ismember = @gf is_collaborator(u.forge, repo.namespace.full_path, repo.name, u.user.id)
+        ismember = @gf @mock is_collaborator(u.forge, repo.namespace.full_path, repo.name, u.user.id)
         if !something(ismember, false)
             accns = ""
             for ns in nspath
                 accns = joinpath(accns, ns)
-                ismember = @gf is_member(forge, accns, u.user.id)
+                ismember = @gf @mock is_member(forge, accns, u.user.id)
                 something(ismember, false) && break
             end
         end
-        ismember
+        if ismember
+            return AuthSuccess()
+        else
+            return AuthFailure("Project $(repo.name) belongs to the group $(repo.namespace.full_path), and user $(u.user.name) is not a member of that group or its parent group(s)")
+        end
     end
-    return something(hasauth, false)
 end
 
 # Get the raw (Julia)Project.toml text from a repository.

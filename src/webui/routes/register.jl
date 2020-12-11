@@ -30,7 +30,10 @@ function register(r::HTTP.Request)
     owner, name = splitrepo(package)
     repo = getrepo(u.forge, owner, name)
     repo === nothing && return json(400; error="Repository was not found")
-    isauthorized(u, repo) || return json(400; error="Unauthorized to release this package")
+    auth_result = isauthorized(u, repo)
+    if !is_success(auth_result)
+        return json(400; error="Unauthorized to release this package. Reason: $(auth_result.reason)")
+    end
 
     # Get the (Julia)Project.toml, and make sure it is valid.
     toml = gettoml(u.forge, repo, ref)
