@@ -149,7 +149,7 @@ end
         # Pretend we've gone through authentication.
         state = "foo"
         client = UI.PROVIDERS["github"].client
-        user = @gf get_user(client, "christopher-dG")
+        user = @gf get_user(client, "octocat")
         UI.USERS[state] = UI.User(user, client)
 
         url = UI.CONFIG["server_url"] * UI.ROUTES[:REGISTER]
@@ -175,12 +175,12 @@ end
         @test resp.status == 400
         @test occursin("Repository was not found", String(resp.body))
 
-        body = "package=http://github.com/JuliaLang/julia&ref=master"
+        body = "package=http://github.com/JuliaLang/Example.jl&ref=master"
         resp = HTTP.post(url; body=body, cookies=cookies, status_exception=false)
         @test resp.status == 400
         @test occursin("Unauthorized to release this package", String(resp.body))
 
-        body = "package=git@github.com:JuliaLang/julia.git&ref=master"
+        body = "package=git@github.com:JuliaLang/Example.jl.git&ref=master"
         resp = HTTP.post(url; body=body, cookies=cookies, status_exception=false)
         @test resp.status == 400
         @test occursin("Unauthorized to release this package", String(resp.body))
