@@ -10,5 +10,6 @@ if get(ENV, "TRAVIS", "") == "true" && !haskey(ENV, "GITHUB_API_TOKEN")
 else
     include("webui.jl")
 end
+include("webui/gitutils.jl")
 
 end
