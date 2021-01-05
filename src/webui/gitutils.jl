@@ -53,7 +53,7 @@ function isauthorized(u::User{GitHub.User}, repo::GitHub.Repo)
 
     if repo.organization === nothing
         hasauth = @gf @mock is_collaborator(forge, repo.owner.login, repo.name, u.user.login)
-        if hasauth
+        if something(hasauth, false)
             return AuthSuccess()
         else
             return AuthFailure("User $(u.user.login) is not a collaborator on repo $(repo.name)")
@@ -63,7 +63,7 @@ function isauthorized(u::User{GitHub.User}, repo::GitHub.Repo)
         ismember = @gf @mock is_member(forge, repo.organization.login, u.user.login)
         hasauth = something(ismember, false) ||
             @gf @mock is_collaborator(forge, repo.organization.login, repo.name, u.user.login)
-        if hasauth
+        if something(hasauth, false)
             return AuthSuccess()
         else
             return AuthFailure("User $(u.user.login) is not a member of the org $(repo.organization.login) and not a collaborator on repo $(repo.name)")
@@ -84,7 +84,7 @@ function isauthorized(u::User{GitLab.User}, repo::GitLab.Project)
 
     if repo.namespace.kind == "user"
         hasauth = @gf @mock is_collaborator(forge, repo.owner.username, repo.name, u.user.id)
-        if hasauth
+        if something(hasauth, false)
             return AuthSuccess()
         else
             return AuthFailure("User $(u.user.name) is not a member of project $(repo.name)") # GitLab terminology "member" (not "collaborator")
