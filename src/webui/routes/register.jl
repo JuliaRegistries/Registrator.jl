@@ -25,6 +25,7 @@ function register(r::HTTP.Request)
     ref = get(form, "ref", "")
     isempty(ref) && return json(400; error="Branch was not provided")
     notes = get(form, "notes", "")
+    subdir = get(form, "subdir", "")
 
     # Get the repo, then check for authorization.
     owner, name = splitrepo(package)
@@ -36,7 +37,7 @@ function register(r::HTTP.Request)
     end
 
     # Get the (Julia)Project.toml, and make sure it is valid.
-    toml = gettoml(u.forge, repo, ref)
+    toml = gettoml(u.forge, repo, ref, subdir)
     toml === nothing && return json(400; error="(Julia)Project.toml was not found")
     project = try
         Pkg.Types.read_project(IOBuffer(toml))
@@ -57,8 +58,8 @@ function register(r::HTTP.Request)
     end
 
     # Register the package,
-    tree = gettreesha(repo, ref)
-    tree === nothing && return json(500, error="Looking up the tree hash failed")
+    tree, errmsg = gettreesha(repo, ref, subdir)
+    tree === nothing && return json(500, error=errmsg)
     regdata = RegistrationData(project, tree, repo, u.user, ref, commit, notes, is_ssh)
     REGISTRATIONS[commit] = RegistrationState("Please wait...", :pending)
     put!(event_queue, regdata)

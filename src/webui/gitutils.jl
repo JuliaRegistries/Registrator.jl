@@ -110,11 +110,11 @@ function isauthorized(u::User{GitLab.User}, repo::GitLab.Project)
 end
 
 # Get the raw (Julia)Project.toml text from a repository.
-function gettoml(::GitHubAPI, repo::GitHub.Repo, ref::AbstractString)
+function gettoml(::GitHubAPI, repo::GitHub.Repo, ref::AbstractString, subdir::AbstractString)
     forge = PROVIDERS["github"].client
     result = nothing
     for file in Base.project_names
-        result = get_file_contents(forge, repo.owner.login, repo.name, file; ref=ref)
+        result = get_file_contents(forge, repo.owner.login, repo.name, joinpath(subdir, file); ref=ref)
         fc = GitForge.value(result)
         fc === nothing || return decodeb64(fc.content)
     end
@@ -122,12 +122,15 @@ function gettoml(::GitHubAPI, repo::GitHub.Repo, ref::AbstractString)
     return nothing
 end
 
-function gettoml(::GitLabAPI, repo::GitLab.Project, ref::AbstractString)
+function gettoml(::GitLabAPI, repo::GitLab.Project, ref::AbstractString, subdir::AbstractString)
     forge = PROVIDERS["gitlab"].client
+    result = nothing
     for file in Base.project_names
-        fc = @gf get_file_contents(forge, repo.id, file; ref=ref)
+        result = get_file_contents(forge, repo.id, joinpath(subdir, file); ref=ref)
+        fc = GitForge.value(result)
         fc === nothing || return decodeb64(fc.content)
     end
+    @error "Failed to get project file" exception=GitForge.exception(result)
     return nothing
 end
 
@@ -149,7 +152,8 @@ cloneurl(r::GitLab.Project, is_ssh::Bool=false) = is_ssh ? r.ssh_url_to_repo : r
 
 function gettreesha(
     r::Union{GitLab.Project, GitHub.Repo},
-    ref::AbstractString
+    ref::AbstractString,
+    subdir::AbstractString
 )
     url = cloneurl(r)
 
@@ -162,13 +166,16 @@ function gettreesha(
         mktempdir() do dir
             dest = joinpath(dir, r.name)
             run(`git clone $url $dest`)
-            run(`git -C $dest checkout $ref`)
-            match(r"tree (.*)", readchomp(`git -C $dest show --format=raw`))[1]
+
+            if isdir(joinpath(dest, subdir))
+                readchomp(`git -C $dest rev-parse $ref:$subdir`), ""
+            else
+                nothing, "The sub-directory $subdir does not exist in this repository"
+            end
         end
     catch ex
         println(get_backtrace(ex))
-        @debug "Exception while getting tree SHA"
-        nothing
+        nothing, "Exception while getting tree SHA"
     end
 end
 
