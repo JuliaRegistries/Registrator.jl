@@ -112,10 +112,13 @@ end
 # Get the raw (Julia)Project.toml text from a repository.
 function gettoml(::GitHubAPI, repo::GitHub.Repo, ref::AbstractString)
     forge = PROVIDERS["github"].client
+    result = nothing
     for file in Base.project_names
-        fc = @gf get_file_contents(forge, repo.owner.login, repo.name, file; ref=ref)
+        result = get_file_contents(forge, repo.owner.login, repo.name, file; ref=ref)
+        fc = GitForge.value(result)
         fc === nothing || return decodeb64(fc.content)
     end
+    @error "Failed to get project file" exception=GitForge.exception(result)
     return nothing
 end
 
