@@ -11,6 +11,12 @@
       <input type="text" size="20" id="ref" value="master" class="form-control">
     </div>
   </div>
+  <div class="form-group row">
+    <label class="col-sm-4 col-form-label">Directory (optional):</label>
+    <div class="col-sm-8">
+      <textarea cols="80" rows="7" id="subdir" class="form-control"></textarea>
+    </div>
+  </div>
   {{#:enable_release_notes}}
   <div class="form-group row">
     <label class="col-sm-4 col-form-label">Release notes (optional):</label>
@@ -52,10 +58,11 @@
 
   /* Call /register and poll for status */
   function do_register() {
-    var package = document.getElementById("package").value;
+    var package = encodeURIComponent(document.getElementById("package").value);
     var ref = document.getElementById("ref").value;
     var elNotes = document.getElementById("notes");
-    var notes = elNotes == null ? "" : elNotes.value;
+    var subdir = encodeURIComponent(document.getElementById("subdir").value);
+    var notes = encodeURIComponent(elNotes == null ? "" : elNotes.value);
     var button = document.getElementById("submitButton");
     button.disabled = true;
     button.innerHTML = "Please wait...";
@@ -74,6 +81,6 @@
         div.innerHTML = "<div class='text-center'><h4 class='txt-danger'>ERROR: " + data.error + "</h4></div>";
       }
     };
-    xhr.send('package='+encodeURIComponent(package)+'&ref='+ref+'&notes='+encodeURIComponent(notes));
+    xhr.send('package='+package+'&ref='+ref+'&notes='+notes+'&subdir='+subdir);
   }
 </script>
