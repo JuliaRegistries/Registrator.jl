@@ -56,7 +56,7 @@ function authorize_user_from_file(
     if u.user.email === nothing || isempty(u.user.email)
         return AuthFailure(EMAIL_ID_NOT_PUBLIC)
     end
-    if !occursin(strip(u.user.email), map(strip, split(fc, "\n")))
+    if !(strip(u.user.email) in map(strip, split(fc, "\n")))
         return AuthFailure(USER_NOT_IN_AUTH_LIST_ERROR)
     end
     return AuthSuccess()
