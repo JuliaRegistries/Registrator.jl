@@ -101,7 +101,7 @@ function isauthorized(u::User{GitHub.User}, repo::GitHub.Repo; ref::AbstractStri
     end
 end
 
-function isauthorized(u::User{GitLab.User}, repo::GitLab.Project; ref::AbstractString=HEAD)
+function isauthorized(u::User{GitLab.User}, repo::GitLab.Project; ref::AbstractString="HEAD")
     if !get(CONFIG, "allow_private", false)
         repo.visibility == "private" && return AuthFailure("Project $(repo.name) is private")
     end
