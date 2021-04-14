@@ -16,6 +16,7 @@ stop_file = "stopwebui"
 # backend_port = 5555
 # allow_private = false
 # enable_logging = true
+# authtype = "authfile"
 
 [web.github]
 token = ""

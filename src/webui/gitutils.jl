@@ -36,11 +36,37 @@ end
 is_success(res::AuthSuccess) = true
 is_success(res::AuthFailure) = false
 
+const AUTH_REG_FILE = "authorized_registrars.txt"
+const AUTH_FILE_NOT_FOUND_ERROR = "`$auth_reg_file` was not found in this repository"
+const EMAIL_ID_NOT_PUBLIC = "Please make your email ID public in your GitHub/GitLab settings page"
+const USER_NOT_IN_AUTH_LIST_ERROR = "Your email ID is not in the $auth_reg_file of this repository"
+
+get_repo_owner_id(repo::GitLab.Project) = repo.owner === nothing ? nothing : repo.owner.username
+get_repo_owner_id(repo::GitHub.Repo) = repo.owner === nothing ? nothing : repo.owner.login
+
+function authorize_user_from_file(
+    forge, u::User{T}, repo::Union{GitLab.Project, GitHub.Repo},
+    ref::AbstractString
+) where T
+
+    fc = @gf get_file_contents(forge, repo.owner.login, repo.name, AUTH_REG_FILE; ref=ref)
+    if fc === nothing
+        return AuthFailure(AUTH_FILE_NOT_FOUND_ERROR)
+    end
+    if u.user.email === nothing || isempty(u.user.email)
+        return AuthFailure(EMAIL_ID_NOT_PUBLIC)
+    end
+    if !occursin(strip(u.user.email), map(strip, split(fc, "\n")))
+        return AuthFailure(USER_NOT_IN_AUTH_LIST_ERROR)
+    end
+    return AuthSuccess()
+end
+
 # Check for a user's authorization to release a package.
 # The criteria is simply whether the user is a collaborator for user-owned repos,
 # or whether they're an organization member or collaborator for organization-owned repos.
 isauthorized(u, repo) = AuthFailure("Unkown user type or repo type")
-function isauthorized(u::User{GitHub.User}, repo::GitHub.Repo)
+function isauthorized(u::User{GitHub.User}, repo::GitHub.Repo; ref::AbstractString="HEAD")
     if !get(CONFIG, "allow_private", false)
         repo.private && return AuthFailure("Repo $(repo.name) is private")
     end
@@ -51,7 +77,11 @@ function isauthorized(u::User{GitHub.User}, repo::GitHub.Repo)
         forge = u.forge
     end
 
-    if repo.organization === nothing
+    if u.user.login == get_repo_owner_id(repo)
+        return AuthSuccess()
+    elseif get(CONFIG, "authtype", "authfile") == "authfile"
+        return authorize_user_from_file(forge, u, repo, ref)
+    elseif repo.organization === nothing
         hasauth = @gf @mock is_collaborator(forge, repo.owner.login, repo.name, u.user.login)
         if something(hasauth, false)
             return AuthSuccess()
@@ -71,7 +101,7 @@ function isauthorized(u::User{GitHub.User}, repo::GitHub.Repo)
     end
 end
 
-function isauthorized(u::User{GitLab.User}, repo::GitLab.Project)
+function isauthorized(u::User{GitLab.User}, repo::GitLab.Project; ref::AbstractString=HEAD)
     if !get(CONFIG, "allow_private", false)
         repo.visibility == "private" && return AuthFailure("Project $(repo.name) is private")
     end
@@ -82,7 +112,11 @@ function isauthorized(u::User{GitLab.User}, repo::GitLab.Project)
         forge = u.forge
     end
 
-    if repo.namespace.kind == "user"
+    if u.user.id == get_repo_owner_id(repo)
+        return AuthSuccess()
+    elseif get(CONFIG, "authtype", "authfile") == "authfile"
+        return authorize_user_from_file(forge, u, repo, ref)
+    elseif repo.namespace.kind == "user"
         hasauth = @gf @mock is_collaborator(forge, repo.owner.username, repo.name, u.user.id)
         if something(hasauth, false)
             return AuthSuccess()
