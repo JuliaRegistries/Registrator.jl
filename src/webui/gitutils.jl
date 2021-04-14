@@ -37,9 +37,9 @@ is_success(res::AuthSuccess) = true
 is_success(res::AuthFailure) = false
 
 const AUTH_REG_FILE = "authorized_registrars.txt"
-const AUTH_FILE_NOT_FOUND_ERROR = "`$auth_reg_file` was not found in this repository"
+const AUTH_FILE_NOT_FOUND_ERROR = "`$AUTH_REG_FILE` was not found in this repository"
 const EMAIL_ID_NOT_PUBLIC = "Please make your email ID public in your GitHub/GitLab settings page"
-const USER_NOT_IN_AUTH_LIST_ERROR = "Your email ID is not in the $auth_reg_file of this repository"
+const USER_NOT_IN_AUTH_LIST_ERROR = "Your email ID is not in the $AUTH_REG_FILE of this repository"
 
 get_repo_owner_id(repo::GitLab.Project) = repo.owner === nothing ? nothing : repo.owner.username
 get_repo_owner_id(repo::GitHub.Repo) = repo.owner === nothing ? nothing : repo.owner.login
@@ -79,7 +79,7 @@ function isauthorized(u::User{GitHub.User}, repo::GitHub.Repo; ref::AbstractStri
 
     if u.user.login == get_repo_owner_id(repo)
         return AuthSuccess()
-    elseif get(CONFIG, "authtype", "authfile") == "authfile"
+    elseif get(CONFIG, "authtype", "") == "authfile"
         return authorize_user_from_file(forge, u, repo, ref)
     elseif repo.organization === nothing
         hasauth = @gf @mock is_collaborator(forge, repo.owner.login, repo.name, u.user.login)
@@ -114,7 +114,7 @@ function isauthorized(u::User{GitLab.User}, repo::GitLab.Project; ref::AbstractS
 
     if u.user.id == get_repo_owner_id(repo)
         return AuthSuccess()
-    elseif get(CONFIG, "authtype", "authfile") == "authfile"
+    elseif get(CONFIG, "authtype", "") == "authfile"
         return authorize_user_from_file(forge, u, repo, ref)
     elseif repo.namespace.kind == "user"
         hasauth = @gf @mock is_collaborator(forge, repo.owner.username, repo.name, u.user.id)
