@@ -40,12 +40,12 @@ end
         end
 
         @testset "public repo of user" begin
-            # authorized if user is a collaborator on the repo
+            # User is authorized to register a package they own whether they are collaborator or not
             patch_gitforge(is_collaborator=true) do
                 @test isauthorized(u, public_repo_of_user) == AuthSuccess()
             end
             patch_gitforge(is_collaborator=false) do
-                @test isauthorized(u, public_repo_of_user) == AuthFailure("User user123 is not a collaborator on repo Example.jl")
+                @test isauthorized(u, public_repo_of_user) == AuthSuccess()
             end
         end
 
@@ -81,12 +81,12 @@ end
         end
 
         @testset "public project of user" begin
-            # authorized if user is a collaborator on the project
+            # User is authorized to register a package they own whether they are collaborator or not
             patch_gitforge(is_collaborator=true) do
                 @test isauthorized(u, public_project_of_user) == AuthSuccess()
             end
             patch_gitforge(is_collaborator=false) do
-                @test isauthorized(u, public_project_of_user) == AuthFailure("User user123 is not a member of project Example.jl")
+                @test isauthorized(u, public_project_of_user) == AuthSuccess()
             end
         end
 

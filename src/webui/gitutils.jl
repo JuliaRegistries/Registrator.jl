@@ -112,7 +112,7 @@ function isauthorized(u::User{GitLab.User}, repo::GitLab.Project; ref::AbstractS
         forge = u.forge
     end
 
-    if u.user.id == get_repo_owner_id(repo)
+    if u.user.username == get_repo_owner_id(repo)
         return AuthSuccess()
     elseif get(CONFIG, "authtype", "") == "authfile"
         return authorize_user_from_file(forge, u, repo, ref)
