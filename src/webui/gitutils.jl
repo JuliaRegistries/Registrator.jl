@@ -38,7 +38,7 @@ is_success(res::AuthFailure) = false
 
 const AUTH_REG_FILE = "authorized_registrars.txt"
 const AUTH_FILE_NOT_FOUND_ERROR = "`$AUTH_REG_FILE` was not found in this repository"
-const EMAIL_ID_NOT_PUBLIC = "Please make your email ID public in your GitHub/GitLab settings page"
+const EMAIL_ID_NOT_PUBLIC_ERROR = "Please make your email ID public in your GitHub/GitLab settings page"
 const USER_NOT_IN_AUTH_LIST_ERROR = "Your email ID is not in the $AUTH_REG_FILE of this repository"
 
 get_repo_owner_id(repo::GitLab.Project) = repo.owner === nothing ? nothing : repo.owner.username
@@ -62,17 +62,15 @@ function authorize_user_from_file(
         return AuthFailure(AUTH_FILE_NOT_FOUND_ERROR)
     end
     if u.user.email === nothing || isempty(u.user.email)
-        return AuthFailure(EMAIL_ID_NOT_PUBLIC)
+        return AuthFailure(EMAIL_ID_NOT_PUBLIC_ERROR)
     end
-    if !(strip(u.user.email) in map(strip, split(decodeb64(fc.content), "\n")))
+    if !(u.user.email in map(strip, split(decodeb64(fc.content), "\n")))
         return AuthFailure(USER_NOT_IN_AUTH_LIST_ERROR)
     end
     return AuthSuccess()
 end
 
-# Check for a user's authorization to release a package.
-# The criteria is simply whether the user is a collaborator for user-owned repos,
-# or whether they're an organization member or collaborator for organization-owned repos.
+# More details on how authorization works can be found in the docs
 isauthorized(u, repo) = AuthFailure("Unkown user type or repo type")
 function isauthorized(u::User{GitHub.User}, repo::GitHub.Repo; ref::AbstractString="HEAD")
     if !get(CONFIG, "allow_private", false)

@@ -13,7 +13,7 @@ There are 2 modes of authorization:
 2) Collaborator check via GitHub/GitLab API
 
 In both cases packages that are hosted under a users account (as opposed to an
-organization) can be registerd by that user.
+organization) can be registered by that user.
 
 If authorization through `authorized_registrars.txt` file is enabled for your setup
 then you are allowed to register if your email ID is contained in the `authorized_registrars.txt`
