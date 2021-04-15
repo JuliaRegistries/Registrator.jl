@@ -44,19 +44,27 @@ const USER_NOT_IN_AUTH_LIST_ERROR = "Your email ID is not in the $AUTH_REG_FILE 
 get_repo_owner_id(repo::GitLab.Project) = repo.owner === nothing ? nothing : repo.owner.username
 get_repo_owner_id(repo::GitHub.Repo) = repo.owner === nothing ? nothing : repo.owner.login
 
+function get_auth_file_content(forge, repo::GitHub.Repo, ref::AbstractString)
+    @gf get_file_contents(forge, get_repo_owner_id(repo), repo.name, AUTH_REG_FILE; ref=ref)
+end
+
+function get_auth_file_content(forge, repo::GitLab.Project, ref::AbstractString)
+    @gf get_file_contents(forge, repo.id, AUTH_REG_FILE; ref=ref)
+end
+
 function authorize_user_from_file(
     forge, u::User{T}, repo::Union{GitLab.Project, GitHub.Repo},
     ref::AbstractString
 ) where T
 
-    fc = @gf get_file_contents(forge, repo.owner.login, repo.name, AUTH_REG_FILE; ref=ref)
+    fc = @mock get_auth_file_content(forge, repo, ref)
     if fc === nothing
         return AuthFailure(AUTH_FILE_NOT_FOUND_ERROR)
     end
     if u.user.email === nothing || isempty(u.user.email)
         return AuthFailure(EMAIL_ID_NOT_PUBLIC)
     end
-    if !(strip(u.user.email) in map(strip, split(fc, "\n")))
+    if !(strip(u.user.email) in map(strip, split(decodeb64(fc.content), "\n")))
         return AuthFailure(USER_NOT_IN_AUTH_LIST_ERROR)
     end
     return AuthSuccess()
