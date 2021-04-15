@@ -18,7 +18,7 @@ function get_sha_from_branch(reponame, brn; auth = GitHub.AnonymousAuth())
         return sha, nothing
     catch ex
         d = parse_github_exception(ex)
-        if d["Status Code"] == "404" && d["Message"] == "Branch not found"
+        if d["Status Code"] == "404" && d["Message"] == "Not found"
             return nothing, "Branch `$brn` not found"
         else
             rethrow(ex)

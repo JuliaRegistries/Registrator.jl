@@ -34,7 +34,8 @@ struct RequestParams{T<:RequestTrigger}
             )
         end
 
-        branch = get(action_kwargs, :branch, "master")
+        def_branch = evt.repository.default_branch
+        branch = get(action_kwargs, :branch, def_branch === nothing ? "master" : def_branch)
         subdir = get(action_kwargs, :subdir, "")
         target = get(action_kwargs, :target, nothing)
 
