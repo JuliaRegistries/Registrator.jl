@@ -8,8 +8,22 @@ This section is for people who want to use Registrator to register their package
 
 #### Who Can Register a Package?
 
-If the package is owned by an individual, then you must be that individual, or a collaborator on the repository.
-If the package is owned by an organization/group, then you must be a member of that organization.
+There are 2 modes of authorization:
+1) Through a authorization file in the package repository
+2) Collaborator check via GitHub/GitLab API
+
+In both cases packages that are hosted under a users account (as opposed to an
+organization) can be registered by that user.
+
+If authorization through authorization file is enabled for your setup
+then you are allowed to register if your email ID is contained in the authorization
+file in the package repository. This is the email ID which is registerd with GitHub/GitLab.
+Also, this email ID must be made publicly visible in your GitHub/GitLab settings page.
+
+If authorization through authorization file is not enabled for your setup then
+Registrator defaults to the collaborator check. In this case you must be a collaborator
+on the package repository. If the package is owned by an organization/group, then you must
+also be a member of that organization in addition to being a collaborator on the repository.
 
 #### Validating `(Julia)Project.toml`
 
@@ -106,6 +120,14 @@ It's important to note that optional values **must** be omitted or commented out
 - `backend_port`: Port number of the backend registration service. Default is 5555.
 - `allow_private`: Set this to `true` if you want to register private packages. Default is `false`.
 - `enable_logging`: Set this to `false` if you want to use a custom logger in your Julia code. By default a `SimpleLogger` is used that writes to `stdout`.
+- `authtype`: `"authfile"` is the only valid option currently. If `authtype` is not mentioned Registrator will default to collaborator check.
+- `authfilename`: The name of the authorization file if `authtype="authfile"` is set. Defaults to "MAINTAINERS".
+
+##### A note on authorization
+
+On GitHub, checking whether a user is collaborator requires the `public_repo` OAuth scope.
+This scope enables Registrator to have write access to all repositories of the user. If this
+is undesirable it is advised to set the configuration parameter `authtype="authfile"`.
 
 #### `[web.git{hub,lab}]` Section
 

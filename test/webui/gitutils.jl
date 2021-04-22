@@ -1,7 +1,8 @@
 using Dates: DateTime
-using Registrator.WebUI: isauthorized, AuthFailure, AuthSuccess, User
+using Registrator.WebUI: isauthorized, AuthFailure, AuthSuccess, User, authorize_user_from_file, get_auth_file_content
 using GitForge: GitForge, GitHub, GitLab
 using HTTP: stacktrace
+using Base64
 
 using Mocking
 
@@ -20,6 +21,15 @@ function patch_gitforge(body::Function; is_collaborator=false, is_member=false)
     end
 end
 
+function patch_auth_file_content(body::Function; file_content=nothing)
+    patch = @patch get_auth_file_content(args...) =
+            file_content === nothing ? nothing : NamedTuple{(:content,)}((base64encode(file_content),))
+
+    apply(patch) do
+        return body()
+    end
+end
+
 @testset "gitutils" begin
 
 @testset "isauthorized" begin
@@ -27,12 +37,16 @@ end
 
     @testset "GitHub" begin
 
+        user_email = "user123@example.com"
+        some_other_email = "some@example.com"
         user = GitHub.User(login="user123")
+        user_with_email = GitHub.User(login="user123", email=user_email)
         org = GitHub.User(login="JuliaLang")
         private_repo = GitHub.Repo(name="Example.jl", private=true, owner=user)
         public_repo_of_user = GitHub.Repo(name="Example.jl", private=false, owner=user, organization=nothing)
         public_repo_of_org = GitHub.Repo(name="Example.jl", private=false, owner=org, organization=org)
         u = User(user, GitHub.GitHubAPI())
+        ue = User(user_with_email, GitHub.GitHubAPI())
 
         @testset "private repo" begin
             # Assuming CONFIG["allow_private"] is false
@@ -40,13 +54,8 @@ end
         end
 
         @testset "public repo of user" begin
-            # authorized if user is a collaborator on the repo
-            patch_gitforge(is_collaborator=true) do
-                @test isauthorized(u, public_repo_of_user) == AuthSuccess()
-            end
-            patch_gitforge(is_collaborator=false) do
-                @test isauthorized(u, public_repo_of_user) == AuthFailure("User user123 is not a collaborator on repo Example.jl")
-            end
+            # User is authorized to register a package they own
+            @test isauthorized(u, public_repo_of_user) == AuthSuccess()
         end
 
         @testset "public repo of org" begin
@@ -64,16 +73,37 @@ end
                 @test isauthorized(u, public_repo_of_org) == AuthFailure("User user123 is not a member of the org JuliaLang and not a collaborator on repo Example.jl")
             end
         end
+
+        @testset "public repo of org with authfile" begin
+            # Check authfile to authorize user by email
+            patch_auth_file_content(file_content=user_email) do
+                @test authorize_user_from_file(GitHub.GitHubAPI(), ue, public_repo_of_org, "") == AuthSuccess()
+            end
+            patch_auth_file_content(file_content=user_email) do
+                @test authorize_user_from_file(GitHub.GitHubAPI(), u, public_repo_of_org, "") == AuthFailure(Registrator.WebUI.EMAIL_ID_NOT_PUBLIC_ERROR)
+            end
+            patch_auth_file_content(file_content=nothing) do
+                @test authorize_user_from_file(GitHub.GitHubAPI(), ue, public_repo_of_org, "") == AuthFailure(Registrator.WebUI.auth_file_not_found_error())
+            end
+            patch_auth_file_content(file_content=some_other_email) do
+                @test authorize_user_from_file(GitHub.GitHubAPI(), ue, public_repo_of_org, "") == AuthFailure(Registrator.WebUI.user_not_in_auth_list_error())
+            end
+        end
     end
 
     @testset "GitLab" begin
 
+        user_email = "user123@example.com"
+        some_other_email = "some@example.com"
         user = GitLab.User(name="user123", username="user123", id=111)
+        user_with_email = GitLab.User(name="user123", username="user123", id=111, email=user_email)
+        org = GitHub.User(login="JuliaLang")
         org = GitLab.User(name="org123", username="org123", id=222)
         private_project = GitLab.Project(name="Example.jl", visibility="private", owner=user)
-        public_project_of_user = GitLab.Project(name="Example.jl", visibility="public", owner=user, namespace=GitLab.Namespace(kind="user"))
-        public_project_of_group = GitLab.Project(name="Example.jl", visibility="public", owner=org, namespace=GitLab.Namespace(kind="group", full_path="org123/subgroup/Example.jl"))
+        public_project_of_user = GitLab.Project(name="Example.jl", visibility="public", owner=user, namespace=GitLab.Namespace(kind="user"), id=333)
+        public_project_of_group = GitLab.Project(name="Example.jl", visibility="public", owner=org, namespace=GitLab.Namespace(kind="group", full_path="org123/subgroup/Example.jl"), id=444)
         u = User(user, GitLab.GitLabAPI())
+        ue = User(user_with_email, GitLab.GitLabAPI())
 
         @testset "private project" begin
             # Assuming CONFIG["allow_private"] is false
@@ -81,13 +111,8 @@ end
         end
 
         @testset "public project of user" begin
-            # authorized if user is a collaborator on the project
-            patch_gitforge(is_collaborator=true) do
-                @test isauthorized(u, public_project_of_user) == AuthSuccess()
-            end
-            patch_gitforge(is_collaborator=false) do
-                @test isauthorized(u, public_project_of_user) == AuthFailure("User user123 is not a member of project Example.jl")
-            end
+            # User is authorized to register a package they own
+            @test isauthorized(u, public_project_of_user) == AuthSuccess()
         end
 
         @testset "public project of group" begin
@@ -103,6 +128,22 @@ end
             end
             patch_gitforge(is_collaborator=false, is_member=false) do
                 @test isauthorized(u, public_project_of_group) == AuthFailure("Project Example.jl belongs to the group org123/subgroup/Example.jl, and user user123 is not a member of that group or its parent group(s)")
+            end
+        end
+
+        @testset "public repo of org with authfile" begin
+            # Check authfile to authorize user by email
+            patch_auth_file_content(file_content=user_email) do
+                @test authorize_user_from_file(GitLab.GitLabAPI(), ue, public_project_of_group, "") == AuthSuccess()
+            end
+            patch_auth_file_content(file_content=user_email) do
+                @test authorize_user_from_file(GitLab.GitLabAPI(), u, public_project_of_group, "") == AuthFailure(Registrator.WebUI.EMAIL_ID_NOT_PUBLIC_ERROR)
+            end
+            patch_auth_file_content(file_content=nothing) do
+                @test authorize_user_from_file(GitLab.GitLabAPI(), ue, public_project_of_group, "") == AuthFailure(Registrator.WebUI.auth_file_not_found_error())
+            end
+            patch_auth_file_content(file_content=some_other_email) do
+                @test authorize_user_from_file(GitLab.GitLabAPI(), ue, public_project_of_group, "") == AuthFailure(Registrator.WebUI.user_not_in_auth_list_error())
             end
         end
     end

@@ -31,7 +31,7 @@ function register(r::HTTP.Request)
     owner, name = splitrepo(package)
     repo = getrepo(u.forge, owner, name)
     repo === nothing && return json(400; error="Repository was not found")
-    auth_result = isauthorized(u, repo)
+    auth_result = isauthorized(u, repo; ref=ref)
     if !is_success(auth_result)
         return json(400; error="Unauthorized to release this package. Reason: $(auth_result.reason)")
     end
