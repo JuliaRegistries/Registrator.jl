@@ -83,10 +83,10 @@ end
                 @test authorize_user_from_file(GitHub.GitHubAPI(), u, public_repo_of_org, "") == AuthFailure(Registrator.WebUI.EMAIL_ID_NOT_PUBLIC_ERROR)
             end
             patch_auth_file_content(file_content=nothing) do
-                @test authorize_user_from_file(GitHub.GitHubAPI(), ue, public_repo_of_org, "") == AuthFailure(Registrator.WebUI.AUTH_FILE_NOT_FOUND_ERROR)
+                @test authorize_user_from_file(GitHub.GitHubAPI(), ue, public_repo_of_org, "") == AuthFailure(Registrator.WebUI.auth_file_not_found_error())
             end
             patch_auth_file_content(file_content=some_other_email) do
-                @test authorize_user_from_file(GitHub.GitHubAPI(), ue, public_repo_of_org, "") == AuthFailure(Registrator.WebUI.USER_NOT_IN_AUTH_LIST_ERROR)
+                @test authorize_user_from_file(GitHub.GitHubAPI(), ue, public_repo_of_org, "") == AuthFailure(Registrator.WebUI.user_not_in_auth_list_error())
             end
         end
     end
@@ -140,10 +140,10 @@ end
                 @test authorize_user_from_file(GitLab.GitLabAPI(), u, public_project_of_group, "") == AuthFailure(Registrator.WebUI.EMAIL_ID_NOT_PUBLIC_ERROR)
             end
             patch_auth_file_content(file_content=nothing) do
-                @test authorize_user_from_file(GitLab.GitLabAPI(), ue, public_project_of_group, "") == AuthFailure(Registrator.WebUI.AUTH_FILE_NOT_FOUND_ERROR)
+                @test authorize_user_from_file(GitLab.GitLabAPI(), ue, public_project_of_group, "") == AuthFailure(Registrator.WebUI.auth_file_not_found_error())
             end
             patch_auth_file_content(file_content=some_other_email) do
-                @test authorize_user_from_file(GitLab.GitLabAPI(), ue, public_project_of_group, "") == AuthFailure(Registrator.WebUI.USER_NOT_IN_AUTH_LIST_ERROR)
+                @test authorize_user_from_file(GitLab.GitLabAPI(), ue, public_project_of_group, "") == AuthFailure(Registrator.WebUI.user_not_in_auth_list_error())
             end
         end
     end

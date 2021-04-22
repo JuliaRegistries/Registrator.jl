@@ -9,18 +9,18 @@ This section is for people who want to use Registrator to register their package
 #### Who Can Register a Package?
 
 There are 2 modes of authorization:
-1) Through a `authorised_registrars.txt` file in the package repository
+1) Through a authorization file in the package repository
 2) Collaborator check via GitHub/GitLab API
 
 In both cases packages that are hosted under a users account (as opposed to an
 organization) can be registered by that user.
 
-If authorization through `authorized_registrars.txt` file is enabled for your setup
-then you are allowed to register if your email ID is contained in the `authorized_registrars.txt`
+If authorization through authorization file is enabled for your setup
+then you are allowed to register if your email ID is contained in the authorization
 file in the package repository. This is the email ID which is registerd with GitHub/GitLab.
 Also, this email ID must be made publicly visible in your GitHub/GitLab settings page.
 
-If authorization through `authorized_registrars.txt` is not enabled for your setup then
+If authorization through authorization file is not enabled for your setup then
 Registrator defaults to the collaborator check. In this case you must be a collaborator
 on the package repository. If the package is owned by an organization/group, then you must
 also be a member of that organization in addition to being a collaborator on the repository.
@@ -121,6 +121,7 @@ It's important to note that optional values **must** be omitted or commented out
 - `allow_private`: Set this to `true` if you want to register private packages. Default is `false`.
 - `enable_logging`: Set this to `false` if you want to use a custom logger in your Julia code. By default a `SimpleLogger` is used that writes to `stdout`.
 - `authtype`: `"authfile"` is the only valid option currently. If `authtype` is not mentioned Registrator will default to collaborator check.
+- `authfilename`: The name of the authorization file if `authtype="authfile"` is set. Defaults to "MAINTAINERS".
 
 ##### A note on authorization
 

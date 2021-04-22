@@ -36,20 +36,20 @@ end
 is_success(res::AuthSuccess) = true
 is_success(res::AuthFailure) = false
 
-const AUTH_REG_FILE = "authorized_registrars.txt"
-const AUTH_FILE_NOT_FOUND_ERROR = "`$AUTH_REG_FILE` was not found in this repository"
+get_auth_file_name() = get(CONFIG, "authfilename", "MAINTAINERS")
+auth_file_not_found_error() = get_auth_file_name() * " was not found in this repository"
 const EMAIL_ID_NOT_PUBLIC_ERROR = "Please make your email ID public in your GitHub/GitLab settings page"
-const USER_NOT_IN_AUTH_LIST_ERROR = "Your email ID is not in the $AUTH_REG_FILE of this repository"
+user_not_in_auth_list_error = "Your email ID is not in the $(get_auth_file_name()) file of this repository"
 
 get_repo_owner_id(repo::GitLab.Project) = repo.owner === nothing ? nothing : repo.owner.username
 get_repo_owner_id(repo::GitHub.Repo) = repo.owner === nothing ? nothing : repo.owner.login
 
 function get_auth_file_content(forge, repo::GitHub.Repo, ref::AbstractString)
-    @gf get_file_contents(forge, get_repo_owner_id(repo), repo.name, AUTH_REG_FILE; ref=ref)
+    @gf get_file_contents(forge, get_repo_owner_id(repo), repo.name, get_auth_file_name(); ref=ref)
 end
 
 function get_auth_file_content(forge, repo::GitLab.Project, ref::AbstractString)
-    @gf get_file_contents(forge, repo.id, AUTH_REG_FILE; ref=ref)
+    @gf get_file_contents(forge, repo.id, get_auth_file_name(); ref=ref)
 end
 
 function authorize_user_from_file(
@@ -59,13 +59,13 @@ function authorize_user_from_file(
 
     fc = @mock get_auth_file_content(forge, repo, ref)
     if fc === nothing
-        return AuthFailure(AUTH_FILE_NOT_FOUND_ERROR)
+        return AuthFailure(auth_file_not_found_error())
     end
     if u.user.email === nothing || isempty(u.user.email)
         return AuthFailure(EMAIL_ID_NOT_PUBLIC_ERROR)
     end
     if !(u.user.email in map(strip, split(decodeb64(fc.content), "\n")))
-        return AuthFailure(USER_NOT_IN_AUTH_LIST_ERROR)
+        return AuthFailure(user_not_in_auth_list_error())
     end
     return AuthSuccess()
 end

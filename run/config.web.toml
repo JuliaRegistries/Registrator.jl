@@ -17,6 +17,7 @@ stop_file = "stopwebui"
 # allow_private = false
 # enable_logging = true
 # authtype = "authfile"
+# authfilename = "MAINTAINERS"
 
 [web.github]
 token = ""
