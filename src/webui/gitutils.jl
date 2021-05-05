@@ -83,7 +83,7 @@ function isauthorized(u::User{GitLab.User}, repo::GitLab.Project)
     end
 
     if repo.namespace.kind == "user"
-        hasauth = @gf @mock is_collaborator(forge, repo.owner.username, repo.name, u.user.id)
+        hasauth = @gf @mock is_collaborator(forge, repo.namespace.full_path, repo.name, u.user.id)
         if something(hasauth, false)
             return AuthSuccess()
         else
