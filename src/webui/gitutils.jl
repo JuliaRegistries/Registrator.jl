@@ -168,7 +168,7 @@ function gettreesha(
             run(`git clone $url $dest`)
 
             if isdir(joinpath(dest, subdir))
-                readchomp(`git -C $dest rev-parse $ref:$subdir`), ""
+                readchomp(`git -C $dest rev-parse origin/$ref:$subdir`), ""
             else
                 nothing, "The sub-directory $subdir does not exist in this repository"
             end
