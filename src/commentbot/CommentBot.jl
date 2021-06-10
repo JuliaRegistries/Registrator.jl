@@ -213,13 +213,13 @@ end
 make_trigger(cfg=CONFIG) = Regex(cfg["trigger"] * "(.*)", "i")
 
 function github_webhook(http_ip=CONFIG["http_ip"],
-                        http_port=get(CONFIG, "http_port", parse(Int, get(ENV, "PORT", "8001"))))
+                        http_port=get(CONFIG, "http_port", parse(Int, get(ENV, "PORT", "8001"))); kwargs...)
     auth = get_jwt_auth()
     trigger = make_trigger()
     listener = GitHub.CommentListener(comment_handler, trigger; check_collab=false, auth=auth, secret=CONFIG["github"]["secret"])
     httpsock[] = Sockets.listen(IPv4(http_ip), http_port)
 
-    do_action() = GitHub.run(listener, httpsock[], IPv4(http_ip), http_port)
+    do_action() = GitHub.run(listener, httpsock[], IPv4(http_ip), http_port; kwargs...)
     handle_exception(ex) = (isa(ex, Base.IOError) && (ex.code == -103)) ? :exit : :continue
     keep_running() = isopen(httpsock[])
     @info("GitHub webhook starting...", trigger, http_ip, http_port)
@@ -233,7 +233,7 @@ function request_processor(zsock::RequestSocket)
     recover("request_processor", keep_running, do_action, handle_exception)
 end
 
-function main(config::AbstractString=isempty(ARGS) ? "config.toml" : first(ARGS))
+function main(config::AbstractString=isempty(ARGS) ? "config.toml" : first(ARGS); kwargs...)
     merge!(CONFIG, Pkg.TOML.parsefile(config)["commentbot"])
     if get(CONFIG, "enable_logging", true)
         global_logger(SimpleLogger(stdout, get_log_level(CONFIG["log_level"])))
@@ -243,7 +243,7 @@ function main(config::AbstractString=isempty(ARGS) ? "config.toml" : first(ARGS)
     @info("Starting server...")
     t1 = @async request_processor(zsock)
     t2 = @async status_monitor(CONFIG["stop_file"], event_queue, httpsock)
-    github_webhook()
+    github_webhook(; kwargs...)
     wait(t1)
     wait(t2)
 
