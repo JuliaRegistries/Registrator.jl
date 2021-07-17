@@ -166,12 +166,7 @@ function gettreesha(
         mktempdir() do dir
             dest = joinpath(dir, r.name)
             run(`git clone --bare $url $dest`)
-
-            if isdir(joinpath(dest, subdir))
-                readchomp(`git -C $dest rev-parse $ref:$subdir`), ""
-            else
-                nothing, "The sub-directory $subdir does not exist in this repository"
-            end
+            readchomp(`git -C $dest rev-parse $ref:$subdir`), ""
         end
     catch ex
         println(get_backtrace(ex))
