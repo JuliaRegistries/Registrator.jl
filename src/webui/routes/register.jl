@@ -60,7 +60,7 @@ function register(r::HTTP.Request)
     # Register the package,
     tree, errmsg = gettreesha(repo, ref, subdir)
     tree === nothing && return json(500, error=errmsg)
-    regdata = RegistrationData(project, tree, repo, u.user, ref, commit, notes, is_ssh)
+    regdata = RegistrationData(project, tree, repo, u.user, ref, commit, notes, is_ssh, subdir)
     REGISTRATIONS[commit] = RegistrationState("Please wait...", :pending)
     put!(event_queue, regdata)
     return json(; message="Registration in progress...", id=commit)
