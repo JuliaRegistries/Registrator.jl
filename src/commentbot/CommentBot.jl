@@ -75,6 +75,8 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
                   "maintainer_can_modify"=>true)
     ref = get_html_url(rp.evt.payload)
 
+    description = something(rp.evt.repository.description, "")
+
     params["title"], params["body"] = pull_request_contents(;
         registration_type=get(rbrn.metadata, "kind", ""),
         package=name,
@@ -86,6 +88,7 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
         reviewer="@$reviewer",
         reference=ref,
         meta=enc_meta,
+        description=description,
     )
 
     repo = join(split(target_registry["repo"], "/")[end-1:end], "/")

@@ -148,6 +148,8 @@ function action(regdata::RegistrationData, zsock::RequestSocket)
         end
         state = :errored
     else
+        description = something(regdata.repo.description, "")
+
         title, body = pull_request_contents(;
             registration_type=get(branch.metadata, "kind", ""),
             package=regdata.project.name,
@@ -157,6 +159,7 @@ function action(regdata::RegistrationData, zsock::RequestSocket)
             version=regdata.project.version,
             commit=regdata.commit,
             release_notes=regdata.notes,
+            description=description,
         )
 
         # Make the PR.
