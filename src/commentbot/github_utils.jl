@@ -260,7 +260,7 @@ function create_or_find_pull_request(repo::AbstractString,
                 if get(rbrn.metadata, "labels", nothing) !== nothing
                     # Remove existing labels we control if they are not
                     # in `rbrn.metadata["labels"]`
-                    existing_labels = [l.name for l in get_labels(repo, pr; auth=auth)]
+                    existing_labels = [l.name for l in labels(repo, pr; auth=auth)]
                     for label in existing_labels
                         label in REGISTRATOR_CONTROLLED_LABELS || continue
                         label in rbrn.metadata["labels"] && continue
