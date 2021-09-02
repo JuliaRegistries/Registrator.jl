@@ -210,6 +210,10 @@ function get_body(payload::Dict{<:AbstractString})
     end
 end
 
+# We will only remove these labels, since they are the ones we control
+const REGISTRATOR_CONTROLLED_LABELS = ["new package", "major release", "minor release",
+                                       "patch release", "BREAKING"]
+
 function create_or_find_pull_request(repo::AbstractString,
                                      params::Dict{<:AbstractString, Any},
                                      rbrn::RegBranch)
@@ -222,8 +226,7 @@ function create_or_find_pull_request(repo::AbstractString,
         @debug("Pull request created")
         try # add labels
             if get(rbrn.metadata, "labels", nothing) !== nothing
-                edit_issue(repo, pr; auth = auth,
-                    params = Dict("labels"=>rbrn.metadata["labels"]))
+                add_labels(repo, pr, rbrn.metadata["labels"]; auth=auth)
             end
         catch
             @debug "Failed to add labels, ignoring."
@@ -255,8 +258,18 @@ function create_or_find_pull_request(repo::AbstractString,
             update_pull_request(repo, pr.number; auth=auth, params=Dict("body" => params["body"], "title" => params["title"]))
             try # update labels
                 if get(rbrn.metadata, "labels", nothing) !== nothing
-                    edit_issue(repo, pr; auth = auth,
-                        params = Dict("labels"=>rbrn.metadata["labels"]))
+                    # Remove existing labels we control if they are not
+                    # in `rbrn.metadata["labels"]`
+                    existing_labels = [l.name for l in labels(repo, pr; auth=auth)]
+                    for label in existing_labels
+                        label in REGISTRATOR_CONTROLLED_LABELS || continue
+                        label in rbrn.metadata["labels"] && continue
+                        remove_label(repo, pr, label; auth=auth)
+                    end
+                    # Add any labels in `rbrn.metadata["labels"]` that don't
+                    # already exist in the PR.
+                    labels_to_add = setdiff(rbrn.metadata["labels"], existing_labels)
+                    add_labels(repo, pr, labels_to_add; auth=auth)
                 end
             catch
                 @debug "Failed to update labels, ignoring."
