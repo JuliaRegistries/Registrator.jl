@@ -13,6 +13,7 @@ function pull_request_contents(;
     reviewer::AbstractString="",
     reference::AbstractString="",
     meta::AbstractString="",
+    description::AbstractString="",
 )
     title = if isempty(registration_type)
         "Registering: $package v$version"
@@ -32,6 +33,7 @@ function pull_request_contents(;
     isempty(gitref) || push!(lines, "- Git reference: $gitref")
     isempty(reviewer) || push!(lines, "- Reviewed by: $reviewer")
     isempty(reference) || push!(lines, "- Reference: $reference")
+    isempty(description) || push!(lines, "- Description: $description")
     isempty(release_notes) || push!(
         lines,
         "- Release notes:",
