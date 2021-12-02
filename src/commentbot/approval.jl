@@ -1,8 +1,8 @@
-function tag_package(rname, ver::VersionNumber, mcs, auth; tag_name = "v$ver")
+function tag_package(api::GitHub.GitHubAPI, rname, ver::VersionNumber, mcs, auth; tag_name = "v$ver")
     tagger = Dict("name" => CONFIG["github"]["user"],
                   "email" => CONFIG["github"]["email"],
                   "date" => Dates.format(now(), dateformat"YYYY-mm-ddTHH:MM:SSZ"))
-    create_tag(rname; auth=auth,
+    create_tag(api, rname; auth=auth,
                params=Dict("tag" => tag_name,
                            "message" => "Release: $tag_name",
                            "object" => mcs,
@@ -10,11 +10,11 @@ function tag_package(rname, ver::VersionNumber, mcs, auth; tag_name = "v$ver")
                            "tagger" => tagger))
 end
 
-function get_metadata_from_pr_body(rp::RequestParams, auth)
+function get_metadata_from_pr_body(api::GitHub.GitHubAPI, rp::RequestParams, auth)
     reg_name = rp.reponame
     reg_prid = rp.trigger_src.prid
 
-    pr = pull_request(reg_name, reg_prid; auth=auth)
+    pr = pull_request(api, reg_name, reg_prid; auth=auth)
 
     mstart = match(r"<!--", pr.body)
     mend = match(r"-->", pr.body)
@@ -31,9 +31,9 @@ function get_metadata_from_pr_body(rp::RequestParams, auth)
     nothing
 end
 
-function handle_approval(rp::RequestParams{ApprovalTrigger})
-    auth = get_access_token(rp.evt)
-    d = get_metadata_from_pr_body(rp, auth)
+function handle_approval(api::GitHub.GitHubAPI, rp::RequestParams{ApprovalTrigger})
+    auth = get_access_token(api, rp.evt)
+    d = get_metadata_from_pr_body(api, rp, auth)
 
     if d === nothing
         return "Unable to get registration metdata for this PR"
@@ -49,11 +49,11 @@ function handle_approval(rp::RequestParams{ApprovalTrigger})
     subdir = d["subdir"]
 
     if request_type == "pull_request"
-        pr = pull_request(reponame, trigger_id; auth=auth)
+        pr = pull_request(api, reponame, trigger_id; auth=auth)
         tree_sha = pr.merge_commit_sha
         if pr.state == "open"
             @debug("Merging pull request on package repo", reponame, trigger_id)
-            merge_pull_request(reponame, trigger_id; auth=auth,
+            merge_pull_request(api, reponame, trigger_id; auth=auth,
                                params=Dict("merge_method" => "squash"))
         else
             @debug("Pull request already merged", reponame, trigger_id)
@@ -85,7 +85,7 @@ function handle_approval(rp::RequestParams{ApprovalTrigger})
 
     if !tag_exists
         @debug("Creating new tag", reponame, ver, tree_sha)
-        tag_package(reponame, ver, tree_sha, auth; tag_name = tag)
+        tag_package(api, reponame, ver, tree_sha, auth; tag_name = tag)
     end
 
     release_exists = false
@@ -117,10 +117,10 @@ function handle_approval(rp::RequestParams{ApprovalTrigger})
         end
     end
 
-    reg_pr = pull_request(reg_name, reg_prid; auth=auth)
+    reg_pr = pull_request(api, reg_name, reg_prid; auth=auth)
     if reg_pr.state == "open"
         @debug("Merging pull request on registry", reg_name, reg_prid)
-        merge_pull_request(reg_name, reg_prid; auth=auth)
+        merge_pull_request(api, reg_name, reg_prid; auth=auth)
     else
         @debug("Pull request on registry already merged", reg_name, reg_prid)
     end
@@ -131,18 +131,18 @@ function print_entry_log(rp::RequestParams{ApprovalTrigger})
     @info "Approving Pull request" reponame=rp.reponame prid=rp.trigger_src.prid
 end
 
-function action(rp::RequestParams{ApprovalTrigger}, zsock)
+function action(api::GitHub.GitHubAPI, rp::RequestParams{ApprovalTrigger}, zsock)
     @info("Processing approval event", reponame=rp.reponame, rp.trigger_src.prid)
     try
-        err = handle_approval(rp)
+        err = handle_approval(api, rp)
         if err !== nothing
             @debug(err)
-            make_comment(rp.evt, "Error in approval process: $err")
+            make_comment(api, rp.evt, "Error in approval process: $err")
         end
     catch ex
         bt = get_backtrace(ex)
         @info("Unexpected error: $bt")
-        raise_issue(rp.evt, rp.phrase, bt)
+        raise_issue(api, rp.evt, rp.phrase, bt)
     end
     @info("Done processing approval event", reponame=rp.reponame, rp.trigger_src.prid)
 end

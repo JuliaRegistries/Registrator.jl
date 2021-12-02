@@ -47,7 +47,7 @@ function pfile_hasfields(p::Pkg.Types.Project)
     return true, nothing
 end
 
-function verify_projectfile_from_sha(reponame, commit_sha; auth=GitHub.AnonymousAuth(), subdir = "")
+function verify_projectfile_from_sha(api::GitHub.GitHubAPI, reponame, commit_sha; auth=GitHub.AnonymousAuth(), subdir = "")
     project = nothing
     projectfile_found = false
     projectfile_valid = false
@@ -69,7 +69,7 @@ function verify_projectfile_from_sha(reponame, commit_sha; auth=GitHub.Anonymous
 
             @debug("Getting projectfile blob")
             if isa(auth, GitHub.AnonymousAuth)
-                a = get_user_auth()
+                a = get_user_auth(api)
             else
                 a = auth
             end

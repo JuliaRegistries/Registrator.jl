@@ -15,7 +15,7 @@ struct RequestParams{T<:RequestTrigger}
     subdir::String
     cparams::CommonParams
 
-    function RequestParams(evt::WebhookEvent, phrase::RegexMatch)
+    function RequestParams(api::GitHub.GitHubAPI, evt::WebhookEvent, phrase::RegexMatch)
         reponame = evt.repository.full_name
         user = get_user_login(evt.payload)
         trigger_src = EmptyTrigger()
@@ -43,14 +43,14 @@ struct RequestParams{T<:RequestTrigger}
             err = "Private package registration request received, ignoring"
             @debug(err)
         elseif action_name == "register"
-            commenter_can_register = has_register_rights(evt)
+            commenter_can_register = has_register_rights(api, evt)
             if commenter_can_register
                 @debug("Commenter has registration rights")
                 notes_match = match(r"(?:patch|release) notes:(.*)"si, get_body(evt.payload))
                 notes = notes_match === nothing ? "" : strip(notes_match[1])
                 if is_pull_request(evt.payload)
                     if CONFIG["disable_pull_request_trigger"]
-                        make_comment(evt, "Comments on pull requests will not trigger Registrator, as it is disabled. Please try commenting on a commit or issue.")
+                        make_comment(api, evt, "Comments on pull requests will not trigger Registrator, as it is disabled. Please try commenting on a commit or issue.")
                     else
                         @debug("Comment is on a pull request")
                         prid = get_prid(evt.payload)
@@ -72,12 +72,12 @@ struct RequestParams{T<:RequestTrigger}
             @debug("Comment is on a pull request")
         elseif action_name == "approved"
             if CONFIG["disable_approval_process"]
-                make_comment(evt, "The `approved()` command is disabled.")
+                make_comment(api, evt, "The `approved()` command is disabled.")
             else
                 registry_repos = [join(split(r["repo"], "/")[end-1:end], "/") for (n, r) in CONFIG["targets"]]
                 if reponame in registry_repos
                     @debug("Recieved approval comment")
-                    commenter_can_register = has_register_rights(evt)
+                    commenter_can_register = has_register_rights(api, evt)
                     if commenter_can_register
                         @debug("Commenter has register rights")
                         if is_pull_request(evt.payload)
@@ -108,24 +108,24 @@ struct RequestParams{T<:RequestTrigger}
     end
 end
 
-function get_cloneurl_and_sha(rp::RequestParams{PullRequestTrigger}, auth)
-    pr = pull_request(rp.reponame, rp.trigger_src.prid; auth=auth)
+function get_cloneurl_and_sha(api::GitHub.GitHubAPI, rp::RequestParams{PullRequestTrigger}, auth)
+    pr = pull_request(api, rp.reponame, rp.trigger_src.prid; auth=auth)
     cloneurl = pr.head.repo.html_url.uri * ".git"
     sha = pr.head.sha
 
     cloneurl, sha, nothing
 end
 
-function get_cloneurl_and_sha(rp::RequestParams{CommitCommentTrigger}, auth)
+function get_cloneurl_and_sha(api::GitHub.GitHubAPI, rp::RequestParams{CommitCommentTrigger}, auth)
     cloneurl = get_clone_url(rp.evt)
     sha = get_comment_commit_id(rp.evt)
 
     cloneurl, sha, nothing
 end
 
-function get_cloneurl_and_sha(rp::RequestParams{IssueTrigger}, auth)
+function get_cloneurl_and_sha(api::GitHub.GitHubAPI, rp::RequestParams{IssueTrigger}, auth)
     cloneurl = get_clone_url(rp.evt)
-    sha, err = get_sha_from_branch(rp.reponame, rp.trigger_src.branch; auth=auth)
+    sha, err = get_sha_from_branch(api, rp.reponame, rp.trigger_src.branch; auth=auth)
 
     cloneurl, sha, err
 end
@@ -165,7 +165,7 @@ struct ProcessedParams
     cloneurl::Union{Nothing, String}
     cparams::CommonParams
 
-    function ProcessedParams(rp::RequestParams)
+    function ProcessedParams(api::GitHub.GitHubAPI, rp::RequestParams)
         if rp.cparams.error !== nothing
             @debug("Pre-check failed, not processing RequestParams: $(rp.cparams.error)")
             return ProcessedParams(nothing, nothing, copy(rp.cparams))
@@ -182,15 +182,15 @@ struct ProcessedParams
 
         is_private = rp.evt.payload["repository"]["private"]
         if is_private
-            auth = get_access_token(rp.evt)
+            auth = get_access_token(api, rp.evt)
         else
             auth = GitHub.AnonymousAuth()
         end
 
-        cloneurl, sha, err = get_cloneurl_and_sha(rp, auth)
+        cloneurl, sha, err = get_cloneurl_and_sha(api, rp, auth)
 
         if err === nothing && sha !== nothing
-            project, tree_sha, projectfile_found, projectfile_valid, err = verify_projectfile_from_sha(rp.reponame, sha; auth = auth, subdir = rp.subdir)
+            project, tree_sha, projectfile_found, projectfile_valid, err = verify_projectfile_from_sha(api, rp.reponame, sha; auth = auth, subdir = rp.subdir)
             if !projectfile_found
                 err = "File (Julia)Project.toml not found"
                 @debug(err)

@@ -7,13 +7,13 @@ function register_rights_error(evt, user)
     end
 end
 
-get_access_token(event) = create_access_token(Installation(event.payload["installation"]), get_jwt_auth())
-get_user_auth() = GitHub.authenticate(CONFIG["github"]["token"])
+get_access_token(api::GitHub.GitHubAPI, event) = create_access_token(api, Installation(event.payload["installation"]), get_jwt_auth())
+get_user_auth(api::GitHub.GitHubAPI) = GitHub.authenticate(api, CONFIG["github"]["token"])
 get_jwt_auth() = GitHub.JWTAuth(CONFIG["github"]["app_id"], CONFIG["github"]["priv_pem"])
 
-function get_sha_from_branch(reponame, brn; auth = GitHub.AnonymousAuth())
+function get_sha_from_branch(api::GitHub.GitHubAPI, reponame, brn; auth = GitHub.AnonymousAuth())
     try
-        b = branch(reponame, Branch(brn); auth=auth)
+        b = branch(api, reponame, Branch(brn); auth=auth)
         sha = b.sha !== nothing ? b.sha : b.commit.sha
         return sha, nothing
     catch ex
@@ -30,26 +30,26 @@ end
 
 is_owned_by_organization(event) = event.repository.owner.typ == "Organization"
 
-function is_comment_by_collaborator(event)
+function is_comment_by_collaborator(api::GitHub.GitHubAPI, event)
     @debug("Checking if comment is by collaborator")
     user = get_user_login(event.payload)
     user == "github-actions[bot]" && return true
-    return iscollaborator(event.repository, user; auth=get_access_token(event))
+    return iscollaborator(api, event.repository, user; auth=get_access_token(api, event))
 end
 
-function is_comment_by_org_owner_or_member(event)
+function is_comment_by_org_owner_or_member(api::GitHub.GitHubAPI, event)
     @debug("Checking if comment is by repository parent organization owner or member")
     org = event.repository.owner.login
     user = get_user_login(event.payload)
     user == "github-actions[bot]" && return true
     if get(CONFIG, "check_private_membership", false)
-        return GitHub.check_membership(org, user; auth=get_user_auth())
+        return GitHub.check_membership(org, user; auth=get_user_auth(api))
     else
         return GitHub.check_membership(org, user; public_only=true)
     end
 end
 
-has_register_rights(event) = is_comment_by_collaborator(event) || is_owned_by_organization(event) && is_comment_by_org_owner_or_member(event)
+has_register_rights(api::GitHub.GitHubAPI, event) = is_comment_by_collaborator(api, event) || is_owned_by_organization(event) && is_comment_by_org_owner_or_member(api, event)
 
 is_pull_request(payload::Dict{<:AbstractString}) = haskey(payload, "pull_request") || haskey(payload, "issue") && haskey(payload["issue"], "pull_request")
 is_commit_comment(payload::Dict{<:AbstractString}) = haskey(payload, "comment") && !haskey(payload, "issue")
@@ -67,13 +67,13 @@ end
 get_comment_commit_id(event) = event.payload["comment"]["commit_id"]
 get_clone_url(event) = event.payload["repository"]["clone_url"]
 
-function make_comment(evt::WebhookEvent, body::AbstractString)
+function make_comment(api::GitHub.GitHubAPI, evt::WebhookEvent, body::AbstractString)
     CONFIG["reply_comment"] || return
     @debug("Posting comment to PR/issue")
     headers = Dict("private_token" => CONFIG["github"]["token"])
     params = Dict("body" => body)
     repo = evt.repository
-    auth = get_user_auth()
+    auth = get_user_auth(api)
     if is_commit_comment(evt.payload)
         GitHub.create_comment(repo, get_comment_commit_id(evt),
                               :commit; headers=headers,
@@ -102,7 +102,7 @@ function get_html_url(payload::Dict{<:AbstractString})
 end
 
 """
-    raise_issue(event::WebhookEvent, phrase::RegexMatch, bt::String)
+    raise_issue(api::GitHub.GitHubAPI, event::WebhookEvent, phrase::RegexMatch, bt::String)
 Open an issue in the configured Registrator repository. The issue
 body will contain the trigger comment `phrase` and the backtrace
 in `bt`. A link to the opened issue will be posted on the source
@@ -111,7 +111,7 @@ issue, PR or commit from which the `event` comes from.
 This will also post the backtrace on the slack channel if
 configured.
 """
-function raise_issue(event::WebhookEvent, phrase::RegexMatch, bt::String)
+function raise_issue(api::GitHub.GitHubAPI, event::WebhookEvent, phrase::RegexMatch, bt::String)
     repo = event.repository.full_name
     lab = is_commit_comment(event.payload) ? get_comment_commit_id(event) : get_prid(event.payload)
     title = "Error registering $repo#$lab"
@@ -134,18 +134,18 @@ function raise_issue(event::WebhookEvent, phrase::RegexMatch, bt::String)
     if CONFIG["report_issue"]
         params = Dict("title"=>title, "body"=>body)
         regrepo = CONFIG["issue_repo"]
-        iss = create_issue(regrepo; params=params, auth=get_user_auth())
+        iss = create_issue(regrepo; params=params, auth=get_user_auth(api))
         msg = "Unexpected error occurred during registration, see issue: [$(regrepo)#$(iss.number)]($(iss.html_url))"
         @debug(msg)
-        make_comment(event, msg)
+        make_comment(api, event, msg)
     else
         msg = "An unexpected error occurred during registration."
         @debug(msg)
-        make_comment(event, msg)
+        make_comment(api, event, msg)
     end
 end
 
-function set_status(rp, state, desc)
+function set_status(api::GitHub.GitHubAPI, rp, state, desc)
      CONFIG["set_status"] || return
      repo = rp.reponame
      kind = rp.evt.kind
@@ -156,14 +156,14 @@ function set_status(rp, state, desc)
                        "context" => CONFIG["github"]["user"],
                        "description" => desc)
          GitHub.create_status(repo, commit;
-                              auth=get_access_token(rp.evt),
+                              auth=get_access_token(api, rp.evt),
                               params=params)
      end
 end
 
-set_pending_status(rp) = set_status(rp, "pending", "Processing request...")
-set_error_status(rp) = set_status(rp, "error", "Failed to register")
-set_success_status(rp) = set_status(rp, "success", "Done")
+set_pending_status(api::GitHub.GitHubAPI, rp) = set_status(api, rp, "pending", "Processing request...")
+set_error_status(api::GitHub.GitHubAPI, rp) = set_status(api, rp, "error", "Failed to register")
+set_success_status(api::GitHub.GitHubAPI, rp) = set_status(api, rp, "success", "Done")
 
 function parse_github_exception(ex::ErrorException)
     msgs = map(strip, split(ex.msg, '\n'))
@@ -214,19 +214,20 @@ end
 const REGISTRATOR_CONTROLLED_LABELS = ["new package", "major release", "minor release",
                                        "patch release", "BREAKING"]
 
-function create_or_find_pull_request(repo::AbstractString,
+function create_or_find_pull_request(api::GitHub.GitHubAPI,
+                                     repo::AbstractString,
                                      params::Dict{<:AbstractString, Any},
                                      rbrn::RegBranch)
     pr = nothing
     msg = ""
-    auth = get_user_auth()
+    auth = get_user_auth(api)
     try
-        pr = create_pull_request(repo; auth=auth, params=params)
+        pr = create_pull_request(api, repo; auth=auth, params=params)
         msg = "created"
         @debug("Pull request created")
         try # add labels
             if get(rbrn.metadata, "labels", nothing) !== nothing
-                add_labels(repo, pr, rbrn.metadata["labels"]; auth=auth)
+                add_labels(api, repo, pr, rbrn.metadata["labels"]; auth=auth)
             end
         catch
             @debug "Failed to add labels, ignoring."
@@ -241,7 +242,7 @@ function create_or_find_pull_request(repo::AbstractString,
     end
 
     if pr === nothing
-        prs, _ = pull_requests(repo; auth=auth, params=Dict(
+        prs, _ = pull_requests(api, repo; auth=auth, params=Dict(
             "state" => "open",
             "base" => params["base"],
             "head" => string(split(repo, "/")[1], ":", params["head"]),
@@ -255,12 +256,12 @@ function create_or_find_pull_request(repo::AbstractString,
         if pr === nothing
             error("Registration PR already exists but unable to find it")
         else
-            update_pull_request(repo, pr.number; auth=auth, params=Dict("body" => params["body"], "title" => params["title"]))
+            update_pull_request(api, repo, pr.number; auth=auth, params=Dict("body" => params["body"], "title" => params["title"]))
             try # update labels
                 if get(rbrn.metadata, "labels", nothing) !== nothing
                     # Remove existing labels we control if they are not
                     # in `rbrn.metadata["labels"]`
-                    existing_labels = [l.name for l in labels(repo, pr; auth=auth)]
+                    existing_labels = [l.name for l in labels(api, repo, pr; auth=auth)]
                     for label in existing_labels
                         label in REGISTRATOR_CONTROLLED_LABELS || continue
                         label in rbrn.metadata["labels"] && continue
@@ -269,7 +270,7 @@ function create_or_find_pull_request(repo::AbstractString,
                     # Add any labels in `rbrn.metadata["labels"]` that don't
                     # already exist in the PR.
                     labels_to_add = setdiff(rbrn.metadata["labels"], existing_labels)
-                    add_labels(repo, pr, labels_to_add; auth=auth)
+                    add_labels(api, repo, pr, labels_to_add; auth=auth)
                 end
             catch
                 @debug "Failed to update labels, ignoring."
