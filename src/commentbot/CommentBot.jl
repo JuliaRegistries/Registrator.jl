@@ -245,7 +245,7 @@ function main(config::AbstractString=isempty(ARGS) ? "config.toml" : first(ARGS)
     zsock = RequestSocket(get(CONFIG, "backend_port", 5555))
 
     @info("Starting server...")
-    api = GitHubWebAPI(HTTP.URI(get(CONFIG, "backend_port", "https://api.github.com")))
+    api = GitHubWebAPI(HTTP.URI(get(CONFIG, "api_url", "https://api.github.com")))
     t1 = @async request_processor(api, zsock)
     t2 = @async status_monitor(CONFIG["stop_file"], event_queue, httpsock)
     github_webhook(; kwargs...)
