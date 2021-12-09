@@ -8,6 +8,7 @@ registry_url = ""
 stop_file = "stopwebui"
 # log_level = "INFO"
 # registry_clone_url = ""
+# registry_fork_url = ""
 # extra_providers = ""
 # registry_provider = ""
 # registry_deps = []

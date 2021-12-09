@@ -67,7 +67,8 @@ app_id = 12345  # The app ID for your GitHub app. This can be found in
 priv_pem = "private-key.pem"    # The private key file of your GitHub app
 
 [commentbot.targets.qux]   # You can define additional targets as [targets.baz], [targets.foo] etc.
-repo = "https://github.com/your_github_id/QuxRegistry"
+repo = "https://github.com/organization/QuxRegistry"
+fork_repo = "https://github.com/registrator/QuxRegistry"
 base_branch = "master"
 
 [commentbot.slack]
