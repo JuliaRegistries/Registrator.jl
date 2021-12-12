@@ -18,6 +18,10 @@ Click on the "install" button above to add the registration bot to your reposito
 
 There are two ways to use Registrator: a web interface and a GitHub app.
 
+### Pre-requisites
+
+To speed up the registry process, there is an automatic merging process assuming your package meets the [following guidelines](https://juliaregistries.github.io/RegistryCI.jl/stable/guidelines/). It is best to make sure you meet those requirements before beginning the registration process.
+
 ### Via the Web Interface
 
 This workflow supports repositories hosted on either GitHub or GitLab.
