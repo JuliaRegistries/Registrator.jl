@@ -1,9 +1,9 @@
 function register_rights_error(evt, user)
     if is_owned_by_organization(evt)
         org = evt.repository.owner.login
-        return "**Register Failed**\n@$(user), it looks like you are not a publicly listed member/owner in the parent organization ($(org)).\nIf you are a member/owner, you will need to change your membership to public. See [GitHub Help](https://help.github.com/en/articles/publicizing-or-hiding-organization-membership)"
+        return "**Register Failed**\n$(mention(user)), it looks like you are not a publicly listed member/owner in the parent organization ($(org)).\nIf you are a member/owner, you will need to change your membership to public. See [GitHub Help](https://help.github.com/en/articles/publicizing-or-hiding-organization-membership)"
     else
-        return "**Register Failed**\n@$(user), it looks like you don't have collaborator status on this repository."
+        return "**Register Failed**\n$(mention(user)), it looks like you don't have collaborator status on this repository."
     end
 end
 
