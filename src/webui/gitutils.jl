@@ -209,8 +209,9 @@ function make_registration_request(
     repoid = r.repo.id
     base = r.repo.default_branch
     result = create_pull_request(
-        r.forge, repoid;
+        r.forge, REGISTRY[].fork_repo.id;
         source_branch=branch,
+        target_project_id=repoid,
         target_branch=base,
         title=title,
         description=body,
@@ -240,9 +241,11 @@ function make_registration_request(
     owner = r.repo.owner.login
     repo = r.repo.name
     base = r.repo.default_branch
+    head = string(REGISTRY[].fork_repo.owner.login, ":", branch)
+
     result = create_pull_request(
         r.forge, owner, repo;
-        head=branch,
+        head=head,
         base=base,
         title=title,
         body=body,
@@ -254,11 +257,11 @@ function make_registration_request(
         map(e -> get(e, "message", ""), get(data, "errors", []))
     end
     if !exists
-        @error "Exception making registration request" owner=owner repo=repo base=base head=branch
+        @error "Exception making registration request" owner=owner repo=repo base=base head=head
         return result
     end
 
-    prs = get_pull_requests(r.forge, owner, repo; head="$owner:$branch", base=base, state="open")
+    prs = get_pull_requests(r.forge, owner, repo; head=head, base=base, state="open")
     val = GitForge.value(prs)
     @assert length(val) == 1
     prid = first(val).number

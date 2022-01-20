@@ -47,6 +47,8 @@ get_trigger_id(rp::RequestParams{CommitCommentTrigger}) = get_comment_commit_id(
 
 tag_name(version, subdir) = subdir == "" ? "v$version" : splitdir(subdir)[end] * "-v$version"
 
+reponame_from_url(url::String) = join(split(url, "/")[end-1:end], "/")
+
 function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBranch, target_registry::Dict{String,Any})
     name = rbrn.name
     ver = rbrn.version
@@ -70,8 +72,11 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
                           "subdir"=> subdir))
     key = CONFIG["enc_key"]
     enc_meta = "<!-- " * bytes2hex(encrypt(MbedTLS.CIPHER_AES_128_CBC, key, meta, key)) * " -->"
+    repo = reponame_from_url(target_registry["repo"])
+    fork_repo = !haskey(target_registry, "fork_repo") ? repo : reponame_from_url(target_registry["fork_repo"])
+    head_branch = string(first(split(fork_repo, "/")), ":", brn)
     params = Dict("base"=>target_registry["base_branch"],
-                  "head"=>brn,
+                  "head"=>head_branch,
                   "maintainer_can_modify"=>true)
     ref = get_html_url(rp.evt.payload)
 
@@ -91,7 +96,6 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
         description=description,
     )
 
-    repo = join(split(target_registry["repo"], "/")[end-1:end], "/")
     pr, msg = create_or_find_pull_request(repo, params, rbrn)
     tag = tag_name(ver, subdir)
 
@@ -144,14 +148,16 @@ function action(rp::RequestParams{T}, zsock::RequestSocket) where T <: RegisterT
     try
         if pp.cparams.isvalid
             registry_deps=map(String, get(CONFIG, "registry_deps", String[]))
-            regp = RegisterParams(pp.cloneurl,
-                                  pp.project,
-                                  pp.tree_sha;
-                                  subdir=rp.subdir,
-                                  registry=target_registry["repo"],
-                                  registry_deps=registry_deps,
-                                  push=true,
-                                  )
+            regp = RegisterParams(
+                pp.cloneurl,
+                pp.project,
+                pp.tree_sha;
+                subdir=rp.subdir,
+                registry=target_registry["repo"],
+                registry_fork=get(target_registry, "fork_repo", target_registry["repo"]),
+                registry_deps=registry_deps,
+                push=true,
+            )
             rbrn = sendrecv(zsock, regp; nretry=10)
 
             if rbrn === nothing || get(rbrn.metadata, "error", nothing) !== nothing

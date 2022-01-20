@@ -226,9 +226,9 @@ uuid = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 
 [[RegistryTools]]
 deps = ["AutoHashEquals", "LibGit2", "Pkg", "SHA", "UUIDs"]
-git-tree-sha1 = "e5bc4ecbdd55f030b9f2644aa4a625f34a868ea0"
+git-tree-sha1 = "7ba3c65d4f40a399e5a2f0ec5abc89de871604e5"
 uuid = "d1eb7eb1-105f-429d-abf5-b0f65cb9e2c4"
-version = "1.6.0"
+version = "1.7.0"
 
 [[SHA]]
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"

@@ -214,9 +214,11 @@ end
 const REGISTRATOR_CONTROLLED_LABELS = ["new package", "major release", "minor release",
                                        "patch release", "BREAKING"]
 
-function create_or_find_pull_request(repo::AbstractString,
-                                     params::Dict{<:AbstractString, Any},
-                                     rbrn::RegBranch)
+function create_or_find_pull_request(
+    repo::AbstractString,
+    params::Dict{<:AbstractString, Any},
+    rbrn::RegBranch
+)
     pr = nothing
     msg = ""
     auth = get_user_auth()
@@ -244,7 +246,7 @@ function create_or_find_pull_request(repo::AbstractString,
         prs, _ = pull_requests(repo; auth=auth, params=Dict(
             "state" => "open",
             "base" => params["base"],
-            "head" => string(split(repo, "/")[1], ":", params["head"]),
+            "head" => params["head"],
         ))
         if !isempty(prs)
             @assert length(prs) == 1 "PR lookup should only contain one result"

@@ -92,6 +92,8 @@ It's important to note that optional values **must** be omitted or commented out
 
 - `registry_clone_url`: Your registry's clone URL.
   This defaults to `registry_url`, but you can use this value to clone the registry via SSH, for example.
+- `registry_fork_url`: URL for forked registry repository.
+  Registration commits will be pushed to the repo pointed to by this URL. This defaults to `registry_clone_url`.
 - `extra_providers`: Path to a Julia file that adds extra providers.
   This should only be used for certain cases when your provider is self-hosted (see next section).
 - `registry_provider`: The registry provider, which is usually inferred from the registry URL.
