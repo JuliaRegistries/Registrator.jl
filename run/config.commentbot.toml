@@ -66,6 +66,9 @@ app_id = 12345  # The app ID for your GitHub app. This can be found in
 
 priv_pem = "private-key.pem"    # The private key file of your GitHub app
 
+api_url = "https://api.github.com"  # This is the base url of the GitHub API.
+                                    # Needs to be changed in case of on-premise instances.
+
 [commentbot.targets.qux]   # You can define additional targets as [targets.baz], [targets.foo] etc.
 repo = "https://github.com/your_github_id/QuxRegistry"
 base_branch = "master"
