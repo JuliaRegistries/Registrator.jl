@@ -109,7 +109,7 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
 
         i.e.
         ```
-        @JuliaRegistrator register()
+        @JuliaReg... register()
 
         Release notes:
 
