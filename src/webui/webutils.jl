@@ -40,3 +40,5 @@ function parseform(s::AbstractString)
     pairs = split(replace(s, "+" => " "), "&")
     return Dict(map(p -> map(strip ∘ HTTP.unescapeuri, split(p, "=")), pairs))
 end
+
+remove_ssh_prefix(s::AbstractString) = startswith(s, "ssh://") ? s[length("ssh://")+1:end] : s
