@@ -14,12 +14,7 @@ end
 
 # Split a repo path into its owner and name.
 function splitrepo(url::AbstractString)
-    if startswith(url, "https://") || startswith(url, "http://")
-        pieces = split(HTTP.URI(url).path, "/"; keepempty=false)
-    else
-        pieces = split(split(url, ":")[end], "/")
-    end
-
+    pieces = split(HTTP.URI(url).path, "/"; keepempty=false)
     owner = join(pieces[1:end-1], "/")
     name = pieces[end]
     return owner, name
