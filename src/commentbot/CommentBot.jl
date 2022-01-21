@@ -193,6 +193,7 @@ end
 
 function comment_handler(event::WebhookEvent, phrase::RegexMatch)
     @debug("Received event for $(event.repository.full_name), phrase: $phrase")
+    mention(event.sender)
     try
         rp = RequestParams(event, phrase)
         isa(rp.trigger_src, EmptyTrigger) && rp.cparams.error === nothing && return
