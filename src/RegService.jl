@@ -32,6 +32,7 @@ function service(zsock::ReplySocket)
                 haskey(CONFIG, "user") && (regp.gitconfig["user.name"] = CONFIG["user"])
                 haskey(CONFIG, "email") && (regp.gitconfig["user.email"] = CONFIG["email"])
             end
+            println("CALLING REGISTER WITH $(regp)")
             register(regp)
         end
         ret || return

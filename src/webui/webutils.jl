@@ -1,6 +1,6 @@
 # Get the callback URL with the provider parameter.
-callback_url(p::AbstractString) =
-    string(CONFIG["server_url"], ROUTES[:CALLBACK], "?provider=", HTTP.escapeuri(p))
+callback_url(::Provider{T}) where T =
+    "$(CONFIG["server_url"])$(ROUTES[:CALLBACK])?provider=$(HTTP.escapeuri(provider(T).name))"
 
 # Get a query string parameter from a request.
 getquery(r::HTTP.Request, key::AbstractString, default="") =

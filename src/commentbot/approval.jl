@@ -1,6 +1,6 @@
 function tag_package(rname, ver::VersionNumber, mcs, auth; tag_name = "v$ver")
-    tagger = Dict("name" => CONFIG["github"]["user"],
-                  "email" => CONFIG["github"]["email"],
+    tagger = Dict("name" => github_config("user"),
+                  "email" => github_config("email"),
                   "date" => Dates.format(now(), dateformat"YYYY-mm-ddTHH:MM:SSZ"))
     create_tag(rname; auth=auth,
                params=Dict("tag" => tag_name,

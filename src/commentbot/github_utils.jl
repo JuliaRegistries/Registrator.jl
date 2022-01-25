@@ -8,8 +8,8 @@ function register_rights_error(evt, user)
 end
 
 get_access_token(event) = create_access_token(Installation(event.payload["installation"]), get_jwt_auth())
-get_user_auth() = GitHub.authenticate(CONFIG["github"]["token"])
-get_jwt_auth() = GitHub.JWTAuth(CONFIG["github"]["app_id"], CONFIG["github"]["priv_pem"])
+get_user_auth() = GitHub.authenticate(github_config("token"))
+get_jwt_auth() = GitHub.JWTAuth(github_config("app_id"), github_config("priv_pem"))
 
 function get_sha_from_branch(reponame, brn; auth = GitHub.AnonymousAuth())
     try
@@ -70,7 +70,7 @@ get_clone_url(event) = event.payload["repository"]["clone_url"]
 function make_comment(evt::WebhookEvent, body::AbstractString)
     CONFIG["reply_comment"] || return
     @debug("Posting comment to PR/issue")
-    headers = Dict("private_token" => CONFIG["github"]["token"])
+    headers = Dict("private_token" => github_config("token"))
     params = Dict("body" => body)
     repo = evt.repository
     auth = get_user_auth()
@@ -153,7 +153,7 @@ function set_status(rp, state, desc)
      if kind == "pull_request"
          commit = payload["pull_request"]["head"]["sha"]
          params = Dict("state" => state,
-                       "context" => CONFIG["github"]["user"],
+                       "context" => github_config("user"),
                        "description" => desc)
          GitHub.create_status(repo, commit;
                               auth=get_access_token(rp.evt),

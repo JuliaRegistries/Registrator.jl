@@ -29,6 +29,8 @@ const event_queue = Channel{RequestParams}(1024)
 const CONFIG = Dict{String,Any}()
 const httpsock = Ref{Sockets.TCPServer}()
 
+github_config(name) = CONFIG["github"][name]
+
 function print_entry_log(rp::RequestParams{PullRequestTrigger})
     @info "Creating registration pull request" reponame=rp.reponame prid=rp.trigger_src.prid
 end
@@ -219,7 +221,7 @@ function github_webhook(http_ip=CONFIG["http_ip"],
                         http_port=get(CONFIG, "http_port", parse(Int, get(ENV, "PORT", "8001"))); kwargs...)
     auth = get_jwt_auth()
     trigger = make_trigger()
-    listener = GitHub.CommentListener(comment_handler, trigger; check_collab=false, auth=auth, secret=CONFIG["github"]["secret"])
+    listener = GitHub.CommentListener(comment_handler, trigger; check_collab=false, auth=auth, secret=github_config("secret"))
     httpsock[] = Sockets.listen(IPv4(http_ip), http_port)
 
     do_action() = GitHub.run(listener, httpsock[], IPv4(http_ip), http_port; kwargs...)

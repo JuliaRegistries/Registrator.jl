@@ -15,12 +15,13 @@ function auth(r::HTTP.Request)
     end
 
     state = String(rand('a':'z', 32))
+    println("PROVIDER: $(provider)")
     return HTTP.Response(307, [
         "Set-Cookie" => String(HTTP.Cookie("state", state; path="/"), false),
         "Location" => provider.auth_url * "?" * HTTP.escapeuri(Dict(
             :response_type => "code",
             :client_id => provider.client_id,
-            :redirect_uri => callback_url(pkey),
+            :redirect_uri => callback_url(provider),
             :scope => provider.scope,
             :state => state,
         )),
