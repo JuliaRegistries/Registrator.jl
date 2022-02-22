@@ -64,8 +64,7 @@ function recover(
                 @warn("Stopping", name)
                 return
             else # exception_action == :continue
-                @error("Recovering from unknown exception", name, backoff)
-                println(get_backtrace(ex))
+                @error("Recovering from unknown exception", name, backoff, exception=get_backtrace(ex))
                 sleep(backoff)
                 backoff = min(backoffmax, backoff+backoffincrement)
             end
