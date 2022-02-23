@@ -59,7 +59,9 @@ include("providers.jl")
 struct Registry{F <: GitForge.Forge, R}
     forge::F
     repo::R
+    fork_repo::R
     url::String
+    fork_url::String
     clone::String
     deps::Vector{String}
     enable_release_notes::Bool
@@ -140,10 +142,19 @@ function init_registry()
     owner, name = splitrepo(url)
     repo = @gf get_repo(forge, owner, name)
     repo === nothing && error("Registry lookup failed")
+
     clone = get(CONFIG, "registry_clone_url", url)
+    fork_url = get(CONFIG, "registry_fork_url", clone)
+    fork_owner, fork_name = splitrepo(fork_url)
+    fork_repo = @gf get_repo(forge, fork_owner, fork_name)
+    fork_repo === nothing && error("Registry fork lookup failed")
+
     deps = map(String, get(CONFIG, "registry_deps", String[]))
     enable_release_notes = !get(CONFIG, "disable_release_notes", false)
-    REGISTRY[] = Registry(forge, repo, url, clone, deps, enable_release_notes)
+    REGISTRY[] = Registry(
+        forge, repo, fork_repo, url, fork_url, clone,
+        deps, enable_release_notes
+    )
 end
 
 for f in [:index, :auth, :callback, :select, :register]
@@ -170,6 +181,7 @@ function action(regdata::RegistrationData, zsock::RequestSocket)
         regdata.tree;
         subdir=regdata.subdir,
         registry=REGISTRY[].clone, 
+        registry_fork=REGISTRY[].fork_url,
         registry_deps=REGISTRY[].deps, 
         push=true,
     )

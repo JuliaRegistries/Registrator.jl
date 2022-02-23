@@ -11,6 +11,7 @@ stop_file = "stopwebui"
 # log_level = "INFO"
 # -- link to the repository that contains the registry
 # registry_clone_url = ""
+# registry_fork_url = ""
 # extra_providers = ""
 # registry_provider = ""
 # -- dependencies on other registries

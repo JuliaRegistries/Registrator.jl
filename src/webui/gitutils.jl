@@ -277,9 +277,9 @@ function make_registration_request(
     base = r.repo.default_branch
     try
         result, _ = create_pull_request(
-            r.forge, repoid;
+            r.forge, REGISTRY[].fork_repo.id;
             source_branch=branch,
-            target_branch=base,
+            target_project_id=repoid,
             title=title,
             description=body,
             remove_source_branch=true,
@@ -291,7 +291,6 @@ function make_registration_request(
             @error "Exception making registration request" repoid=repoid base=base head=branch
             return result, nothing
         end
-
         val, _ = get_pull_requests(r.forge, repoid; source_branch=branch, target_branch=base, state="opened")
         @assert length(val) == 1
         prid = first(val).iid
@@ -309,6 +308,7 @@ function make_registration_request(
     owner = r.repo.owner.login
     repo = r.repo.name
     base = r.repo.default_branch
+    head = string(REGISTRY[].fork_repo.owner.login, ":", branch)
     try
         result, _ = create_pull_request(
             r.forge, owner, repo;
@@ -327,7 +327,6 @@ function make_registration_request(
             @error "Exception making registration request" owner=owner repo=repo base=base head=branch
             return result, nothing
         end
-
         val, _ = get_pull_requests(r.forge, owner, repo; head="$owner:$branch", base=base, state="open")
         @assert length(val) == 1
         prid = first(val).number
