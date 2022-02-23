@@ -5,6 +5,7 @@ import RegistryTools
 
 using Dates
 using GitForge, GitForge.GitHub, GitForge.GitLab, GitForge.Bitbucket
+using Base64
 using HTTP
 using JSON
 using Mux
@@ -153,7 +154,7 @@ error_handler(f::Function, r::HTTP.Request) = try
     f(r)
 catch e
     println(get_backtrace(e))
-    @error "Handler error" route=r.target
+    @error "Handler error" route=r.target exception=e,catch_backtrace()
     html(500, "Server error, sorry!")
 end
 

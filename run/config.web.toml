@@ -40,6 +40,7 @@ client_secret = ""
 # disable_rate_limits = false
 
 [web.bitbucket]
+# FORMAT: "USER:KEY" -- USER is the Bitbucket account, KEY is a Bitbucket "app password"
 token = ""
 client_id = ""
 client_secret = ""

@@ -1,11 +1,11 @@
 auth_href(::Provider{BitbucketAPI}) = "$(ROUTES[:BITBUCKET])/auth"
 
-callback_url(::Provider{BitbucketAPI}) = """$(CONFIG["server_url"])$(ROUTES[:BITBUCKET])/callback"""
+callback_url(::Provider{BitbucketAPI}) = """$(CONFIG["server_url"])/bitbucket/callback"""
 
 function bitbucket(r::HTTP.Request)
     op = split(subtarget(:BITBUCKET, r), r"[/?]")[1]
     println("BITBUCKET: $(op)")
-    route(BitbucketAPI, op, r)
+    route(Route{BitbucketAPI, Symbol(op)}, r)
 end
 
 route(F::Type, service::AbstractString, r::HTTP.Request) = route(Route{F, Symbol(service)}, r)
@@ -32,6 +32,7 @@ function route(::Type{Route{BitbucketAPI, :auth}}, r::HTTP.Request)
         "Location" => provider.auth_url * "?" * HTTP.escapeuri(Dict(
             :response_type => "code",
             :client_id => provider.client_id,
+            :state => state,
         )),
     ])
 end
@@ -39,7 +40,7 @@ end
 # Step 3: OAuth callback -- sent from the browser via a redirect from Bitbucket
 function route(::Type{Route{BitbucketAPI, :callback}}, r::HTTP.Request)
     state = getcookie(r, "state")
-    isempty(state) && return html(400, "Invalid state")
+    (isempty(state) || state != getquery(r, "state")) && return html(400, "Invalid state")
     provider = PROVIDERS["bitbucket"]
     query = Dict(
         :code => getquery(r, "code"),

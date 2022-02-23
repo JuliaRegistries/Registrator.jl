@@ -59,7 +59,7 @@ function init_providers()
             name="BitBucket",
             client=BitbucketAPI(;
                 url=get(bitbucket, "api_url", Bitbucket.DEFAULT_URL),
-                token=Bitbucket.Token(bitbucket["token"]),
+                token=Bitbucket.Token(base64encode(bitbucket["token"])),
                 has_rate_limits=!get(bitbucket, "disable_rate_limits", false),
                 (haskey(bitbucket, "workspace") ? (; workspace=bitbucket["workspace"]) : (;))...,
             ),
