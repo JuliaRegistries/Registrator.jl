@@ -21,6 +21,16 @@ macro gf(ex::Expr)
     end
 end
 
+macro gf_q(ex::Expr)
+    quote
+        try
+            $(esc(ex))[1]
+        catch err
+            nothing
+        end
+    end
+end
+
 # Split a repo path into its owner and name.
 function splitrepo(url::AbstractString)
     pieces = split(HTTP.URI(url).path, "/"; keepempty=false)
@@ -58,7 +68,7 @@ function isauthorized(u::User{GitHub.User}, repo::GitHub.Repo)
     end
 
     if repo.organization === nothing
-        hasauth = @gf @mock is_collaborator(forge, repo.owner.login, repo.name, u.user.login)
+        hasauth = @gf_q @mock is_collaborator(forge, repo.owner.login, repo.name, u.user.login)
         if something(hasauth, false)
             return AuthSuccess()
         else
@@ -66,9 +76,9 @@ function isauthorized(u::User{GitHub.User}, repo::GitHub.Repo)
         end
     else
         # First check for organization membership, and fall back to collaborator status.
-        ismember = @gf @mock is_member(forge, repo.organization.login, u.user.login)
+        ismember = @gf_q @mock is_member(forge, repo.organization.login, u.user.login)
         hasauth = something(ismember, false) ||
-            @gf @mock is_collaborator(forge, repo.organization.login, repo.name, u.user.login)
+            @gf_q @mock is_collaborator(forge, repo.organization.login, repo.name, u.user.login)
         if something(hasauth, false)
             return AuthSuccess()
         else
@@ -89,7 +99,7 @@ function isauthorized(u::User{GitLab.User}, repo::GitLab.Project)
     end
 
     if repo.namespace.kind == "user"
-        hasauth = @gf @mock is_collaborator(forge, repo.namespace.full_path, repo.name, u.user.id)
+        hasauth = @gf_q @mock is_collaborator(forge, repo.namespace.full_path, repo.name, u.user.id)
         if something(hasauth, false)
             return AuthSuccess()
         else
@@ -98,12 +108,12 @@ function isauthorized(u::User{GitLab.User}, repo::GitLab.Project)
     else
         # Same as above: group membership then collaborator check.
         nspath = split(repo.namespace.full_path, "/")
-        ismember = @gf @mock is_collaborator(u.forge, repo.namespace.full_path, repo.name, u.user.id)
+        ismember = @gf_q @mock is_collaborator(u.forge, repo.namespace.full_path, repo.name, u.user.id)
         if !something(ismember, false)
             accns = ""
             for ns in nspath
                 accns = joinpath(accns, ns)
-                ismember = @gf @mock is_member(forge, accns, u.user.id)
+                ismember = @gf_q @mock is_member(forge, accns, u.user.id)
                 something(ismember, false) && break
             end
         end
@@ -127,9 +137,9 @@ function isauthorized(u::User{Bitbucket.User}, repo::Bitbucket.Repo)
     end
 
     # First check for organization membership, and fall back to collaborator status.
-    ismember = @gf @mock is_member(bbforge, repo.workspace.slug, u.user.uuid)
+    ismember = @gf_q @mock is_member(bbforge, repo.workspace.slug, u.user.uuid)
     hasauth = something(ismember, false) ||
-        @gf @mock is_collaborator(bbforge, repo.workspace.slug, repo.slug, u.user.uuid)
+        @gf_q @mock is_collaborator(bbforge, repo.workspace.slug, repo.slug)
     if something(hasauth, false)
         return AuthSuccess()
     else
@@ -146,7 +156,7 @@ function gettoml(::GitHubAPI, repo::GitHub.Repo, ref::AbstractString, subdir::Ab
             fc, _ = get_file_contents(forge, repo.owner.login, repo.name, joinpath(subdir, file); ref=ref)
             return decodeb64(fc.content)
         catch err
-            lasterr = err
+            lasterr = (err, catch_backtrace())
         end
     end
     @error "Failed to get project file" exception=lasterr
@@ -171,15 +181,17 @@ end
 function gettoml(::BitbucketAPI, repo::Bitbucket.Repo, ref::AbstractString, subdir::AbstractString)
     bbforge = provider(repo).client
     lasterr = nothing
+    lasttrace = nothing
     for file in Base.project_names
         try
-            fc, _ = get_file_contents(bbforge, repo.workspace.slug, repo.slug, joinpath(subdir, file); ref=ref)
+            fc, _ = get_file_contents(bbforge, repo.workspace.slug, repo.slug, joinpath(ref, subdir, file))
             return fc
         catch err
             lasterr = err
+            lasttrace = stacktrace(catch_backtrace())
         end
     end
-    @error "Failed to get project file" exception=lasterr
+    @error "Failed to get project file $(repo.workspace.slug)/$(repo.slug)/src/$ref/$(joinpath(subdir, Base.project_names[end]))\n$lasterr\n$(join(lasttrace, "\n"))"
     return nothing
 end
 
@@ -288,7 +300,7 @@ function make_registration_request(
     catch ex
         resp = ex isa GitForge.HTTPError || ex isa GitForge.PostProcessorError ? ex.response : nothing
         if !ensure_already_exists(data -> get(data, "message", String[]), resp, 409)
-            @error "Exception making registration request" repoid=repoid base=base head=branch
+            @error "Exception making registration request" repoid=repoid base=base head=branch exception=ex,catch_backtrace()
             return result, nothing
         end
         val, _ = get_pull_requests(r.forge, repoid; source_branch=branch, target_branch=base, state="opened")
@@ -324,7 +336,7 @@ function make_registration_request(
             map(e -> get(e, "message", ""), get(data, "errors", []))
         end
         if !exists
-            @error "Exception making registration request" owner=owner repo=repo base=base head=branch
+            @error "Exception making registration request" owner=owner repo=repo base=base head=branch exception=ex,catch_backtrace()
             return result, nothing
         end
         val, _ = get_pull_requests(r.forge, owner, repo; head="$owner:$branch", base=base, state="open")
