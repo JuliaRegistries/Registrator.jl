@@ -291,6 +291,7 @@ function make_registration_request(
         result, _ = create_pull_request(
             r.forge, REGISTRY[].fork_repo.id;
             source_branch=branch,
+            target_branch=base,
             target_project_id=repoid,
             title=title,
             description=body,
