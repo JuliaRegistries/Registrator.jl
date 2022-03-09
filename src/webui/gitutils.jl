@@ -216,7 +216,7 @@ end
 # Get a repo's clone URL.
 function cloneurl(r::GitHub.Repo, is_ssh::Bool=false)
     url = is_ssh ? r.ssh_url : r.clone_url
-    println("URL: $(url)")
+    #println("URL: $(url)")
     # For private repositories, we need to insert the token into the URL.
     host = URI(url).host
     token = config(r)["token"]
@@ -224,7 +224,7 @@ function cloneurl(r::GitHub.Repo, is_ssh::Bool=false)
 end
 function cloneurl(r::GitLab.Project, is_ssh::Bool=false)
     url = is_ssh ? r.ssh_url_to_repo : r.http_url_to_repo
-    println("URL: $(url)")
+    #println("URL: $(url)")
     # For private repositories, we need to insert the token into the URL.
     host = URI(url).host
     token = config(r)["token"]
