@@ -308,7 +308,7 @@ function make_registration_request(
         @assert length(val) == 1
         prid = first(val).iid
         update_pull_request(r.forge, repoid, prid; title=title, body=body)
-        val, nothing
+        val[1], nothing
     end
 end
 
@@ -344,7 +344,7 @@ function make_registration_request(
         @assert length(val) == 1
         prid = first(val).number
         update_pull_request(r.forge, owner, repo, prid; title=title, body=body)
-        val, nothing
+        val[1], nothing
     end
 end
 
@@ -385,7 +385,7 @@ function make_registration_request(
         @assert length(val) == 1
         prid = first(val).id
         update_pull_request(r.forge, owner, repo, prid; title=title, body=body)
-        val, nothing
+        val[1], nothing
     end
 end
 
