@@ -124,8 +124,6 @@ auth_href(::Provider{GitHubAPI}) = "$(ROUTES[:AUTH])?provider=github"
 # Entrypoint #
 ##############
 
-println("burp")
-
 function init_registry()
     url = CONFIG["registry_url"]
     k = get(CONFIG, "registry_provider") do

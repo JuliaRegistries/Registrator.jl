@@ -4,14 +4,12 @@ callback_url(::Provider{BitbucketAPI}) = """$(CONFIG["server_url"])/bitbucket/ca
 
 function bitbucket(r::HTTP.Request)
     op = split(subtarget(:BITBUCKET, r), r"[/?]")[1]
-    println("BITBUCKET: $(op)")
     route(Route{BitbucketAPI, Symbol(op)}, r)
 end
 
 route(F::Type, service::AbstractString, r::HTTP.Request) = route(Route{F, Symbol(service)}, r)
 
 function route(::Type{Route{F, S}}, r::HTTP.Request) where {F, S}
-    println("ACCESSING INVALID ROUTE: $(route)")
     HTTP.Response(503; body="Invalid request")
 end
 

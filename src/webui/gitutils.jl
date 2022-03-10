@@ -14,7 +14,6 @@ macro gf(ex::Expr)
         try
             $(esc(ex))[1]
         catch err
-            println("API request failed\n  ", err, "\n  ", join(stacktrace(catch_backtrace()), "\n  "))
             @warn "API request failed" exception=err,catch_backtrace()
             nothing
         end
@@ -216,7 +215,6 @@ end
 # Get a repo's clone URL.
 function cloneurl(r::GitHub.Repo, is_ssh::Bool=false)
     url = is_ssh ? r.ssh_url : r.clone_url
-    #println("URL: $(url)")
     # For private repositories, we need to insert the token into the URL.
     host = URI(url).host
     token = config(r)["token"]
@@ -224,7 +222,6 @@ function cloneurl(r::GitHub.Repo, is_ssh::Bool=false)
 end
 function cloneurl(r::GitLab.Project, is_ssh::Bool=false)
     url = is_ssh ? r.ssh_url_to_repo : r.http_url_to_repo
-    #println("URL: $(url)")
     # For private repositories, we need to insert the token into the URL.
     host = URI(url).host
     token = config(r)["token"]
@@ -367,7 +364,6 @@ function make_registration_request(
         result, nothing
     catch ex
         resp = ex isa GitForge.HTTPError || ex isa GitForge.PostProcessorError ? ex.response : nothing
-        resp === nothing && println("create_pull_request failed\n  ", ex, "\n  ", join(stacktrace(catch_backtrace()), "\n  "))
         exists = ensure_already_exists(resp, 422) do data
             map(e -> get(e, "message", ""), get(data, "errors", []))
         end

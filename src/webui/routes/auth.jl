@@ -15,7 +15,6 @@ function auth(r::HTTP.Request)
     end
 
     state = String(rand('a':'z', 32))
-    println("PROVIDER: $(provider)")
     return HTTP.Response(307, [
         "Set-Cookie" => String(HTTP.Cookie("state", state; path="/"), false),
         "Location" => provider.auth_url * "?" * HTTP.escapeuri(Dict(

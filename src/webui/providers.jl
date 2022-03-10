@@ -54,7 +54,6 @@ function init_providers()
 
     if haskey(CONFIG, "bitbucket")
         bitbucket = CONFIG["bitbucket"]
-        println("@@@@BITBUCKET: $bitbucket")
         PROVIDERS["bitbucket"] = Provider(;
             name="BitBucket",
             client=BitbucketAPI(;
