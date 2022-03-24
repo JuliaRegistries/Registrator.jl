@@ -101,7 +101,7 @@ If the package you want to register is in a subdirectory of your git repository,
 
 ## Approving pull requests on the registry
 
-Pull requests that comply with the [automatic merging guidelines](https://github.com/JuliaRegistries/RegistryCI.jl#automatic-merging-guidelines) will be merged without human intervention periodically. On other cases, a registry maintainer will manually merge the pull request made by Registrator.
+Pull requests that comply with the [automatic merging guidelines](https://juliaregistries.github.io/RegistryCI.jl/stable/guidelines) will be merged without human intervention periodically. On other cases, a registry maintainer will manually merge the pull request made by Registrator.
 
 ## Private packages and registries
 
