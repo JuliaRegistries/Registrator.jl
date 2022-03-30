@@ -67,8 +67,8 @@ function isauthorized(u::User{GitHub.User}, repo::GitHub.Repo)
         return AuthFailure("User $(u.user.login) is not a collaborator on repo $(repo.name)")
     # Otherwise the user must be a member of the organization
     # verify with user's connection, falling back to JuliaHub's connection
-    (something(@gf_q @mock is_member(u.forge, repo.organization.login, u.user.login), false) ||
-        something(@gf_q @mock is_member(jforge, repo.organization.login, u.user.login), false)) &&
+    (something((@gf_q @mock is_member(u.forge, repo.organization.login, u.user.login)), false) ||
+        something((@gf_q @mock is_member(jforge, repo.organization.login, u.user.login)), false)) &&
         return AuthSuccess()
     AuthFailure("""
         User $(u.user.login) is not a collaborator on repository $(repo.name) and does not appear to be a member of the $(repo.organization.login) organization.
