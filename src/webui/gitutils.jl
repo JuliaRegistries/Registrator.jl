@@ -56,34 +56,24 @@ is_success(res::AuthFailure) = false
 # or whether they're an organization member or collaborator for organization-owned repos.
 isauthorized(u, repo) = AuthFailure("Unkown user type or repo type")
 function isauthorized(u::User{GitHub.User}, repo::GitHub.Repo)
-    if !get(CONFIG, "allow_private", false)
-        repo.private && return AuthFailure("Repo $(repo.name) is private")
-    end
-
-    if repo.private
-        forge = provider(repo).client
-    else
-        forge = u.forge
-    end
-
-    if repo.organization === nothing
-        hasauth = @gf_q @mock is_collaborator(forge, repo.owner.login, repo.name, u.user.login)
-        if something(hasauth, false)
-            return AuthSuccess()
-        else
-            return AuthFailure("User $(u.user.login) is not a collaborator on repo $(repo.name)")
-        end
-    else
-        # First check for organization membership, and fall back to collaborator status.
-        ismember = @gf_q @mock is_member(forge, repo.organization.login, u.user.login)
-        hasauth = something(ismember, false) ||
-            @gf_q @mock is_collaborator(forge, repo.organization.login, repo.name, u.user.login)
-        if something(hasauth, false)
-            return AuthSuccess()
-        else
-            return AuthFailure("User $(u.user.login) is not a member of the org $(repo.organization.login) and not a collaborator on repo $(repo.name)")
-        end
-    end
+    !get(CONFIG, "allow_private", false) && repo.private &&
+        return AuthFailure("Repo $(repo.name) is private")
+    jforge = provider(repo).client
+    repo = @gf_q @mock get_repo(u.forge, repo.owner.login, repo.name)
+    # Collaborators can always release their package
+    repo !== nothing && repo.permissions.push && return AuthSuccess()
+    # If the repo is not in an org, the user does not have sufficient access to create a PR
+    repo.organization === nothing &&
+        return AuthFailure("User $(u.user.login) is not a collaborator on repo $(repo.name)")
+    # Otherwise the user must be a member of the organization
+    # verify with user's connection, falling back to JuliaHub's connection
+    (something(@gf_q @mock is_member(u.forge, repo.organization.login, u.user.login), false) ||
+        something(@gf_q @mock is_member(jforge, repo.organization.login, u.user.login), false)) &&
+        return AuthSuccess()
+    AuthFailure("""
+        User $(u.user.login) is not a collaborator on repository $(repo.name) and does not appear to be a member of the $(repo.organization.login) organization.
+        <p>If $(u.user.login) is a private member of $(repo.organization.login), the membership must be made public, which can be done <a href="https://github.com/orgs/$(repo.organization.login)/people?query=$(u.user.login)">here</a>.
+    """)
 end
 
 function isauthorized(u::User{GitLab.User}, repo::GitLab.Project)
