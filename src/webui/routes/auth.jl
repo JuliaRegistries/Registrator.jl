@@ -20,7 +20,7 @@ function auth(r::HTTP.Request)
         "Location" => provider.auth_url * "?" * HTTP.escapeuri(Dict(
             :response_type => "code",
             :client_id => provider.client_id,
-            :redirect_uri => callback_url(pkey),
+            :redirect_uri => callback_url(provider),
             :scope => provider.scope,
             :state => state,
         )),

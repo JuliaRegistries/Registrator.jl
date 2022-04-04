@@ -1,6 +1,6 @@
 using Dates: DateTime
 using Registrator.WebUI: isauthorized, AuthFailure, AuthSuccess, User
-using GitForge: GitForge, GitHub, GitLab
+using GitForge: GitForge, GitHub, GitLab, Bitbucket
 using HTTP: stacktrace
 
 using Mocking
@@ -9,10 +9,8 @@ Mocking.activate()
 
 function patch_gitforge(body::Function; is_collaborator=false, is_member=false)
     patches = [
-        @patch GitForge.is_collaborator(args...) =
-            GitForge.Result{Bool}(is_collaborator, nothing, nothing, stacktrace())
-        @patch GitForge.is_member(args...) =
-            GitForge.Result{Bool}(is_member, nothing, nothing, stacktrace())
+        @patch GitForge.is_collaborator(args...) = is_collaborator
+        @patch GitForge.is_member(args...) = is_member
     ]
     
     apply(patches) do
@@ -103,6 +101,49 @@ end
             end
             patch_gitforge(is_collaborator=false, is_member=false) do
                 @test isauthorized(u, public_project_of_group) == AuthFailure("Project Example.jl belongs to the group org123/subgroup/Example.jl, and user user123 is not a member of that group or its parent group(s)")
+            end
+        end
+    end
+
+    @testset "Bitbucket" begin
+
+        #user = @gf get_user(UI.PROVIDERS["bitbucket"].client, "wrburdick")
+        user = Bitbucket.User(; nickname = "wrburdick")
+        uworkspace = Bitbucket.Workspace(slug="wrb-julia-test")
+        workspace = Bitbucket.Workspace(slug="wrburdick")
+        private_repo = Bitbucket.Repo(; slug="Example.jl", is_private=true, owner=user, uworkspace)
+        public_repo_of_user = Bitbucket.Repo(; slug="Example.jl", is_private=false, owner=user, workspace)
+        public_repo_of_org = Bitbucket.Repo(; slug="Example.jl", is_private=false, owner=user, workspace)
+        u = User(user, Bitbucket.BitbucketAPI())
+
+        @testset "private repo" begin
+            # Assuming CONFIG["allow_private"] is false
+            @test isauthorized(u, private_repo) == AuthFailure("Repo $(private_repo.slug) is private")
+        end
+
+        @testset "public repo of user" begin
+            # authorized if user is a collaborator on the repo
+            patch_gitforge(is_collaborator=true) do
+                @test isauthorized(u, public_repo_of_user) == AuthSuccess()
+            end
+            patch_gitforge(is_collaborator=false) do
+                @test isauthorized(u, public_repo_of_user) == AuthFailure("User $(user.nickname) is not a member of the workspace $(workspace.slug) or a collaborator on repo $(public_repo_of_user.slug)")
+            end
+        end
+
+        @testset "public repo of org" begin
+            # authorized if user is either a collaborator on the repo or member of the org
+            patch_gitforge(is_collaborator=true, is_member=true) do
+                @test isauthorized(u, public_repo_of_org) == AuthSuccess()
+            end
+            patch_gitforge(is_collaborator=true, is_member=false) do
+                @test isauthorized(u, public_repo_of_org) == AuthSuccess()
+            end
+            patch_gitforge(is_collaborator=false, is_member=true) do
+                @test isauthorized(u, public_repo_of_org) == AuthSuccess()
+            end
+            patch_gitforge(is_collaborator=false, is_member=false) do
+                @test isauthorized(u, public_repo_of_org) == AuthFailure("User $(user.nickname) is not a member of the workspace $(workspace.slug) or a collaborator on repo $(public_repo_of_org.slug)")
             end
         end
     end

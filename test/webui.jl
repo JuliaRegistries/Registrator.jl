@@ -8,6 +8,8 @@ using Distributed
 
 const UI = Registrator.WebUI
 
+github_config(name) = UI.CONFIG["github"][name]
+
 empty!(UI.CONFIG)
 merge!(UI.CONFIG, Dict(
     "ip" => "localhost",
@@ -25,6 +27,12 @@ merge!(UI.CONFIG, Dict(
         "client_id" => "",
         "client_secret" => "",
     ),
+    "bitbucket" => Dict{String, Any}(
+        "token" => get(ENV, "BITBUCKET_API_TOKEN", ""),
+        "workspace" => "wrburdick",
+        "client_id" => "",
+        "client_secret" => "",
+    ),
 ))
 
 const backup = deepcopy(UI.CONFIG)
@@ -37,11 +45,12 @@ end
 @testset "Web UI" begin
     @testset "Provider initialization" begin
         UI.init_providers()
-        @test length(UI.PROVIDERS) == 2
-        @test Set(collect(keys(UI.PROVIDERS))) == Set(["github", "gitlab"])
+        @test length(UI.PROVIDERS) == 3
+        @test Set(collect(keys(UI.PROVIDERS))) == Set(["github", "gitlab", "bitbucket"])
         empty!(UI.PROVIDERS)
 
         delete!(UI.CONFIG, "github")
+        delete!(UI.CONFIG, "bitbucket")
         UI.CONFIG["gitlab"]["disable_rate_limits"] = true
         UI.init_providers()
         @test collect(keys(UI.PROVIDERS)) == ["gitlab"]
@@ -73,13 +82,13 @@ end
     end
 
     # Patch the GitHub API client to avoid needing a real API key.
-    t = isempty(UI.CONFIG["github"]["token"]) ? NoToken() : Token(UI.CONFIG["github"]["token"])
+    t = isempty(github_config("token")) ? NoToken() : Token(github_config("token"))
     UI.init_providers()
     UI.PROVIDERS["github"] = UI.Provider(;
         name="GitHub",
         client=GitHubAPI(; token=t),
-        client_id=UI.CONFIG["github"]["client_id"],
-        client_secret=UI.CONFIG["github"]["client_secret"],
+        client_id=github_config("client_id"),
+        client_secret=github_config("client_secret"),
         auth_url="https://github.com/login/oauth/authorize",
         token_url="https://github.com/login/oauth/access_token",
         scope="public_repo",

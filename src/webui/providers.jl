@@ -11,8 +11,12 @@ Base.@kwdef struct Provider{F <: GitForge.Forge}
     token_type::Type = typeof(client.token)
 end
 
+provider(::Type{GitHubAPI}) = PROVIDERS["github"]
+provider(::Type{GitLabAPI}) = PROVIDERS["gitlab"]
+provider(::Type{BitbucketAPI}) = PROVIDERS["bitbucket"]
+
 function init_providers()
-    if  haskey(CONFIG, "github")
+    if haskey(CONFIG, "github")
         github = CONFIG["github"]
         PROVIDERS["github"] = Provider(;
             name="GitHub",
@@ -45,6 +49,25 @@ function init_providers()
             scope="read_user api",
             include_state=false,
             token_type=OAuth2Token,
+        )
+    end
+
+    if haskey(CONFIG, "bitbucket")
+        bitbucket = CONFIG["bitbucket"]
+        PROVIDERS["bitbucket"] = Provider(;
+            name="BitBucket",
+            client=BitbucketAPI(;
+                url=get(bitbucket, "api_url", Bitbucket.DEFAULT_URL),
+                token=Bitbucket.Token(base64encode(bitbucket["token"])),
+                has_rate_limits=!get(bitbucket, "disable_rate_limits", false),
+                (haskey(bitbucket, "workspace") ? (; workspace=bitbucket["workspace"]) : (;))...,
+            ),
+            client_id=bitbucket["client_id"],
+            client_secret=bitbucket["client_secret"],
+            auth_url=get(bitbucket, "auth_url", "https://bitbucket.org/oauth2/authorize"),
+            token_url=get(bitbucket, "token_url", "https://bitbucket.org/oauth2/access_token"),
+            #scope=bitbucket["scope"],
+            scope="repository:write",
         )
     end
 
