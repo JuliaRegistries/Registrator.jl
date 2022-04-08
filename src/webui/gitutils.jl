@@ -115,10 +115,10 @@ function isauthorized(u::User{Bitbucket.User}, repo::Bitbucket.Repo)
         bbforge = u.forge
     end
     # First check for organization membership, and fall back to collaborator status.
-    ismember = @gf_q @mock is_member(bbforge, repo.workspace.slug, u.user.uuid)
-    hasauth = something(ismember, false) ||
-        @gf_q @mock is_collaborator(bbforge, repo.workspace.slug, repo.slug)
-    something(hasauth, false) && return AuthSuccess()
+    ismember = something((@gf_q @mock is_member(bbforge, repo.workspace.slug, u.user.uuid)), false)
+    hasauth = ismember ||
+        something((@gf_q @mock is_collaborator(bbforge, repo.workspace.slug, repo.slug)), false)
+    hasauth && return AuthSuccess()
     AuthFailure("User $(u.user.nickname) is not a member of the workspace $(repo.workspace.slug) or a collaborator on repo $(repo.slug)")
 end
 
