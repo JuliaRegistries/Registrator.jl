@@ -67,7 +67,7 @@ function init_providers()
             auth_url=get(bitbucket, "auth_url", "https://bitbucket.org/oauth2/authorize"),
             token_url=get(bitbucket, "token_url", "https://bitbucket.org/oauth2/access_token"),
             token_type=Bitbucket.JWT,
-            scope="repository:account",
+            scope="repository account",
         )
     end
 
