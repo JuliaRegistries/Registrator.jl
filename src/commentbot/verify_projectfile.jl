@@ -79,11 +79,21 @@ function verify_projectfile_from_sha(reponame, commit_sha; auth=GitHub.Anonymous
             projectfile_contents = decodeb64(b.content)
 
             @debug("Checking project file validity")
-            projectfile_valid, err = is_pfile_parseable(projectfile_contents)
+            projectfile_parseable, err = is_pfile_parseable(projectfile_contents)
 
-            if projectfile_valid
-                project = Pkg.Types.read_project(copy(IOBuffer(projectfile_contents)))
-                projectfile_valid, err = pfile_hasfields(project)
+            if projectfile_parseable
+                try
+                    project = Pkg.Types.read_project(copy(IOBuffer(projectfile_contents)))
+                catch ex
+                    err = "Failed to read project file"
+                    if isdefined(ex, :msg)
+                        err = err * ": $(e.msg)"
+                    end
+                    @error(err)
+                end
+                if project !== nothing
+                    projectfile_valid, err = pfile_hasfields(project)
+                end
             end
             break
         end
