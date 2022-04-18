@@ -14,6 +14,7 @@ end
 
 # Split a repo path into its owner and name.
 function splitrepo(url::AbstractString)
+    url = replace(url, r"(.*).git$" => s"\1")
     pieces = split(HTTP.URI(url).path, "/"; keepempty=false)
     owner = join(pieces[1:end-1], "/")
     name = pieces[end]
