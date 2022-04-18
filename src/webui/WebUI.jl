@@ -138,9 +138,12 @@ function init_registry()
     haskey(PROVIDERS, k) || error("Unsupported registry host")
     forge = PROVIDERS[k].client
     owner, name = splitrepo(url)
-    repo = @gf get_repo(forge, owner, name)
-    repo === nothing && error("Registry lookup failed")
-
+    repo = nothing
+    try
+        repo, _ = get_repo(forge, owner, name)
+    catch err
+        error("Registry lookup failed$(err === nothing ? "" : err)")
+    end
     clone = get(CONFIG, "registry_clone_url", url)
     fork_url = get(CONFIG, "registry_fork_url", clone)
     fork_owner, fork_name = splitrepo(fork_url)
