@@ -72,7 +72,7 @@ function isauthorized(u::User{GitHub.User}, repo::GitHub.Repo)
     repo = @gf_q @mock get_repo(u.forge, repo.owner.login, repo.name)
     # Users with push access can always release their package
     repo !== nothing && repo.permissions.push && return AuthSuccess()
-    # Collaborators can always release their package but session needs push permission to check
+    # Collaborators can always release their package but session needs push permission to
     # check with each connection in case user's connection does not have push permission
     ((@gf_bool @mock is_collaborator(u.forge, repo.owner.login, repo.name, u.user.login)) ||
         (@gf_bool @mock is_collaborator(jforge, repo.owner.login, repo.name, u.user.login))) &&
