@@ -30,6 +30,16 @@ macro gf_q(ex::Expr)
     end
 end
 
+macro gf_bool(ex::Expr)
+    quote
+        try
+            $(esc(ex))[1]
+        catch err
+            false
+        end
+    end
+end
+
 # Split a repo path into its owner and name.
 function splitrepo(url::AbstractString)
     pieces = split(HTTP.URI(url).path, "/"; keepempty=false)
@@ -60,8 +70,13 @@ function isauthorized(u::User{GitHub.User}, repo::GitHub.Repo)
         return AuthFailure("Repo $(repo.name) is private")
     jforge = provider(repo).client
     repo = @gf_q @mock get_repo(u.forge, repo.owner.login, repo.name)
-    # Collaborators can always release their package
+    # Users with push access can always release their package
     repo !== nothing && repo.permissions.push && return AuthSuccess()
+    # Collaborators can always release their package but session needs push permission to check
+    # check with each connection in case user's connection does not have push permission
+    ((@gf_bool @mock is_collaborator(u.forge, repo.owner.login, repo.name, u.user.login)) ||
+        (@gf_bool @mock is_collaborator(jforge, repo.owner.login, repo.name, u.user.login))) &&
+        return AuthSuccess()
     # If the repo is not in an org, the user does not have sufficient access to create a PR
     repo.organization === nothing &&
         return AuthFailure("User $(u.user.login) is not a collaborator on repo $(repo.name)")
