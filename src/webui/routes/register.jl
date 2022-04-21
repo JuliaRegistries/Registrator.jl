@@ -42,8 +42,7 @@ function register(r::HTTP.Request)
     project = try
         Pkg.Types.read_project(IOBuffer(toml))
     catch e
-        @error "Reading project from (Julia)Project.toml failed"
-        println(get_backtrace(e))
+        @error "Reading project from (Julia)Project.toml failed" exception=get_backtrace(e)
         return json(400; error="(Julia)Project.toml is invalid")
     end
     for k in [:name, :uuid, :version]
