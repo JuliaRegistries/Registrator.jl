@@ -52,6 +52,13 @@ The old pseudo-Julia syntax is also still supported:
 @JuliaRegistrator register(branch="foo")
 ```
 
+### Triggering New Releases from the Main Branch Via the GitHub App
+If TagBot has been installed as above, and the initial package registration is complete, new versions can be tagged directly on your repository.  The simplest way to trigger a change is to
+1. Increment the `version = "X.X.X"` line in the `Project.toml` file of your package, and merge that commit to the main branch.
+2. Open that commit on github and add in a comment with `@JuliaRegistrator register`.  TagBot will respond with a comment on that same commit.
+
+If that operation is successful, a new version will be tagged and merged automatically in the general registry within approximately 15 minutes.
+
 ### Transitioning from REQUIRE to Project.toml
 
 Download [gen_project.jl](https://github.com/JuliaLang/Pkg.jl/blob/934f8b71eb436da6d2bdb30ccfc80e5e11891c5b/bin/gen_project.jl), enter in your package directory and run `julia gen_project.jl`, resulting in a `Project.toml` file. You may need to do minor modifications (license, current version, description, etc.) and then remove the REQUIRE file, since it is only used for packages supporting Julia 0.6 and is otherwise irrelevant now.
