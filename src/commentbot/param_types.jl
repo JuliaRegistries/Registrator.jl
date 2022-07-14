@@ -29,7 +29,7 @@ struct RequestParams{T<:RequestTrigger}
         if action_name === nothing
             return new{typeof(trigger_src)}(
                 evt, phrase, reponame, notes, trigger_src,
-                commenter_can_register, nothing,
+                commenter_can_register, nothing, "",
                 CommonParams(false, "Invalid trigger, ignoring", report_error),
             )
         end
