@@ -1,7 +1,6 @@
 using Dates: DateTime
 using Registrator.WebUI: isauthorized, AuthFailure, AuthSuccess, User
 using GitForge: GitForge, GitHub, GitLab
-using HTTP: stacktrace
 
 using Mocking
 
