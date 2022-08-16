@@ -1,3 +1,10 @@
+# HTTP compat
+if isdefined(HTTP, :stringify)
+    const stringify = HTTP.stringify
+else
+    const stringify = String
+end
+
 # Step 2: Redirect to provider.
 function auth(r::HTTP.Request)
     pkey = getquery(r, "provider")
@@ -16,7 +23,7 @@ function auth(r::HTTP.Request)
 
     state = String(rand('a':'z', 32))
     return HTTP.Response(307, [
-        "Set-Cookie" => String(HTTP.Cookie("state", state; path="/"), false),
+        "Set-Cookie" => stringify(HTTP.Cookie("state", state; path="/"), false),
         "Location" => provider.auth_url * "?" * HTTP.escapeuri(Dict(
             :response_type => "code",
             :client_id => provider.client_id,
