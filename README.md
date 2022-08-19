@@ -114,3 +114,11 @@ Pull requests that comply with the [automatic merging guidelines](https://juliar
 
 Private packages will be ignored by the current running instance of Registrator.
 Please see the [documentation](https://juliaregistries.github.io/Registrator.jl/stable/hosting/) on how to host your own Registrator for private packages.
+
+## Common error messages
+
+> An unexpected error occurred during registration.
+- Maybe you forgot to include "register" after "@JuliaRegistrator"
+ 
+> Error while trying to register: Changing package repo URL not allowed, please submit a pull request with the URL change to the target registry and retry.
+-  See tip in Julia's General Registry's [README](https://github.com/JuliaRegistries/General#how-do-i-transfer-a-package-to-an-organization-or-another-user) for how to manually propose a new url for the existing version, before registering a new version.  Basically, you replace the variable after "repo" in your project's Project.toml file using the https://github.com/NewOrganization/Project.jl.git url for your project.
