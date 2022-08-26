@@ -8,6 +8,8 @@
 
 Registrator is a GitHub app that automates creation of registration pull requests for your julia packages to the [General](https://github.com/JuliaRegistries/General) registry. Install the app below!
 
+Note: if you are registering a new package or new version in the General registry, please make sure that you have read the [General registry README](https://github.com/JuliaRegistries/General/blob/master/README.md).
+
 ## Install Registrator:
 
 [![install](https://img.shields.io/badge/-install%20app-blue.svg)](https://github.com/apps/juliateam-registrator/installations/new)
