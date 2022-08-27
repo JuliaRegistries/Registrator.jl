@@ -1,9 +1,3 @@
-using Dates: DateTime
-using Registrator.WebUI: isauthorized, AuthFailure, AuthSuccess, User
-using GitForge: GitForge, GitHub, GitLab
-
-using Mocking
-
 Mocking.activate()
 
 function patch_gitforge(body::Function; is_collaborator=false, is_member=false)
@@ -13,13 +7,11 @@ function patch_gitforge(body::Function; is_collaborator=false, is_member=false)
         @patch GitForge.is_member(args...) =
             GitForge.Result{Bool}(is_member, nothing, nothing, stacktrace())
     ]
-    
+
     apply(patches) do
         return body()
     end
 end
-
-@testset "gitutils" begin
 
 @testset "isauthorized" begin
     @test isauthorized("username", "reponame") == AuthFailure("Unkown user type or repo type")
@@ -105,6 +97,4 @@ end
             end
         end
     end
-end
-
 end

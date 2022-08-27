@@ -1,0 +1,98 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+    tags: '*'
+concurrency:
+  # Skip intermediate builds: all builds except for builds on the `master` branch
+  # Cancel intermediate builds: only pull request builds
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.ref != 'refs/heads/master' || github.run_number }}
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        version:
+          - '1.7'
+          - '1'
+          - 'nightly'
+        force_use_of_manifest:
+          - 'false'
+        os:
+          - ubuntu-latest
+        include:
+          - version: '1.7.2'
+            force_use_of_manifest: 'true'
+            os: 'ubuntu-latest'
+    steps:
+      - uses: actions/checkout@v2
+      - uses: julia-actions/setup-julia@v1
+        with:
+          version: ${{ matrix.version }}
+      - run: |
+          import Pkg
+          import TOML
+          force_use_of_manifest = ${{ matrix.force_use_of_manifest }}
+          if force_use_of_manifest
+            manifest = TOML.parsefile("Manifest.toml")
+            manifest_julia_version_str = manifest["julia_version"]
+            manifest_julia_version = VersionNumber(manifest_julia_version_str)
+            if manifest_julia_version != Base.VERSION
+              msg = "Manifest Julia version $(manifest_julia_version) does not match current Julia version $(Base.VERSION)"
+              error(msg)
+            end
+          else
+            @info "Deleting the manifest file"
+            rm("Manifest.toml")
+          end
+        shell: julia --color=yes {0}
+      - uses: julia-actions/julia-buildpkg@latest
+      - name: Run the package tests
+        run: |
+          import Pkg
+          force_use_of_manifest = ${{ matrix.force_use_of_manifest }}
+          allow_reresolve = !force_use_of_manifest
+          coverage = true
+          if allow_reresolve
+            force_latest_compatible_version = true
+            Pkg.test(; allow_reresolve, coverage, force_latest_compatible_version)
+          else
+            Pkg.test(; allow_reresolve, coverage)
+          end
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: julia --color=yes --project {0}
+      - uses: julia-actions/julia-processcoverage@v1
+      - uses: codecov/codecov-action@v1
+        with:
+          file: lcov.info
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: julia-actions/setup-julia@v1
+        with:
+          version: '1'
+      - run: |
+          import Pkg
+          Pkg.develop(Pkg.PackageSpec(path=pwd()))
+          Pkg.instantiate()
+          Pkg.precompile()
+        shell: julia --color=yes --project=docs {0}
+      - name: Run the doctests
+        run: |
+          import Documenter
+          import Registrator
+          Documenter.doctest(Registrator)
+        shell: julia --color=yes --project=docs {0}
+      - run: julia --project=docs docs/make.jl
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}

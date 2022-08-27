@@ -1,9 +1,3 @@
-using Registrator.CommentBot: make_trigger, parse_comment
-
-using Test
-
-@testset "Server" begin
-
 @testset "Trigger comment" begin
     trigger = make_trigger(Dict("trigger" => "@JuliaRegistrator"))
     @test match(trigger, "@JuliaRegistrator hi") !== nothing
@@ -30,6 +24,4 @@ end
     @test parse_comment("register(branch=foo)\nfoobar\"") == ("register", Dict(:branch => "foo"))
 
     @test parse_comment("register branch=foo branch=bar") == (nothing, nothing)
-end
-
 end
