@@ -1,13 +1,3 @@
-using Registrator: Registrator
-using Registrator.WebUI: @gf
-using GitForge: GitForge, get_user
-using GitForge.GitHub: GitHub, GitHubAPI, NoToken, Token
-using HTTP: HTTP
-using Sockets: Sockets
-using Distributed
-
-const UI = Registrator.WebUI
-
 empty!(UI.CONFIG)
 merge!(UI.CONFIG, Dict(
     "ip" => "localhost",
@@ -15,8 +5,9 @@ merge!(UI.CONFIG, Dict(
     "registry_url" => "https://github.com/JuliaRegistries/General",
     "server_url" => "http://localhost:4000",
     "github" => Dict{String, Any}(
-        # We need a token to avoid rate limits on Travis.
-        "token" => get(ENV, "GITHUB_API_TOKEN", ""),
+        # Note: we highly recommend that you run these tests with a `GITHUB_TOKEN`
+        # that has read-only access.
+        "token" => get(ENV, "GITHUB_TOKEN", ""),
         "client_id" => "",
         "client_secret" => "",
     ),
@@ -99,11 +90,7 @@ end
         restoreconfig!()
     end
 
-    # Start the server.
-    # TODO: Stop it when this test set is done.
-    task = @async UI.start_server(Sockets.localhost, 4000)
-    @info "Waiting for server to start..."
-    sleep(10)    # Wait for server to be up
+    start_server(4000)
 
     @testset "404s" begin
         for r in values(UI.ROUTES)
@@ -170,20 +157,49 @@ end
         @test resp.status == 400
         @test occursin("Branch was not provided", String(resp.body))
 
-        body = "package=https://github.com/JuliaLang/NotARealRepo&ref=master"
-        resp = HTTP.post(url; body=body, cookies=cookies, status_exception=false)
-        @test resp.status == 400
-        @test occursin("Repository was not found", String(resp.body))
+        example_github_repo = get(ENV, "GITHUB_REPOSITORY", "JuliaRegistries/Registrator.jl")
 
-        body = "package=http://github.com/JuliaLang/Example.jl&ref=master"
+        body = "package=http://github.com/$(example_github_repo)&ref=master"
         resp = HTTP.post(url; body=body, cookies=cookies, status_exception=false)
         @test resp.status == 400
         @test occursin("Unauthorized to release this package", String(resp.body))
 
-        body = "package=git@github.com:JuliaLang/Example.jl.git&ref=master"
+        body = "package=git@github.com:$(example_github_repo).git&ref=master"
         resp = HTTP.post(url; body=body, cookies=cookies, status_exception=false)
         @test resp.status == 400
         @test occursin("Unauthorized to release this package", String(resp.body))
+
+        @testset "Repo that does not exist" begin
+            registrator_test_verbose_str = get(ENV, "JULIA_REGISTRATOR_TEST_VERBOSE", "false")
+            registrator_test_verbose = parse(Bool, registrator_test_verbose_str)
+            if registrator_test_verbose
+                logger = Logging.current_logger()
+            else
+                logger = Logging.NullLogger()
+            end
+
+            # We start up a separate server just for this test.
+            # The reason that we have a separate server here is that we know that
+            # during this test, the server will print a very long warning because
+            # the GitHub API request returns 404. This warning is expected. However,
+            # it is quite verbose and makes the test logs harder to read. So, by
+            # default, for this server, we suppress the logs.
+            #
+            # If you want to show the logs for this server, set the `JULIA_REGISTRATOR_TEST_VERBOSE`
+            # environment variable to `true`.
+            start_server(4001, logger)
+            UI.CONFIG["port"] = 4001
+            UI.CONFIG["server_url"] = "http://localhost:4001"
+
+            url = UI.CONFIG["server_url"] * UI.ROUTES[:REGISTER]
+            body = "package=https://github.com/JuliaLang/NotARealRepo&ref=master"
+            resp = HTTP.post(url; body=body, cookies=cookies, status_exception=false)
+            @test resp.status == 400
+            response_body = String(resp.body)
+            @test occursin("Repository was not found", response_body)
+
+            restoreconfig!()
+        end
     end
 
 end
