@@ -220,7 +220,7 @@ function cloneurl(r::GitLab.Project, is_ssh::Bool=false)
     replace(url, host => "oauth2:$token@$host")
 end
 function cloneurl(r::Bitbucket.Repo, is_ssh::Bool=false)
-    link = filter(l-> l[:name] == (is_ssh ? "ssh" : "https"), r.links.clone)
+    link = filter(l-> l["name"] == (is_ssh ? "ssh" : "https"), r.links.clone)
     isempty(link) && throw(ArgumentError("No $(is_ssh ? "ssh" : "https") repository URL"))
     token = config(r)["token"]
     string(URI(URI(link[1].href); userinfo=token))
