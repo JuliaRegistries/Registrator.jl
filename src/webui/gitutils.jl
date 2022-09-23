@@ -380,13 +380,13 @@ end
 # Get the web URL of various Git things.
 web_url(pr::GitHub.PullRequest) = pr.html_url
 web_url(mr::GitLab.MergeRequest) = mr.web_url
-web_url(pr::Bitbucket.PullRequest) = pr.links.html.href
+web_url(pr::Bitbucket.PullRequest) = pr.links.html["href"]
 web_url(u::GitHub.User) = u.html_url
 web_url(u::GitLab.User) = u.web_url
-web_url(u::Bitbucket.User) = u.links.html.href
+web_url(u::Bitbucket.User) = u.links.html["href"]
 web_url(r::GitHub.Repo) = r.html_url
 web_url(r::GitLab.Project) = r.web_url
-web_url(r::Bitbucket.Repo) = r.links.html.href
+web_url(r::Bitbucket.Repo) = r.links.html["href"]
 
 
 # Get a user's @ mention.
