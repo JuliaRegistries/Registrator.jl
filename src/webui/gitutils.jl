@@ -223,7 +223,7 @@ function cloneurl(r::Bitbucket.Repo, is_ssh::Bool=false)
     link = filter(l-> l["name"] == (is_ssh ? "ssh" : "https"), r.links.clone)
     isempty(link) && throw(ArgumentError("No $(is_ssh ? "ssh" : "https") repository URL"))
     token = config(r)["token"]
-    string(URI(URI(link[1].href); userinfo=token))
+    string(URI(URI(link[1]["href"]); userinfo=token))
 end
 
 function gettreesha(
