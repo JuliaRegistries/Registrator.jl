@@ -61,12 +61,10 @@ version = "0.1.8"
 uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
 
 [[GitForge]]
-deps = ["Dates", "HTTP", "JSON2", "StructTypes", "TimeZones", "UUIDs"]
-git-tree-sha1 = "a20fce0f5782eba224814007ec46c723cd2af3e8"
-repo-rev = "e8a3bf8"
-repo-url = "https://github.com/JuliaComputing/GitForge.jl"
+deps = ["Dates", "HTTP", "JSON3", "StructTypes", "TimeZones", "UUIDs"]
+git-tree-sha1 = "72b8a10258d308585408d4bfe499c2faa8420d5f"
 uuid = "8f6bce27-0656-5410-875b-07a5572985df"
-version = "0.2.8"
+version = "0.4.0"
 
 [[GitHub]]
 deps = ["Base64", "Dates", "HTTP", "JSON", "MbedTLS", "Sockets", "SodiumSeal", "URIs"]
@@ -119,11 +117,11 @@ git-tree-sha1 = "8076680b162ada2a031f707ac7b4953e30667a37"
 uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 version = "0.21.2"
 
-[[JSON2]]
-deps = ["Dates", "Parsers", "Test"]
-path = "../JSON2.jl"
-uuid = "2535ab7d-5cd8-5a07-80ac-9b1792aadce3"
-version = "0.3.4"
+[[JSON3]]
+deps = ["Dates", "Mmap", "Parsers", "StructTypes", "UUIDs"]
+git-tree-sha1 = "f1572de22c866dc92aea032bc89c2b137cbddd6a"
+uuid = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
+version = "1.10.0"
 
 [[LazyArtifacts]]
 deps = ["Artifacts", "Pkg"]
