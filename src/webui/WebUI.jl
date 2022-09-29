@@ -4,7 +4,8 @@ using ..Registrator: pull_request_contents
 import RegistryTools
 
 using Dates
-using GitForge, GitForge.GitHub, GitForge.GitLab
+using GitForge, GitForge.GitHub, GitForge.GitLab, GitForge.Bitbucket
+using Base64
 using HTTP
 using JSON
 using Mux
@@ -13,17 +14,39 @@ using Sockets
 using TimeToLive
 using Logging
 using Mustache
+using URIs
 
 using ..Messaging
 
+# currently used only in routes/bitbucket.jl
+struct Route{Forge, Service} end
+
 const ROUTES = Dict(
-    :INDEX => "/",
-    :AUTH => "/auth",
-    :CALLBACK => "/callback",
-    :SELECT => "/select",
-    :REGISTER => "/register",
-    :STATUS => "/status",
+    :INDEX => "/",              # Step 1: Home page prompts login.
+    :AUTH => "/auth",           # Step 2: Redirect to provider.
+    :CALLBACK => "/callback",   # Step 3: OAuth callback.
+    :SELECT => "/select",       # Step 4: Select a package.
+    :REGISTER => "/register",   # Step 5: Register the package (maybe).
+    :STATUS => "/status",       # Get status of the registration
+    :BITBUCKET => "/bitbucket", # Bitbucket API requirements
 )
+
+"""
+    subtarget(routename, request)
+
+The part of the request target after the named route's prefix, not including the slash (if any).
+
+For the route "/route":
+- the subtarget of "/route" is ""
+- the subtarget of "/route?lucy" is "?lucy"
+- the subtarget of "/route/fred" is "fred"
+- the subtarget of "/route/fred/ethel" is "fred/ethel"
+- the subtarget of "/route/fred/ethel?ricky" is "fred/ethel?ricky"
+"""
+function subtarget(routename::Symbol, request::HTTP.Request)
+    path = request.target[length(ROUTES[routename]) + 1:end]
+    isempty(path) || path[1] == '?' ? path : path[2:end]
+end
 
 const DOCS = "https://juliaregistries.github.io/Registrator.jl/stable/webui/#Usage-(For-Package-Maintainers)-1"
 const CONFIG = Dict{String, Any}()
@@ -54,8 +77,8 @@ end
 struct RegistrationData
     project::Pkg.Types.Project
     tree::String
-    repo::Union{GitForge.GitHub.Repo, GitForge.GitLab.Project}
-    user::Union{GitForge.GitHub.User, GitForge.GitLab.User}
+    repo::Union{GitHub.Repo, GitLab.Project, Bitbucket.Repo}
+    user::Union{GitHub.User, GitLab.User, Bitbucket.User}
     ref::String
     commit::String
     notes::String
@@ -92,6 +115,11 @@ include("routes/callback.jl")
 include("routes/select.jl")
 include("routes/register.jl")
 include("routes/status.jl")
+include("routes/bitbucket.jl")
+
+auth_href(::Provider{GitLabAPI}) = "$(ROUTES[:AUTH])?provider=gitlab"
+auth_href(::Provider{GitHubAPI}) = "$(ROUTES[:AUTH])?provider=github"
+auth_href(::Provider{BitbucketAPI}) = "$(ROUTES[:BITBUCKET])/auth"
 
 ##############
 # Entrypoint #
@@ -102,6 +130,8 @@ function init_registry()
     k = get(CONFIG, "registry_provider") do
         if occursin("github", url)
             "github"
+        elseif occursin("bitbucket", url)
+            "bitbucket"
         else
             "gitlab"
         end
@@ -109,9 +139,13 @@ function init_registry()
     haskey(PROVIDERS, k) || error("Unsupported registry host")
     forge = PROVIDERS[k].client
     owner, name = splitrepo(url)
-    repo = @gf get_repo(forge, owner, name)
-    repo === nothing && error("Registry lookup failed")
-
+    repo = nothing
+    try
+    	# not using @gf here so we can log the error
+        repo, _ = get_repo(forge, owner, name)
+    catch err
+        error("Registry lookup failed$(err === nothing ? "" : err)")
+    end
     clone = get(CONFIG, "registry_clone_url", url)
     fork_url = get(CONFIG, "registry_fork_url", clone)
     fork_owner, fork_name = splitrepo(fork_url)
@@ -137,7 +171,10 @@ catch e
     html(500, "Server error, sorry!")
 end
 
+const SLASH_PAT = r"^/([^/]*)([/?].*|)$"
+
 pathmatch(p::AbstractString, f::Function) = branch(r -> first(split(r.target, "?")) == p, f)
+firstmatch(p::AbstractString, f::Function) = branch(r -> something(match(SLASH_PAT, r.target), [""])[1] == p[2:end], f)
 
 function action(regdata::RegistrationData, zsock::RequestSocket)
     regp = RegistryTools.RegisterParams(
@@ -205,6 +242,7 @@ function start_server(ip::IPAddr, port::Int)
         pathmatch(ROUTES[:SELECT], select),
         pathmatch(ROUTES[:REGISTER], register),
         pathmatch(ROUTES[:STATUS], status),
+        firstmatch(ROUTES[:BITBUCKET], bitbucket),
         r -> html(404, "Page not found"),
     )
     do_action() = wait(serve(server, ip, port; server=httpsock[], readtimeout=0))
