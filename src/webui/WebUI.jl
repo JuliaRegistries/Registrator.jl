@@ -144,7 +144,7 @@ function init_registry()
     	# not using @gf here so we can log the error
         repo, _ = get_repo(forge, owner, name)
     catch err
-        error("Registry lookup failed$(err === nothing ? "" : err)")
+        error("Registry lookup failed: $err")
     end
     clone = get(CONFIG, "registry_clone_url", url)
     fork_url = get(CONFIG, "registry_fork_url", clone)
