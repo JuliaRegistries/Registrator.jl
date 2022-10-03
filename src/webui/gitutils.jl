@@ -121,7 +121,7 @@ function isauthorized(u::User{GitLab.User}, repo::GitLab.Project, fetch = true)
         for ns in nspath
             accns = joinpath(accns, ns)
             ismember = @gf_bool @mock is_member(forge, accns, u.user.id)
-            ismember
+            ismember &&
                 break
         end
     end
