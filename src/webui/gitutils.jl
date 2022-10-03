@@ -169,7 +169,7 @@ function gettoml(::GitLabAPI, repo::GitLab.Project, ref::AbstractString, subdir:
             fc, _ = get_file_contents(forge, repo.id, joinpath(subdir, file); ref=ref)
             return decodeb64(fc.content)
         catch err
-            lasterr = err
+            lasterr = (err, catch_backtrace())
         end
     end
     @error "Failed to get project file" exception=lasterr
