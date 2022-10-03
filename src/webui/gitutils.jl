@@ -115,17 +115,14 @@ function isauthorized(u::User{GitLab.User}, repo::GitLab.Project, fetch = true)
     end
     # Same as above: group membership then collaborator check.
     nspath = split(repo.namespace.full_path, "/")
-    ismember = @gf_bool @mock is_collaborator(u.forge, repo.namespace.full_path, repo.name, u.user.id)
-    if !ismember
-        accns = ""
-        for ns in nspath
-            accns = joinpath(accns, ns)
-            ismember = @gf_bool @mock is_member(forge, accns, u.user.id)
-            ismember &&
-                break
-        end
+    (@gf_bool @mock is_collaborator(u.forge, repo.namespace.full_path, repo.name, u.user.id)) &&
+        return AuthSuccess()
+    accns = ""
+    for ns in nspath
+        accns = joinpath(accns, ns)
+        (@gf_bool @mock is_member(forge, accns, u.user.id)) &&
+            return AuthSuccess()
     end
-    ismember && return AuthSuccess()
     AuthFailure("Project $(repo.name) belongs to the group $(repo.namespace.full_path), and user $(u.user.name) is not a member of that group or its parent group(s)")
 end
 
