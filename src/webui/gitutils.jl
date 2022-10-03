@@ -109,22 +109,23 @@ function isauthorized(u::User{GitLab.User}, repo::GitLab.Project, fetch = true)
     end
 
     if repo.namespace.kind == "user"
-        hasauth = @gf_q @mock is_collaborator(forge, repo.namespace.full_path, repo.name, u.user.id)
-        something(hasauth, false) && return AuthSuccess()
+        (@gf_bool @mock is_collaborator(forge, repo.namespace.full_path, repo.name, u.user.id)) &&
+            return AuthSuccess()
         return AuthFailure("User $(u.user.name) is not a member of project $(repo.name)") # GitLab terminology "member" (not "collaborator")
     end
     # Same as above: group membership then collaborator check.
     nspath = split(repo.namespace.full_path, "/")
-    ismember = @gf_q @mock is_collaborator(u.forge, repo.namespace.full_path, repo.name, u.user.id)
-    if !something(ismember, false)
+    ismember = @gf_bool @mock is_collaborator(u.forge, repo.namespace.full_path, repo.name, u.user.id)
+    if !ismember
         accns = ""
         for ns in nspath
             accns = joinpath(accns, ns)
-            ismember = @gf_q @mock is_member(forge, accns, u.user.id)
-            something(ismember, false) && break
+            ismember = @gf_bool @mock is_member(forge, accns, u.user.id)
+            ismember
+                break
         end
     end
-    something(ismember, false) && return AuthSuccess()
+    ismember && return AuthSuccess()
     AuthFailure("Project $(repo.name) belongs to the group $(repo.namespace.full_path), and user $(u.user.name) is not a member of that group or its parent group(s)")
 end
 
@@ -138,10 +139,9 @@ function isauthorized(u::User{Bitbucket.User}, repo::Bitbucket.Repo, fetch = tru
         bbforge = u.forge
     end
     # First check for organization membership, and fall back to collaborator status.
-    ismember = something((@gf_q @mock is_member(bbforge, repo.workspace.slug, u.user.uuid)), false)
-    hasauth = ismember ||
-        something((@gf_q @mock is_collaborator(bbforge, repo.workspace.slug, repo.slug)), false)
-    hasauth && return AuthSuccess()
+    ((@gf_bool @mock is_member(bbforge, repo.workspace.slug, u.user.uuid)) ||
+        (@gf_bool @mock is_collaborator(bbforge, repo.workspace.slug, repo.slug))) &&
+        return AuthSuccess()
     AuthFailure("User $(u.user.nickname) is not a member of the workspace $(repo.workspace.slug) or a collaborator on repo $(repo.slug)")
 end
 
