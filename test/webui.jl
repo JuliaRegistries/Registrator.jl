@@ -1,38 +1,16 @@
-empty!(UI.CONFIG)
-merge!(UI.CONFIG, Dict(
-    "ip" => "localhost",
-    "port" => 4000,
-    "registry_url" => "https://github.com/JuliaRegistries/General",
-    "server_url" => "http://localhost:4000",
-    "github" => Dict{String, Any}(
-        # Note: we highly recommend that you run these tests with a `GITHUB_TOKEN`
-        # that has read-only access.
-        "token" => get(ENV, "GITHUB_TOKEN", ""),
-        "client_id" => "",
-        "client_secret" => "",
-    ),
-    "gitlab" => Dict{String, Any}(
-        "token" => "",
-        "client_id" => "",
-        "client_secret" => "",
-    ),
-))
+github_config(name) = UI.CONFIG["github"][name]
 
-const backup = deepcopy(UI.CONFIG)
-
-function restoreconfig!()
-    empty!(UI.CONFIG)
-    merge!(UI.CONFIG, deepcopy(backup))
-end
+restoreconfig!()
 
 @testset "Web UI" begin
     @testset "Provider initialization" begin
         UI.init_providers()
-        @test length(UI.PROVIDERS) == 2
-        @test Set(collect(keys(UI.PROVIDERS))) == Set(["github", "gitlab"])
+        @test length(UI.PROVIDERS) == 3
+        @test Set(collect(keys(UI.PROVIDERS))) == Set(["github", "gitlab", "bitbucket"])
         empty!(UI.PROVIDERS)
 
         delete!(UI.CONFIG, "github")
+        delete!(UI.CONFIG, "bitbucket")
         UI.CONFIG["gitlab"]["disable_rate_limits"] = true
         UI.init_providers()
         @test collect(keys(UI.PROVIDERS)) == ["gitlab"]
@@ -63,18 +41,7 @@ end
         end
     end
 
-    # Patch the GitHub API client to avoid needing a real API key.
-    t = isempty(UI.CONFIG["github"]["token"]) ? NoToken() : Token(UI.CONFIG["github"]["token"])
-    UI.init_providers()
-    UI.PROVIDERS["github"] = UI.Provider(;
-        name="GitHub",
-        client=GitHubAPI(; token=t),
-        client_id=UI.CONFIG["github"]["client_id"],
-        client_secret=UI.CONFIG["github"]["client_secret"],
-        auth_url="https://github.com/login/oauth/authorize",
-        token_url="https://github.com/login/oauth/access_token",
-        scope="public_repo",
-    )
+    mock_provider!()
 
     @testset "Registry initialization" begin
         UI.init_registry()
@@ -95,8 +62,9 @@ end
     @testset "404s" begin
         for r in values(UI.ROUTES)
             resp = HTTP.get(UI.CONFIG["server_url"] * r * "/foo"; status_exception=false)
-            @test resp.status == 404
-            @test occursin("Page not found", String(resp.body))
+            @test resp.status ∈ [404, 503]
+            body = String(resp.body)
+            @test occursin("Page not found", body) || occursin("Invalid request", body)
         end
     end
 

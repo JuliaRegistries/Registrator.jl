@@ -10,7 +10,7 @@ function callback(r::HTTP.Request)
     query = Dict(
         :client_id => provider.client_id,
         :client_secret => provider.client_secret,
-        :redirect_uri => callback_url(pkey),
+        :redirect_uri => callback_url(provider),
         :code => getquery(r, "code"),
         :grant_type => "authorization_code",
     )
