@@ -40,7 +40,7 @@ function register(r::HTTP.Request)
     toml = gettoml(u.forge, repo, ref, subdir)
     toml === nothing && return json(400; error="(Julia)Project.toml was not found")
     project = try
-        Pkg.Types.read_project(IOBuffer(toml))
+        TOML.parse(IOBuffer(toml))
     catch e
         @error "Reading project from (Julia)Project.toml failed" exception=get_backtrace(e)
         return json(400; error="(Julia)Project.toml is invalid")
