@@ -12,9 +12,10 @@ using MbedTLS
 
 import Pkg: TOML
 import ..Registrator: post_on_slack_channel, pull_request_contents
-import RegistryTools: RegBranch, RegisterParams
+import RegistryTools: RegBranch, Project
 import Base: string
 using ..Messaging
+import ..RegisterParams
 
 include("trigger_types.jl")
 include("parse_comment.jl")

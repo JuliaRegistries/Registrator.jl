@@ -17,6 +17,7 @@ using Mustache
 using URIs
 
 using ..Messaging
+import ..RegisterParams
 
 # currently used only in routes/bitbucket.jl
 struct Route{Forge, Service} end
@@ -75,7 +76,7 @@ struct User{U, F <: GitForge.Forge}
 end
 
 struct RegistrationData
-    project::Pkg.Types.Project
+    project::RegistryTools.Project
     tree::String
     repo::Union{GitHub.Repo, GitLab.Project, Bitbucket.Repo}
     user::Union{GitHub.User, GitLab.User, Bitbucket.User}
@@ -177,14 +178,14 @@ pathmatch(p::AbstractString, f::Function) = branch(r -> first(split(r.target, "?
 firstmatch(p::AbstractString, f::Function) = branch(r -> something(match(SLASH_PAT, r.target), [""])[1] == p[2:end], f)
 
 function action(regdata::RegistrationData, zsock::RequestSocket)
-    regp = RegistryTools.RegisterParams(
-        cloneurl(regdata.repo, regdata.is_ssh), 
-        regdata.project, 
+    regp = RegisterParams(
+        cloneurl(regdata.repo, regdata.is_ssh),
+        regdata.project,
         regdata.tree;
         subdir=regdata.subdir,
-        registry=REGISTRY[].clone, 
+        registry=REGISTRY[].clone,
         registry_fork=REGISTRY[].fork_url,
-        registry_deps=REGISTRY[].deps, 
+        registry_deps=REGISTRY[].deps,
         push=true,
     )
     branch = sendrecv(zsock, regp; nretry=5)
