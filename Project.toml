@@ -38,11 +38,11 @@ MbedTLS = "0.6.8, 0.7, 1"
 Mocking = "0.7"
 Mustache = "0.5, 1.0"
 Mux = "0.7, 1"
-RegistryTools = "1.9"
+RegistryTools = "1.9, 2"
 TimeToLive = "0.2, 0.3"
+URIs = "1"
 ZMQ = "1"
 julia = "1.1"
-URIs = "1"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
