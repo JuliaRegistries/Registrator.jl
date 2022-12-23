@@ -393,30 +393,10 @@ web_url(r::GitLab.Project) = r.web_url
 web_url(r::Bitbucket.Repo) = r.links.html["href"]
 
 
-function _normalize_username(str::AbstractString)
-    new_str = lowercase(strip(strip(strip(str), '@')))
-    return new_str
-end
-
-function _usernames_match(str_1::AbstractString, str_2::AbstractString)
-    return _normalize_username(str_1) == _normalize_username(str_2)
-end
-
 # Get a user's @ mention.
 mention(u::GitHub.User) = "$(mention(u.login))"
 mention(u::GitLab.User) = "$(mention(u.username))"
 mention(u::Bitbucket.User) = "$(mention(u.username))"
-function mention(username_to_ping::AbstractString)
-    # TODO: Instead of hard-coding the value of `my_bot_username`, read it from the
-    # appropriate configuration location.
-    my_bot_username = "JuliaRegistrator"
-    if _usernames_match(username_to_ping, my_bot_username)
-        msg = "I am not allowed to ping myself!"
-        @error msg username_to_ping my_bot_username
-        throw(ErrorException(msg))
-    end
-    return "@$(username_to_ping)"
-end
 
 # Get a user's representation for a registry PR.
 # If the registry is from the same provider, mention the user, otherwise use the URL.

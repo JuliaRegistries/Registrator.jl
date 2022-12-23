@@ -281,3 +281,5 @@ function create_or_find_pull_request(
 
     return pr, msg
 end
+
+mention(u::GitHub.Owner) = "$(mention(u.login))"

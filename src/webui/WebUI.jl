@@ -168,6 +168,7 @@ error_handler(f::Function, r::HTTP.Request) = try
     f(r)
 catch e
     @error "Handler error" route=r.target exception=(e, catch_backtrace())
+    rethrow(e)
     html(500, "Server error, sorry!")
 end
 
