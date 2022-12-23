@@ -23,7 +23,7 @@ function is_pfile_parseable(c::AbstractString)
     end
 end
 
-function pfile_hasfields(p::RegistryTools.Project)
+function pfile_hasfields(p::Dict)
     @debug("Checking whether (Julia)Project.toml contains name, uuid and version")
     try
         if p.name === nothing || p.uuid === nothing || p.version === nothing
