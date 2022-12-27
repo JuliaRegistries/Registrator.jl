@@ -84,7 +84,7 @@ function verify_projectfile_from_sha(reponame, commit_sha; auth=GitHub.Anonymous
 
             if projectfile_parseable
                 try
-                    project = TOML.parse(projectfile_contents)
+                    project = RegistryTools.Project(TOML.parse(projectfile_contents))
                 catch ex
                     err = "Failed to read project file"
                     if isdefined(ex, :msg)
