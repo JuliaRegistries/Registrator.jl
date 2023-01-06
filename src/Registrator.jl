@@ -21,6 +21,28 @@ struct RegisterParams
     gitconfig::Dict
 end
 
+RegisterParams(
+    package_repo::AbstractString,
+    pkg::RegistryTools.Project,
+    tree_sha::AbstractString;
+    subdir::AbstractString="",
+    registry::AbstractString="",
+    registry_fork::AbstractString="",
+    registry_deps::Vector{<:AbstractString}=[],
+    push::Bool=false,
+    gitconfig::Dict=Dict(),
+) = RegisterParams(
+    package_repo,
+    pkg,
+    tree_sha,
+    registry,
+    registry_fork,
+    registry_deps,
+    subdir,
+    push,
+    gitconfig,
+)
+
 RegistryTools.register(regp::RegisterParams) = RegistryTools.register(regp.package_repo, regp.pkg, regp.tree_sha;
                                           registry=regp.registry, registry_fork=regp.registry_fork,
                                           registry_deps=regp.registry_deps,
