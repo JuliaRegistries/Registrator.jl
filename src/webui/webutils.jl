@@ -1,6 +1,6 @@
 # Get the callback URL with the provider parameter.
 callback_url(::Provider{T}) where T =
-    "$(CONFIG["server_url"])$(ROUTES[:CALLBACK])?provider=$(HTTP.escapeuri(provider(T).name))"
+    "$(CONFIG["server_url"])$(ROUTES[:CALLBACK])?provider=$(HTTP.escapeuri(lowercase(provider(T).name)))"
 
 callback_url(::Provider{BitbucketAPI}) = """$(CONFIG["server_url"])/bitbucket/callback"""
 

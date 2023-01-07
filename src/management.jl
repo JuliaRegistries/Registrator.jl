@@ -71,3 +71,24 @@ function recover(
         end
     end
 end
+
+function _normalize_username(str::AbstractString)
+    new_str = lowercase(strip(strip(strip(str), '@')))
+    return new_str
+end
+
+function _usernames_match(str_1::AbstractString, str_2::AbstractString)
+    return _normalize_username(str_1) == _normalize_username(str_2)
+end
+
+function mention(username_to_ping::AbstractString)
+    # TODO: Instead of hard-coding the value of `my_bot_username`, read it from the
+    # appropriate configuration location.
+    my_bot_username = "JuliaRegistrator"
+    if _usernames_match(username_to_ping, my_bot_username)
+        msg = "I am not allowed to ping myself!"
+        @error msg username_to_ping my_bot_username
+        throw(ErrorException(msg))
+    end
+    return "@$(username_to_ping)"
+end
