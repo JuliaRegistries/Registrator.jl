@@ -157,7 +157,7 @@ function istagwrong(
 end
 
 struct ProcessedParams
-    project::Union{Nothing, Pkg.Types.Project}
+    project::Union{Nothing, Project}
     projectfile_found::Bool
     projectfile_valid::Bool
     sha::Union{Nothing, String}

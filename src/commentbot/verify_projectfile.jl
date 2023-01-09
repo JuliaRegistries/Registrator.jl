@@ -1,4 +1,5 @@
 using ..Registrator: decodeb64
+import RegistryTools
 
 function is_pfile_parseable(c::AbstractString)
     @debug("Checking whether (Julia)Project.toml is non-empty and parseable")
@@ -22,7 +23,7 @@ function is_pfile_parseable(c::AbstractString)
     end
 end
 
-function pfile_hasfields(p::Pkg.Types.Project)
+function pfile_hasfields(p::RegistryTools.Project)
     @debug("Checking whether (Julia)Project.toml contains name, uuid and version")
     try
         if p.name === nothing || p.uuid === nothing || p.version === nothing
@@ -83,7 +84,7 @@ function verify_projectfile_from_sha(reponame, commit_sha; auth=GitHub.Anonymous
 
             if projectfile_parseable
                 try
-                    project = Pkg.Types.read_project(copy(IOBuffer(projectfile_contents)))
+                    project = RegistryTools.Project(TOML.parse(projectfile_contents))
                 catch ex
                     err = "Failed to read project file"
                     if isdefined(ex, :msg)

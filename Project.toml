@@ -1,7 +1,7 @@
 name = "Registrator"
 uuid = "4418983a-e44d-11e8-3aec-9789530b3b3e"
 authors = ["Stefan Karpinski <stefan@karpinski.org>"]
-version = "1.6"
+version = "1.7.0"
 
 [deps]
 AutoHashEquals = "15f4f7f2-30c1-5605-9d31-71845cf9641f"
@@ -38,11 +38,11 @@ MbedTLS = "0.6.8, 0.7, 1"
 Mocking = "0.7"
 Mustache = "0.5, 1.0"
 Mux = "0.7, 1"
-RegistryTools = "1.9"
+RegistryTools = "2"
 TimeToLive = "0.2, 0.3"
+URIs = "1"
 ZMQ = "1"
 julia = "1.1"
-URIs = "1"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
