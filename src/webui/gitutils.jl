@@ -294,11 +294,16 @@ function make_registration_request(
     catch ex
         resp = ex isa GitForge.HTTPError || ex isa GitForge.PostProcessorError ? ex.response : nothing
         if !ensure_already_exists(data -> get(data, "message", String[]), resp, 409)
-            @error "Exception making registration request" repoid=repoid base=base head=branch exception=ex,catch_backtrace()
-            return result, nothing
+            @error "An error occurred when creating pull request" repoid=repoid base=base head=branch exception=ex,catch_backtrace()
+            return nothing, nothing
         end
         val, _ = get_pull_requests(r.forge, repoid; source_branch=branch, target_branch=base, state="opened")
-        @assert length(val) == 1
+
+        if length(val) != 1
+            @error "Expected to find one open pull request created from a previous registration attempt but got $(length(val)) pull requests" repoid=repoid base=base head=branch exception=ex,catch_backtrace()
+            return nothing, nothing
+        end
+
         prid = first(val).iid
         update_pull_request(r.forge, repoid, prid; title=title, body=body)
         val[1], nothing
@@ -329,12 +334,19 @@ function make_registration_request(
         exists = ensure_already_exists(resp, 422) do data
             map(e -> get(e, "message", ""), get(data, "errors", []))
         end
+
         if !exists
-            @error "Exception making registration request" owner=owner repo=repo base=base head=branch exception=ex,catch_backtrace()
-            return result, nothing
+            @error "An error occurred when creating pull request" owner=owner repo=repo base=base head=branch exception=ex,catch_backtrace()
+            return nothing, nothing
         end
+
         val, _ = get_pull_requests(r.forge, owner, repo; head="$owner:$branch", base=base, state="open")
-        @assert length(val) == 1
+
+        if length(val) != 1
+            @error "Expected to find one open pull request created from a previous registration attempt but got $(length(val)) pull requests" owner=owner repo=repo base=base head=branch exception=ex,catch_backtrace()
+            return nothing, nothing
+        end
+
         prid = first(val).number
         update_pull_request(r.forge, owner, repo, prid; title=title, body=body)
         val[1], nothing
@@ -363,9 +375,10 @@ function make_registration_request(
         exists = ensure_already_exists(resp, 422) do data
             map(e -> get(e, "message", ""), get(data, "errors", []))
         end
+
         if !exists
-            @error "Exception making registration request" owner=owner repo=repo base=base head=branch exception=ex, catch_backtrace()
-            rethrow(ex)
+            @error "An error occurred when creating pull request" owner=owner repo=repo base=base head=branch exception=ex,catch_backtrace()
+            return nothing, nothing
         end
 
         val, _ = get_pull_requests(r.forge, owner, repo; query=Dict(
@@ -374,7 +387,12 @@ function make_registration_request(
             author.username \"$owner\" AND
             destination.branch.name = \"$base\"""", "\n"=> " ")
         ))
-        @assert length(val) == 1
+
+        if length(val) != 1
+            @error "Expected to find one open pull request created from a previous registration attempt but got $(length(val)) pull requests" owner=owner repo=repo base=base head=branch exception=ex,catch_backtrace()
+            return nothing, nothing
+        end
+
         prid = first(val).id
         update_pull_request(r.forge, owner, repo, prid; title=title, body=body)
         val[1], nothing

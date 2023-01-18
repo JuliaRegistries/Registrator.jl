@@ -214,7 +214,7 @@ function action(regdata::RegistrationData, zsock::RequestSocket)
         # Make the PR.
         pr = @gf make_registration_request(REGISTRY[], branch.branch, title, body)
         if pr === nothing
-            msg = "Registration failed: Making pull request failed"
+            msg = "Failed to create or update pull request"
             state = :errored
         else
             url = web_url(pr)
