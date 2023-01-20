@@ -341,3 +341,7 @@ julia -e '
     using Registrator;
     Registrator.WebUI.main("myconfig.toml")'
 ```
+
+Note for private packages: Organization settings can sometimes restrict third
+party applications like Registrator from using an OAuth token to read a
+private repository. See [Managing OAuth access to your organization's data](https://docs.github.com/en/organizations/managing-oauth-access-to-your-organizations-data).

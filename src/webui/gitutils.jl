@@ -73,7 +73,7 @@ function isauthorized(u::User{GitHub.User}, repo::GitHub.Repo, fetch = true)
         return AuthFailure("Repo $(repo.name) is private")
     jforge = provider(repo).client
     if fetch
-        repo = @gf_q @mock get_repo(u.forge, repo.owner.login, repo.name)
+        repo = @gf @mock get_repo(u.forge, repo.owner.login, repo.name)
     end
     # Users with push access can always release their package
     repo !== nothing && repo.permissions.push && return AuthSuccess()
