@@ -52,7 +52,8 @@ function register(r::HTTP.Request)
     commit = getcommithash(u.forge, repo, ref)
     commit === nothing && return json(500, error="Looking up the commit hash failed")
 
-    if istagwrong(u.forge, repo, project.version, commit)
+    # Skip tag check for subdir packages
+    if isempty(subdir) && istagwrong(u.forge, repo, project.version, commit)
         return json(400; error="Tag with a different commit already exists for the version mentioned in (Julia)Project.toml")
     end
 
