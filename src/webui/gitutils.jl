@@ -424,8 +424,8 @@ display_user(u::U) where U =
 function istagwrong(
     ::GitHubAPI,
     repo::GitHub.Repo,
-    tag::VersionNumber,
-    commit::String,
+    tag::AbstractString,
+    commit::AbstractString,
 )
     result = @gf get_tags(provider(repo).client, repo.owner.login, repo.name)
 
@@ -452,8 +452,8 @@ end
 function istagwrong(
     ::GitLabAPI,
     project::GitLab.Project,
-    tag::VersionNumber,
-    commit::String,
+    tag::AbstractString,
+    commit::AbstractString,
 )
     # Using Registrator's token here instead of the users. This is
     # because the user oauth scope needs to include "api" in order to
@@ -485,8 +485,8 @@ end
 function istagwrong(
     api::BitbucketAPI,
     repo::Bitbucket.Repo,
-    tag::VersionNumber,
-    commit::String,
+    tag::AbstractString,
+    commit::AbstractString,
 )
     try
         # Using Registrator's token here instead of the users. This is

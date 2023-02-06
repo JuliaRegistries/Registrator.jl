@@ -11,7 +11,7 @@ using JSON
 using MbedTLS
 
 import Pkg: TOML
-import ..Registrator: post_on_slack_channel, pull_request_contents
+import ..Registrator: post_on_slack_channel, pull_request_contents, tag_name
 import RegistryTools: RegBranch, Project
 import Base: string
 using ..Messaging
@@ -45,8 +45,6 @@ end
 get_trigger_id(rp::RequestParams{PullRequestTrigger}) = rp.trigger_src.prid
 get_trigger_id(rp::RequestParams{IssueTrigger}) = get_prid(rp.evt.payload)
 get_trigger_id(rp::RequestParams{CommitCommentTrigger}) = get_comment_commit_id(rp.evt)
-
-tag_name(version, subdir) = subdir == "" ? "v$version" : splitdir(subdir)[end] * "-v$version"
 
 reponame_from_url(url::String) = join(split(url, "/")[end-1:end], "/")
 

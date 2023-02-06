@@ -198,7 +198,7 @@ struct ProcessedParams
         end
 
         wrongtag = false
-        if isempty(rp.subdir) && err === nothing
+        if err === nothing
             tag = tag_name(project.version, rp.subdir)
             wrongtag = istagwrong(rp, sha, project.version, auth, tag = tag)
             if wrongtag
