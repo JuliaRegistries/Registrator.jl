@@ -1,6 +1,6 @@
 module WebUI
 
-using ..Registrator: pull_request_contents
+using ..Registrator: pull_request_contents, tag_name
 import RegistryTools
 
 using Dates

@@ -8,6 +8,8 @@ import RegistryTools
 # Remove all of a base64 string's whitespace before decoding it.
 decodeb64(s::AbstractString) = String(base64decode(replace(s, r"\s" => "")))
 
+tag_name(version, subdir) = subdir == "" ? "v$version" : splitdir(subdir)[end] * "-v$version"
+
 
 struct RegisterParams
     package_repo::String
