@@ -103,20 +103,21 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
 
         ### Tip: Release Notes
 
-        Did you know you can add release notes too? Just add markdown formatted text underneath the comment with the header
-        "Release notes:" and it will be detected and added to the registry PR, and if tagbot is installed it will also
-        be added to the tag created on this repository.
+        Did you know you can add release notes too? Just add markdown formatted text underneath the comment after the text
+        "Release notes:" and it will be detected and added to the registry PR, and if TagBot is installed it will also
+        be added to the release created on this repository. i.e.
 
-        i.e.
         ```
-        @JuliaReg... register()
+        @JuliaRegistrator register
 
         Release notes:
 
         ## Breaking changes
 
-        - Foo
+        - blah
         ```
+
+        To add them here just re-invoke and the PR will be updated.
 
         """
     else
