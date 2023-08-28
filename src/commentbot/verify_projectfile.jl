@@ -48,16 +48,20 @@ function pfile_hasfields(p::RegistryTools.Project)
     return true, nothing
 end
 
-function verify_projectfile_from_sha(reponame, commit_sha; auth=GitHub.AnonymousAuth(), subdir = "")
-    project = nothing
-    projectfile_found = false
-    projectfile_valid = false
-    err = nothing
+function get_git_commit_tree(reponame, commit_sha; auth=GitHub.AnonymousAuth(), subdir = "")
     @debug("Getting gitcommit object for sha")
     gcom = gitcommit(reponame, GitCommit(Dict("sha"=>commit_sha)); auth=auth)
     @debug("Getting tree object for sha")
     recurse = subdir != ""
     t = tree(reponame, Tree(gcom.tree); auth=auth, params = Dict(:recursive => recurse))
+    return t
+end
+
+function verify_projectfile_from_sha(t, reponame; auth=GitHub.AnonymousAuth(), subdir = "")
+    project = nothing
+    projectfile_found = false
+    projectfile_valid = false
+    err = nothing
     tree_sha = t.sha
     project_files = joinpath.(subdir, Base.project_names)
 
@@ -101,4 +105,77 @@ function verify_projectfile_from_sha(reponame, commit_sha; auth=GitHub.Anonymous
     end
 
     return project, tree_sha, projectfile_found, projectfile_valid, err
+end
+
+function is_cfile_parseable(c::AbstractString)
+    @debug("Checking whether change notes file is non-empty and parseable")
+    if length(c) != 0
+        #TODO
+        try
+
+            return true, ""
+        catch err
+            return false, err
+        end
+    else
+        err = "Change notes file is empty"
+        @debug(err)
+        return false, err
+    end
+end
+
+function parse_changelog(c::AbstractString)::Dict{VersionNumber,String}
+    changelog = Dict{VersionNumber,String}
+    for line in split(c, "\n")
+        # TODO
+        if version != nothing && !isempty(notes)
+            changelog[version] = notes
+        end
+    end
+    return changelog
+end
+
+function verify_changelog_from_sha(t, reponame; auth=GitHub.AnonymousAuth(), subdir = "")
+    changelog = nothing
+    changelog_found = false
+    changelog_valid = false
+    changelog_files = joinpath.(subdir, ("CHANGELOG.md", "NEWS.md", "HISTORY.md"))
+    for tr in t.tree, file in changelog_files
+        if tr["path"] == file
+            changelog_found = true
+            @debug("Changelog file file found:", file)
+
+            @debug("Getting changelog file blob")
+            if isa(auth, GitHub.AnonymousAuth)
+                a = get_user_auth()
+            else
+                a = auth
+            end
+            b = blob(reponame, Blob(tr["sha"]); auth=a)
+
+            @debug("Decoding base64 changelog contents")
+            changelog_contents = decodeb64(b.content)
+
+            @debug("Checking changelog file validity")
+            changelog_parseable, err = is_cfile_parseable(changelog_contents)
+
+            if changelog_parseable
+                try
+                    changelog = parse_changelog(changelog_contents)::Dict{VersionNumber,String}
+                catch ex
+                    err = "Failed to read changelog file"
+                    if isdefined(ex, :msg)
+                        err = err * ": $(e.msg)"
+                    end
+                    @error(err)
+                end
+                if changelog isa Dict{VersionNumber,String}
+                    changelog_valid = !isempty(changelog)
+                end
+            end
+            break
+        end
+    end
+
+    return changelog, changelog_found, changelog_valid, err
 end
