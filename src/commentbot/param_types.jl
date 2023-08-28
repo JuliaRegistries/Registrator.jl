@@ -164,6 +164,7 @@ struct ProcessedParams
     tree_sha::Union{Nothing, String}
     cloneurl::Union{Nothing, String}
     cparams::CommonParams
+    release_notes::Union{Nothing,String}
 
     function ProcessedParams(rp::RequestParams)
         if rp.cparams.error !== nothing
@@ -174,6 +175,10 @@ struct ProcessedParams
         project = nothing
         projectfile_found = false
         projectfile_valid = false
+        changelog = nothing
+        changelog_found = false
+        changelog_valid = false
+        release_notes = nothing
         sha = nothing
         tree_sha = nothing
         cloneurl = nothing
@@ -190,10 +195,24 @@ struct ProcessedParams
         cloneurl, sha, err = get_cloneurl_and_sha(rp, auth)
 
         if err === nothing && sha !== nothing
-            project, tree_sha, projectfile_found, projectfile_valid, err = verify_projectfile_from_sha(rp.reponame, sha; auth = auth, subdir = rp.subdir)
+            t = get_git_commit_tree(rp.reponame, sha; auth = auth, subdir = rp.subdir)
+            project, tree_sha, projectfile_found, projectfile_valid, err = verify_projectfile_from_sha(t, rp.reponame; auth = auth, subdir = rp.subdir)
             if !projectfile_found
                 err = "File (Julia)Project.toml not found"
                 @debug(err)
+            end
+
+            # Non-critical. Don't error if fails.
+            changelog, changelog_found, changelog_valid, err = verify_changelog_from_sha(t, rp.reponame; auth = auth, subdir = rp.subdir)
+            if !changelog_found
+                @debug "Release notes from a CHANGELOG/NEWS/HISTORY.md file not found"
+            else
+                if haskey(changelog, project.version)
+                    release_notes = changelog[project.version]
+                else
+                    changelog_versions = keys(changelog)
+                    @debug "No entry found in changelog for version being tagged" version changelog_versions
+                end
             end
         end
 
@@ -211,6 +230,6 @@ struct ProcessedParams
         @debug("Event validity: $(isvalid)")
 
         new(project, projectfile_found, projectfile_valid, sha, tree_sha, cloneurl,
-            CommonParams(isvalid, err, report_error))
+            CommonParams(isvalid, err, report_error), release_notes)
     end
 end
