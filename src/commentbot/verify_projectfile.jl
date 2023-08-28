@@ -112,7 +112,7 @@ function is_cfile_parseable(c::AbstractString)
     if length(c) != 0
         #TODO
         try
-
+            parse_changelog(c)
             return true, ""
         catch err
             return false, err
@@ -124,13 +124,25 @@ function is_cfile_parseable(c::AbstractString)
     end
 end
 
-function parse_changelog(c::AbstractString)::Dict{VersionNumber,String}
-    changelog = Dict{VersionNumber,String}
+function parse_changelog(c::AbstractString)
+    changelog = Dict{VersionNumber,String}()
+    current_version = nothing
+    current_changes = ""
     for line in split(c, "\n")
-        # TODO
-        if version != nothing && !isempty(notes)
-            changelog[version] = notes
+        # TODO: Make this only detect versions in headers, not in the body which it currently does
+        version_match = match(r"v?(\d+\.\d+)", line)
+        if version_match !== nothing
+            if current_version !== nothing
+                changelog[current_version] = strip(current_changes)
+            end
+            current_version = VersionNumber(version_match.match)
+            current_changes = ""
+        else
+            current_changes *= line * "\n"
         end
+    end
+    if !isnothing(current_version)
+        changelog[current_version] = strip(current_changes)
     end
     return changelog
 end
