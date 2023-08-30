@@ -98,8 +98,36 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
     pr, msg = create_or_find_pull_request(repo, params, rbrn)
     tag = tag_name(ver, subdir)
 
+    releasenotes_note = if isempty(rp.release_notes)
+        """
+
+        ### Tip: Release Notes
+
+        Did you know you can add release notes too? Just add markdown formatted text underneath the comment after the text
+        "Release notes:" and it will be added to the registry PR, and if TagBot is installed it will also be added to the
+        release that TagBot creates. i.e.
+
+        ```
+        @JuliaRegistrator register
+
+        Release notes:
+
+        ## Breaking changes
+
+        - blah
+        ```
+
+        To add them here just re-invoke and the PR will be updated.
+
+        """
+    else
+        ""
+    end
+
     cbody = """
         Registration pull request $msg: [$(repo)/$(pr.number)]($(pr.html_url))
+        $(releasenotes_note)
+        ### Tagging
 
         After the above pull request is merged, it is recommended that a tag is created on this repository for the registered package version.
 
