@@ -4,6 +4,7 @@ using Registrator
 makedocs(
     modules = [Registrator],
     sitename = "Registrator.jl",
+    warnonly = :missing_docs,
     pages = [
         "Home" => "index.md",
         "Hosting Your Own" => "hosting.md",
