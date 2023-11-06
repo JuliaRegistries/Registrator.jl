@@ -38,9 +38,9 @@ function pull_request_contents(;
         lines,
         "- Release notes:",
         "<!-- BEGIN RELEASE NOTES -->",
-        "```",
+        "`````",
         release_notes,
-        "```",
+        "`````",
         "<!-- END RELEASE NOTES -->",
         ""
     )
