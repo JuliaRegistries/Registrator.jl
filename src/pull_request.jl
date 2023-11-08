@@ -38,7 +38,9 @@ function pull_request_contents(;
         lines,
         "- Release notes:",
         "<!-- BEGIN RELEASE NOTES -->",
-        join(map(line -> "> $line", split(release_notes, "\n")), "\n"),
+        "`````",
+        release_notes,
+        "`````",
         "<!-- END RELEASE NOTES -->",
         ""
     )
