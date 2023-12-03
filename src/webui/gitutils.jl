@@ -248,7 +248,7 @@ function gettreesha(
             readchomp(`git -C $dest rev-parse $ref:$subdir`), ""
         end
     catch ex
-        @error("Exception while getting tree SHA", exception=get_backtrace(ex))
+        @error "Exception while getting tree SHA" exception=(ex, catch_backtrace())
         nothing, "Exception while getting tree SHA"
     end
 end

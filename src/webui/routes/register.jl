@@ -42,7 +42,7 @@ function register(r::HTTP.Request)
     project = try
         RegistryTools.Project(TOML.parse(IOBuffer(toml)))
     catch e
-        @error "Reading project from (Julia)Project.toml failed" exception=get_backtrace(e)
+        @error "Reading project from (Julia)Project.toml failed" exception=(e, catch_backtrace())
         return json(400; error="(Julia)Project.toml is invalid")
     end
     for k in [:name, :uuid, :version]
