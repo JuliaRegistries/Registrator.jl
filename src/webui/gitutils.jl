@@ -324,11 +324,12 @@ function make_registration_request(
     owner = r.repo.owner.login
     repo = r.repo.name
     base = r.repo.default_branch
-    head = string(REGISTRY[].fork_repo.owner.login, ":", branch)
+    fork_owner = REGISTRY[].fork_repo.owner.login
+    head = owner == fork_owner ? branch : string(fork_owner, ":", branch)
     try
         result, _ = create_pull_request(
             r.forge, owner, repo;
-            head=branch,
+            head=head,
             base=base,
             title=title,
             body=body,
@@ -341,11 +342,11 @@ function make_registration_request(
         end
 
         if !exists
-            @error "An error occurred when creating pull request" owner=owner repo=repo base=base head=branch exception=ex,catch_backtrace()
+            @error "An error occurred when creating pull request" owner=owner repo=repo base=base head=head exception=ex,catch_backtrace()
             return nothing, nothing
         end
 
-        val, _ = get_pull_requests(r.forge, owner, repo; head="$owner:$branch", base=base, state="open")
+        val, _ = get_pull_requests(r.forge, owner, repo; head=head, base=base, state="open")
 
         if length(val) != 1
             @error "Expected to find one open pull request created from a previous registration attempt but got $(length(val)) pull requests" owner=owner repo=repo base=base head=branch exception=ex,catch_backtrace()
