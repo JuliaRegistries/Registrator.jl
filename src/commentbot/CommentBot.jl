@@ -210,8 +210,8 @@ function action(rp::RequestParams{T}, zsock::RequestSocket) where T <: RegisterT
             set_error_status(rp)
         end
     catch ex
-        bt = get_backtrace(ex)
-        @info("Unexpected error: $bt")
+        @info "Unexpected error" exception = (ex, catch_backtrace())
+        bt = sprint(Base.showerror, ex, catch_backtrace())
         raise_issue(rp.evt, rp.phrase, bt)
     end
     @info("Done processing register event", reponame=rp.reponame, target_registry_name)

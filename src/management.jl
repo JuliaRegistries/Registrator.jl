@@ -1,5 +1,3 @@
-get_backtrace(ex) = sprint(Base.showerror, ex, catch_backtrace())
-
 function get_log_level(l)
     log_level_str = lowercase(l)
 
@@ -64,7 +62,7 @@ function recover(
                 @warn("Stopping", name)
                 return
             else # exception_action == :continue
-                @error("Recovering from unknown exception", name, backoff, exception=get_backtrace(ex))
+                @error "Recovering from unknown exception" name backoff exception = (ex, catch_backtrace())
                 sleep(backoff)
                 backoff = min(backoffmax, backoff+backoffincrement)
             end

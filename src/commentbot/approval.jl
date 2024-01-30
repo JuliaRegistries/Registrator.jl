@@ -25,7 +25,7 @@ function get_metadata_from_pr_body(rp::RequestParams, auth)
         meta = String(decrypt(MbedTLS.CIPHER_AES_128_CBC, key, hex2bytes(enc_meta), key))
         return JSON.parse(meta)
     catch ex
-        @debug("Exception occured while parsing PR body", get_backtrace(ex))
+        @debug "Exception occured while parsing PR body" exception = (ex, catch_backtrace())
     end
 
     nothing
@@ -140,8 +140,8 @@ function action(rp::RequestParams{ApprovalTrigger}, zsock)
             make_comment(rp.evt, "Error in approval process: $err")
         end
     catch ex
-        bt = get_backtrace(ex)
-        @info("Unexpected error: $bt")
+        @info "Unexpected error" exception = (ex, catch_backtrace())
+        bt = sprint(Base.showerror, ex, catch_backtrace())
         raise_issue(rp.evt, rp.phrase, bt)
     end
     @info("Done processing approval event", reponame=rp.reponame, rp.trigger_src.prid)
