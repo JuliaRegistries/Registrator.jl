@@ -67,6 +67,7 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
                           "pkg_repo_name"=> rp.reponame,
                           "trigger_id"=> trigger_id,
                           "tree_sha"=> pp.tree_sha,
+                          "commit_sha"=> pp.sha,
                           "version"=> string(ver),
                           "subdir"=> subdir))
     key = CONFIG["enc_key"]
@@ -179,6 +180,7 @@ function action(rp::RequestParams{T}, zsock::RequestSocket) where T <: RegisterT
                 pp.cloneurl,
                 pp.project,
                 pp.tree_sha;
+                commit_sha=pp.sha,
                 subdir=rp.subdir,
                 registry=target_registry["repo"],
                 registry_fork=get(target_registry, "fork_repo", target_registry["repo"]),
