@@ -269,7 +269,8 @@ function main(config::AbstractString=isempty(ARGS) ? "config.toml" : first(ARGS)
     init_registry()
 
     ip = CONFIG["ip"] == "localhost" ? Sockets.localhost : parse(IPAddr, CONFIG["ip"])
-    port = CONFIG["port"]
+    #port = CONFIG["port"]
+    port=get(CONFIG, "port", parse(Int, get(ENV, "PORT", "8001")))
 
     @info "Starting WebUI" ip port
     monitor = @async status_monitor(CONFIG["stop_file"], event_queue, httpsock)
