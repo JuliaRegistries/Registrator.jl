@@ -101,9 +101,12 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
     releasenotes_note = if isempty(rp.release_notes)
         """
 
-        ### Tip: Release Notes
+        ### Recommendation: add release notes
 
-        Did you know you can add release notes too? Just add markdown formatted text underneath the comment after the text
+        Release notes help your users know what has changed in the new version. For breaking releases in particular,
+        its recommended to document what breaking changes were made (or point to where changes can be found, such as a changelog).
+        
+        To add release notes, just add markdown formatted text underneath the comment after the text
         "Release notes:" and it will be added to the registry PR, and if TagBot is installed it will also be added to the
         release that TagBot creates. i.e.
 
@@ -117,7 +120,7 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
         - blah
         ```
 
-        To add them here just re-invoke and the PR will be updated.
+        To add release notes to this registration, just re-invoke JuliaRegistrator and the PR will be updated.
 
         """
     else
