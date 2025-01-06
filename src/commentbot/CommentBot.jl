@@ -103,12 +103,9 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
 
         ### Recommendation: add release notes
 
-        Release notes help your users know what has changed in the new version. For breaking releases in particular,
-        its recommended to document what breaking changes were made (or point to where changes can be found, such as a changelog).
+        Release notes help your users know what has changed in the new version. For breaking releases in particular, its recommended to document what breaking changes were made (or point to where changes can be found, such as a changelog).
         
-        To add release notes, just add markdown formatted text underneath the comment after the text
-        "Release notes:" and it will be added to the registry PR, and if TagBot is installed it will also be added to the
-        release that TagBot creates. i.e.
+        To add release notes, just add markdown formatted text underneath the comment after the text "Release notes:" and it will be added to the registry PR, and if TagBot is installed it will also be added to the release that TagBot creates. i.e.
 
         ```
         @JuliaRegistrator register
