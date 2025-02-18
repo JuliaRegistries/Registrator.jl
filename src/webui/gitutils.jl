@@ -244,12 +244,47 @@ function gettreesha(
         url = cloneurl(r)
         mktempdir() do dir
             dest = joinpath(dir, r.name)
-            run(`git clone --bare $url $dest`)
+            withpasswd(url) do url, env
+                run(Cmd(`git clone --bare $url $dest`; env))
+            end
             readchomp(`git -C $dest rev-parse $ref:$subdir`), ""
         end
     catch ex
         @error "Exception while getting tree SHA" exception=(ex, catch_backtrace())
         nothing, "Exception while getting tree SHA"
+    end
+end
+
+withpasswd(func, url::AbstractString) = withpasswd(func, URI(url))
+
+"""
+* Remove user and password from provided URL
+* Create a temporary command TMPCMD that Git can use that provides the user and password
+* run provided function with the resulting URL and an environment array with GIT_ASKPASS=TMPCMD
+"""
+function withpasswd(func, url::URI)
+    local info = url.userinfo
+    isempty(info) &&
+        return func(url, [])
+    local user, passwd = split(info, ":")
+    local newurl = URI(replace(string(url), "$info@" => ""))
+    mktemp() do path, io
+        print(io, """
+#!/bin/sh
+case "\$1" in
+    Username*)
+        echo "$user"
+        ;;
+    Password*)
+        echo "$passwd"
+        ;;
+esac
+""")
+        close(io)
+        chmod(path, 0o700)
+        func(newurl, [
+            "GIT_ASKPASS=$path"
+        ])
     end
 end
 
