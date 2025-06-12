@@ -13,6 +13,41 @@ end
 
 restoreconfig!()
 
+@testset "gittreesha" begin
+    org = GitHub.User(login="JuliaLang")
+
+    public_repo_of_org = GitHub.Repo(name="Example.jl", private=false, owner=org, organization=org, permissions = GitHub.Permissions(admin = true, push = false, pull = true), clone_url="https://github.com/JuliaLang/Example.jl.git")
+    example_master_treesha = Base.redirect_stderr(devnull) do
+        Registrator.WebUI.gettreesha(public_repo_of_org, "master", "")
+    end
+    @test length(example_master_treesha) == 40
+
+    ret, err = Base.redirect_stderr(devnull) do
+        Registrator.WebUI.gettreesha(public_repo_of_org, "mas ter", "")
+    end
+    @test ret === nothing
+    @test err == "Exception while getting tree SHA"
+
+    ret, err = Base.redirect_stderr(devnull) do
+        Registrator.WebUI.gettreesha(public_repo_of_org, "master", "src/../test")
+    end
+    @test ret === nothing
+    @test err == "Exception while getting tree SHA"
+
+    ret, err = Base.redirect_stderr(devnull) do
+        Registrator.WebUI.gettreesha(public_repo_of_org, "master", "src test")
+    end
+    @test ret === nothing
+    @test err == "Exception while getting tree SHA"
+
+    unsafe_repo = GitHub.Repo(name="Example.jl", private=false, owner=org, organization=org, permissions = GitHub.Permissions(admin = true, push = false, pull = true), clone_url="https://github.com/JuliaLang/../unsafe/Example.jl.git")
+    ret, err = Base.redirect_stderr(devnull) do
+        Registrator.WebUI.gettreesha(unsafe_repo, "master", "")
+    end
+    @test ret === nothing
+    @test err == "Exception while getting tree SHA"
+end
+
 @testset "isauthorized" begin
     @test isauthorized("username", "reponame") == AuthFailure("Unkown user type or repo type")
     mock_provider!()

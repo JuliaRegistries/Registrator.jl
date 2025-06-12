@@ -41,6 +41,16 @@ macro gf_bool(ex::Expr)
     end
 end
 
+# disallowed patterns
+# ../, ..\, /.., \.., ./, .\, /./, \.\
+const PATH_TRAVERSAL = r"(?:\.{2,}[\/\\]|\.{1,}[\/\\]|[\/\\]\.{2,}|[\/\\]\.{1,}[\/\\])"
+function is_safe_clone_url(s)
+    if occursin(PATH_TRAVERSAL, s)
+        return false
+    end
+    return true
+end
+
 # Split a repo path into its owner and name.
 function splitrepo(url::AbstractString)
     url = replace(url, r"(.*).git$" => s"\1")
@@ -242,12 +252,17 @@ function gettreesha(
 )
     return try
         url = cloneurl(r)
+        if !is_safe_clone_url(url)
+            throw(ArgumentError("Invalid or unsafe clone URL"))
+        end
         mktempdir() do dir
             dest = joinpath(dir, r.name)
             withpasswd(url) do url, env
-                run(Cmd(`git clone --bare $url $dest`; env))
+                # let Cmd interpolate strings safely
+                run(Cmd(Cmd(String["git", "clone", "--bare", string(url), dest]); env))
             end
-            readchomp(`git -C $dest rev-parse $ref:$subdir`), ""
+            # let Cmd interpolate strings safely
+            readchomp(Cmd(String["git", "-C", dest, "rev-parse", "$ref:$subdir"]))
         end
     catch ex
         @error "Exception while getting tree SHA" exception=(ex, catch_backtrace())
