@@ -48,6 +48,13 @@ restoreconfig!()
     @test err == "Exception while getting tree SHA"
 end
 
+@testset "is_safe_clone_url()" begin
+    patterns = ["../", "..\\", "/..", "\\..", "./", ".\\", "/./", "\\.\\"]
+    for pattern in patterns
+        @test !Registrator.WebUI.is_safe_clone_url(pattern)
+    end
+end
+
 @testset "isauthorized" begin
     @test isauthorized("username", "reponame") == AuthFailure("Unkown user type or repo type")
     mock_provider!()
