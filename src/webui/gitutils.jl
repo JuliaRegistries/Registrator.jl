@@ -269,14 +269,17 @@ function withpasswd(func, url::URI)
     local user, passwd = split(info, ":")
     local newurl = URI(replace(string(url), "$info@" => ""))
     mktemp() do path, io
+        # base64 encode now and decode while printing out in shell to avoid shell injection
+        encoded_user = base64encode(user)
+        encoded_passwd = base64encode(passwd)    
         print(io, """
 #!/bin/sh
 case "\$1" in
     Username*)
-        echo "$user"
+        echo  "\$(echo "$encoded_user" | base64 -d)"
         ;;
     Password*)
-        echo "$passwd"
+        echo "\$(echo "$encoded_passwd" | base64 -d)"
         ;;
 esac
 """)

@@ -17,6 +17,19 @@ restoreconfig!()
     @test isauthorized("username", "reponame") == AuthFailure("Unkown user type or repo type")
     mock_provider!()
 
+    Registrator.WebUI.withpasswd("https://foo:bar\">&baz@github.com/owner/repo") do newurl,envs
+        askpass=envs[1]
+        script=split(askpass, '=')[2]
+    
+        # run script and ask it to print out username
+        username = strip(read(Cmd(String["sh", script, "Username"]), String))
+        @test username == "foo"
+    
+        # run script and ask it to print out password
+        password = strip(read(Cmd(String["sh", script, "Password"]), String))
+        @test password == "bar\">&baz"
+    end
+
     @testset "GitHub" begin
         user = GitHub.User(login="user123")
         org = GitHub.User(login="JuliaLang")
