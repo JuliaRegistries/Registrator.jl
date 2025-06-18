@@ -53,6 +53,9 @@ end
     for pattern in patterns
         @test !Registrator.WebUI.is_safe_clone_url(pattern)
     end
+
+    @test Registrator.WebUI.is_safe_clone_url("https://github.com/JuliaLang/Example.jl.git")
+    @test Registrator.WebUI.is_safe_clone_url("https://oauth2:abcd@gitlab.com/orga/orgb/thing.jl")
 end
 
 @testset "isauthorized" begin
