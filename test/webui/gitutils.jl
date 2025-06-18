@@ -46,6 +46,23 @@ restoreconfig!()
     end
     @test ret === nothing
     @test err == "Exception while getting tree SHA"
+
+    unsafe_repo = GitHub.Repo(name="Example.jl", private=false, owner=org, organization=org, permissions = GitHub.Permissions(admin = true, push = false, pull = true), clone_url="http://google.com/ HTTP/1.1\r\nFoo: bar\r\nbaz:")
+    ret, err = Base.redirect_stderr(devnull) do
+        Registrator.WebUI.gettreesha(unsafe_repo, "master", "")
+    end
+    @test ret === nothing
+    @test err == "Exception while getting tree SHA"
+end
+
+@testset "is_safe_clone_url()" begin
+    patterns = ["../", "..\\", "/..", "\\..", "./", ".\\", "/./", "\\.\\"]
+    for pattern in patterns
+        @test !Registrator.WebUI.is_safe_clone_url(pattern)
+    end
+
+    @test Registrator.WebUI.is_safe_clone_url("https://github.com/JuliaLang/Example.jl.git")
+    @test Registrator.WebUI.is_safe_clone_url("https://oauth2:abcd@gitlab.com/orga/orgb/thing.jl")
 end
 
 @testset "isauthorized" begin
