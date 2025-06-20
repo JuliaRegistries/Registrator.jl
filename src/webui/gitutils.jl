@@ -262,7 +262,7 @@ function gettreesha(
                 run(Cmd(Cmd(String["git", "clone", "--bare", string(url), dest]); env))
             end
             # let Cmd interpolate strings safely
-            readchomp(Cmd(String["git", "-C", dest, "rev-parse", "$ref:$subdir"]))
+            readchomp(Cmd(String["git", "-C", dest, "rev-parse", "$ref:$subdir"])), ""
         end
     catch ex
         @error "Exception while getting tree SHA" exception=(ex, catch_backtrace())
