@@ -17,10 +17,11 @@ restoreconfig!()
     org = GitHub.User(login="JuliaLang")
 
     public_repo_of_org = GitHub.Repo(name="Example.jl", private=false, owner=org, organization=org, permissions = GitHub.Permissions(admin = true, push = false, pull = true), clone_url="https://github.com/JuliaLang/Example.jl.git")
-    example_master_treesha = Base.redirect_stderr(devnull) do
+    example_master_treesha, err = Base.redirect_stderr(devnull) do
         Registrator.WebUI.gettreesha(public_repo_of_org, "master", "")
     end
     @test length(example_master_treesha) == 40
+    @test err == ""
 
     ret, err = Base.redirect_stderr(devnull) do
         Registrator.WebUI.gettreesha(public_repo_of_org, "mas ter", "")
