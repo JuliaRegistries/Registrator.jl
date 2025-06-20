@@ -49,7 +49,7 @@ RegistryTools = "2"
 Serialization = "1"
 Sockets = "1"
 TimeToLive = "0.2, 0.3"
-URIs = "1"
+URIs = "1.6" # Must be >= 1.6, see https://github.com/JuliaRegistries/Registrator.jl/pull/453
 UUIDs = "1"
 ZMQ = "1"
 julia = "1.1"
