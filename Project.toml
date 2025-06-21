@@ -34,7 +34,7 @@ Base64 = "1"
 Dates = "1"
 Distributed = "1"
 FileWatching = "1"
-GitForge = "0.4.0"
+GitForge = "0.4.3" # Must be >= 0.4.3, see https://github.com/JuliaRegistries/Registrator.jl/pull/453
 GitHub = "5.7.0"
 HTTP = "1.10.17" # Must be >= 1.10.17, see https://github.com/JuliaRegistries/Registrator.jl/pull/453
 JSON = "0.20, 0.21"
