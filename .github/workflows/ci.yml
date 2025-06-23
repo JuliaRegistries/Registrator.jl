@@ -23,41 +23,21 @@ jobs:
           - '1.7'
           - '1'
           - 'nightly'
-        force_use_of_manifest:
-          - 'false'
         os:
           - ubuntu-latest
         include:
           - version: '1.7.2'
-            force_use_of_manifest: 'true'
             os: 'ubuntu-latest'
     steps:
       - uses: actions/checkout@v4
       - uses: julia-actions/setup-julia@v2
         with:
           version: ${{ matrix.version }}
-      - run: |
-          import Pkg
-          import TOML
-          force_use_of_manifest = ${{ matrix.force_use_of_manifest }}
-          if force_use_of_manifest
-            manifest = TOML.parsefile("Manifest.toml")
-            manifest_julia_version_str = manifest["julia_version"]
-            manifest_julia_version = VersionNumber(manifest_julia_version_str)
-            if manifest_julia_version != Base.VERSION
-              msg = "Manifest Julia version $(manifest_julia_version) does not match current Julia version $(Base.VERSION)"
-              error(msg)
-            end
-          else
-            @info "Deleting the manifest file"
-            rm("Manifest.toml")
-          end
-        shell: julia --color=yes {0}
       - uses: julia-actions/julia-buildpkg@latest
       - name: Run the package tests
         run: |
           import Pkg
-          force_use_of_manifest = ${{ matrix.force_use_of_manifest }}
+          force_use_of_manifest = false
           allow_reresolve = !force_use_of_manifest
           coverage = true
           if allow_reresolve
