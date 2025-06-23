@@ -15,6 +15,7 @@ struct RegisterParams
     package_repo::String
     pkg::RegistryTools.Project
     tree_sha::String
+    commit_sha::Union{String, Nothing}
     registry::String
     registry_fork::String
     registry_deps::Vector{<:String}
@@ -28,10 +29,11 @@ struct RegisterParams
                             registry::AbstractString=DEFAULT_REGISTRY_URL,
                             registry_fork::AbstractString=registry,
                             registry_deps::Vector{<:AbstractString}=[],
+                            commit_sha::Union{AbstractString, Nothing}=nothing,
                             subdir::AbstractString="",
                             push::Bool=false,
                             gitconfig::Dict=Dict(),)
-        new(package_repo, pkg, tree_sha, registry, registry_fork,
+        new(package_repo, pkg, tree_sha, commit_sha, registry, registry_fork,
             registry_deps, subdir, push, gitconfig,)
     end
 end
@@ -39,7 +41,7 @@ end
 RegistryTools.register(regp::RegisterParams) = RegistryTools.register(regp.package_repo, regp.pkg, regp.tree_sha;
                                           registry=regp.registry, registry_fork=regp.registry_fork,
                                           registry_deps=regp.registry_deps,
-                                          subdir=regp.subdir, push=regp.push, gitconfig=regp.gitconfig,)
+                                          commit_hash=regp.commit_sha, subdir=regp.subdir, push=regp.push, gitconfig=regp.gitconfig)
 
 include("slack.jl")
 include("pull_request.jl")
