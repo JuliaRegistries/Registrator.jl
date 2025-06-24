@@ -1,7 +1,7 @@
 name = "Registrator"
 uuid = "4418983a-e44d-11e8-3aec-9789530b3b3e"
 authors = ["Stefan Karpinski <stefan@karpinski.org>"]
-version = "1.9.6"
+version = "1.10.0"
 
 [deps]
 AutoHashEquals = "15f4f7f2-30c1-5605-9d31-71845cf9641f"
@@ -34,9 +34,9 @@ Base64 = "1"
 Dates = "1"
 Distributed = "1"
 FileWatching = "1"
-GitForge = "0.4.0"
+GitForge = "0.4.3" # Must be >= 0.4.3, see https://github.com/JuliaRegistries/Registrator.jl/pull/453
 GitHub = "5.7.0"
-HTTP = "0.8, 0.9, 1"
+HTTP = "1.10.17" # Must be >= 1.10.17, see https://github.com/JuliaRegistries/Registrator.jl/pull/453
 JSON = "0.20, 0.21"
 LibGit2 = "1"
 Logging = "1"
@@ -49,7 +49,7 @@ RegistryTools = "2"
 Serialization = "1"
 Sockets = "1"
 TimeToLive = "0.2, 0.3"
-URIs = "1"
+URIs = "1.6" # Must be >= 1.6, see https://github.com/JuliaRegistries/Registrator.jl/pull/453
 UUIDs = "1"
 ZMQ = "1"
 julia = "1.1"
