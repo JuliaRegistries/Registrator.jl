@@ -38,7 +38,7 @@ function register(r::HTTP.Request)
 
     # Get the (Julia)Project.toml, and make sure it is valid.
     toml = gettoml(u.forge, repo, ref, subdir)
-    toml === nothing && return json(400; error="(Julia)Project.toml was not found")
+    toml === nothing && return json(400; error="(Julia)Project.toml was not found in repo `$repo` with ref `$ref` and subdir `$subdir`")
     project = try
         RegistryTools.Project(TOML.parse(IOBuffer(toml)))
     catch e
