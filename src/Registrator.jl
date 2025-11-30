@@ -1,5 +1,7 @@
 module Registrator
 
+# This is a comment to trigger CI
+
 using Base64
 using LibGit2
 using UUIDs
