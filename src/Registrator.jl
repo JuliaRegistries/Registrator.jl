@@ -1,5 +1,7 @@
 module Registrator
 
+# Hello world
+
 using Base64
 using LibGit2
 using UUIDs
