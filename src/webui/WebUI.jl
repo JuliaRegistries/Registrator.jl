@@ -208,6 +208,7 @@ function action(regdata::RegistrationData, zsock::RequestSocket)
             version=regdata.project.version,
             commit=regdata.commit,
             release_notes=regdata.notes,
+            subdir=regdata.subdir,
             description=description,
         )
 
