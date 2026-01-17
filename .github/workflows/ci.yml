@@ -40,7 +40,7 @@ jobs:
           force_use_of_manifest = false
           allow_reresolve = !force_use_of_manifest
           coverage = true
-          if allow_reresolve
+          if allow_reresolve && VERSION >= v"1.9"
             force_latest_compatible_version = true
             Pkg.test(; allow_reresolve, coverage, force_latest_compatible_version)
           else
