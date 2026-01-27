@@ -9,6 +9,7 @@ function pull_request_contents(;
     version::VersionNumber,
     commit::AbstractString,
     release_notes::AbstractString,
+    subdir::AbstractString="",
     gitref::AbstractString="",
     reviewer::AbstractString="",
     reference::AbstractString="",
@@ -29,6 +30,8 @@ function pull_request_contents(;
         "- Version: v$version",
         "- Commit: $commit",
     ]
+
+    isempty(subdir) || insert!(lines, 3, "- Subdirectory: $subdir")
 
     isempty(gitref) || push!(lines, "- Git reference: $gitref")
     isempty(reviewer) || push!(lines, "- Reviewed by: $reviewer")
