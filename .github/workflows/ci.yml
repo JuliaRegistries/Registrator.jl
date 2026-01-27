@@ -55,6 +55,8 @@ jobs:
           file: lcov.info
   docs:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # needed to be able to push to the gh-pages branch
     steps:
       - uses: actions/checkout@v4
       - uses: julia-actions/setup-julia@v2
