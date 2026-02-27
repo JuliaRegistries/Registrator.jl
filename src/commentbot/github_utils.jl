@@ -1,3 +1,5 @@
+using GitHubAppTokens
+
 function register_rights_error(evt, user)
     if is_owned_by_organization(evt)
         org = evt.repository.owner.login
@@ -7,9 +9,30 @@ function register_rights_error(evt, user)
     end
 end
 
-get_access_token(event) = create_access_token(Installation(event.payload["installation"]), get_jwt_auth())
-get_user_auth() = GitHub.authenticate(CONFIG["github"]["token"])
-get_jwt_auth() = GitHub.JWTAuth(CONFIG["github"]["app_id"], CONFIG["github"]["priv_pem"])
+TOKENS_CTX = Ref{GHAppCtx}(nothing)
+function get_tokens_ctx()
+    if TOKENS_CTX[] === nothing
+        TOKENS_CTX[] = GHAppCtx(CONFIG["github"]["app_id"], CONFIG["github"]["priv_pem"])
+    end
+    TOKENS_CTX[]
+end
+
+function get_access_token(evt::WebhookEvent)
+    get_access_token(evt.repository.owner, evt.repository.name)
+end
+function get_access_token(namespace::AbstractString, name::AbstractString)
+    get_token_for_repo(get_tokens_ctx(), namespace, name)
+end
+function get_user_auth(namespace::AbstractString, name::AbstractString)
+    GitHub.authenticate(get_access_token(namespace, name))
+end
+function get_user_auth(repo::AbstractString)
+    namespace, name = split(repo, "/")
+    get_user_auth(namespace, name)
+end
+function get_user_auth(repo::GitHub.Repo)
+    get_user_auth(repo.owner, repo.name)
+end
 
 function get_sha_from_branch(reponame, brn; auth = GitHub.AnonymousAuth())
     try
@@ -43,7 +66,7 @@ function is_comment_by_org_owner_or_member(event)
     user = get_user_login(event.payload)
     user == "github-actions[bot]" && return true
     if get(CONFIG, "check_private_membership", false)
-        return GitHub.check_membership(org, user; auth=get_user_auth())
+        return GitHub.check_membership(org, user; auth=GitHub.authenticate(get_token_for_repo()))
     else
         return GitHub.check_membership(org, user; public_only=true)
     end
@@ -70,10 +93,10 @@ get_clone_url(event) = event.payload["repository"]["clone_url"]
 function make_comment(evt::WebhookEvent, body::AbstractString)
     CONFIG["reply_comment"] || return
     @debug("Posting comment to PR/issue")
-    headers = Dict("private_token" => CONFIG["github"]["token"])
+    headers = Dict("private_token" => get_access_token(evt))
     params = Dict("body" => body)
     repo = evt.repository
-    auth = get_user_auth()
+    auth = GitHub.authenticate(get_user_auth(repo))
     if is_commit_comment(evt.payload)
         GitHub.create_comment(repo, get_comment_commit_id(evt),
                               :commit; headers=headers,
@@ -177,7 +200,7 @@ function create_or_find_pull_request(
 )
     pr = nothing
     msg = ""
-    auth = get_user_auth()
+    auth = get_user_auth(repo)
     try
         pr = create_pull_request(repo; auth=auth, params=params)
         msg = "created"
