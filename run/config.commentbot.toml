@@ -11,10 +11,6 @@ trigger = "@JuliaRegistrator"   # The comment that should trigger Registrator. T
 
 stop_file = "stopcommentbot" # `touch` this file to stop the comment bot
 
-issue_repo = "JuliaRegistries/Registrator.jl"
-report_issue = false            # If set to true any unhandled error will be reported as
-                                # an issue to the above repository
-
 reply_comment = true            # If set to false Registrator will not reply with comments.
                                 # Useful when testing.
 
@@ -70,9 +66,3 @@ priv_pem = "private-key.pem"    # The private key file of your GitHub app
 repo = "https://github.com/organization/QuxRegistry"
 fork_repo = "https://github.com/registrator/QuxRegistry"
 base_branch = "master"
-
-[commentbot.slack]
-alert = false    # If set to true this will make Registrator post to the below slack
-                 # channel whenever it runs into unhandled exceptions
-token = "xxxx"
-channel = "xxxx"

@@ -41,7 +41,6 @@ RegistryTools.register(regp::RegisterParams) = RegistryTools.register(regp.packa
                                           registry_deps=regp.registry_deps,
                                           subdir=regp.subdir, push=regp.push, gitconfig=regp.gitconfig,)
 
-include("slack.jl")
 include("pull_request.jl")
 include("Messaging.jl")
 include("RegService.jl")
