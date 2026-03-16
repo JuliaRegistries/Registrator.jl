@@ -1,6 +1,7 @@
 using GitHubAppTokens
+using HTTP.URIs: URI
 
-reponame_from_url(url::String) = join(split(url, "/")[end-1:end], "/")
+reponame_from_url(url::String) = join(split(URI(url).path, "/")[end-1:end], "/")
 
 function register_rights_error(evt, user)
     if is_owned_by_organization(evt)
@@ -25,6 +26,7 @@ function get_access_token(evt::WebhookEvent)
     get_access_token(evt.repository.owner.login, evt.repository.name)
 end
 function get_access_token(namespace::AbstractString, name::AbstractString)
+    @info "params = ", namespace, name
     get_token_for_repo(get_tokens_ctx(), namespace, name)
 end
 function get_access_token(repo::AbstractString)
@@ -203,6 +205,7 @@ function create_or_find_pull_request(
     msg = ""
     auth = GitHub.authenticate(get_access_token(repo))
     try
+        @info "params are ", repo, auth, params
         pr = create_pull_request(repo; auth=auth, params=params)
         msg = "created"
         @debug("Pull request created")
