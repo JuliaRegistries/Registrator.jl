@@ -1,5 +1,7 @@
 using GitHubAppTokens
 
+reponame_from_url(url::String) = join(split(url, "/")[end-1:end], "/")
+
 function register_rights_error(evt, user)
     if is_owned_by_organization(evt)
         org = evt.repository.owner.login
@@ -8,6 +10,8 @@ function register_rights_error(evt, user)
         return "**Register Failed**\n$(mention(user)), it looks like you don't have collaborator status on this repository."
     end
 end
+
+get_jwt_auth() = GitHub.JWTAuth(CONFIG["github"]["app_id"], CONFIG["github"]["priv_pem"])
 
 TOKENS_CTX = Ref{GHAppCtx}()
 function get_tokens_ctx()
@@ -18,23 +22,20 @@ function get_tokens_ctx()
 end
 
 function get_access_token(evt::WebhookEvent)
-    get_access_token(evt.repository.owner, evt.repository.name)
+    get_access_token(evt.repository.owner.login, evt.repository.name)
 end
 function get_access_token(namespace::AbstractString, name::AbstractString)
     get_token_for_repo(get_tokens_ctx(), namespace, name)
 end
-function get_user_auth(namespace::AbstractString, name::AbstractString)
-    GitHub.authenticate(get_access_token(namespace, name))
+function get_access_token(repo::AbstractString)
+    namespace, name = split(reponame_from_url(repo), "/")
+    get_access_token(namespace, name)
 end
-function get_user_auth(repo::AbstractString)
-    namespace, name = split(repo, "/")
-    get_user_auth(namespace, name)
-end
-function get_user_auth(repo::GitHub.Repo)
-    get_user_auth(repo.owner, repo.name)
+function get_access_token(repo::GitHub.Repo)
+    get_access_token(repo.owner, repo.name)
 end
 
-function get_sha_from_branch(reponame, brn; auth = GitHub.AnonymousAuth())
+function get_sha_from_branch(reponame, brn, auth)
     try
         b = branch(reponame, Branch(brn); auth=auth)
         sha = b.sha !== nothing ? b.sha : b.commit.sha
@@ -57,7 +58,7 @@ function is_comment_by_collaborator(event)
     @debug("Checking if comment is by collaborator")
     user = get_user_login(event.payload)
     user == "github-actions[bot]" && return true
-    return iscollaborator(event.repository, user; auth=get_access_token(event))
+    return iscollaborator(event.repository, user; auth=GitHub.authenticate(get_access_token(event)))
 end
 
 function is_comment_by_org_owner_or_member(event)
@@ -135,7 +136,7 @@ function set_status(rp, state, desc)
                        "context" => CONFIG["github"]["user"],
                        "description" => desc)
          GitHub.create_status(repo, commit;
-                              auth=get_access_token(rp.evt),
+                              auth=GitHub.authenticate(get_access_token(rp.evt)),
                               params=params)
      end
 end
@@ -200,7 +201,7 @@ function create_or_find_pull_request(
 )
     pr = nothing
     msg = ""
-    auth = get_user_auth(repo)
+    auth = GitHub.authenticate(get_access_token(repo))
     try
         pr = create_pull_request(repo; auth=auth, params=params)
         msg = "created"

@@ -32,7 +32,7 @@ function get_metadata_from_pr_body(rp::RequestParams, auth)
 end
 
 function handle_approval(rp::RequestParams{ApprovalTrigger})
-    auth = get_access_token(rp.evt)
+    auth = GitHub.authenticate(get_access_token(rp.evt))
     d = get_metadata_from_pr_body(rp, auth)
 
     if d === nothing

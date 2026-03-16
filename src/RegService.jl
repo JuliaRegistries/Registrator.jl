@@ -43,7 +43,7 @@ end
 function main(config::AbstractString=isempty(ARGS) ? "config.toml" : first(ARGS))
     merge!(CONFIG, Pkg.TOML.parsefile(config)["regservice"])
     if get(CONFIG, "enable_logging", true)
-        global_logger(SimpleLogger(stdout, get_log_level(CONFIG["log_level"])))
+        global_logger(ConsoleLogger(stdout, get_log_level(CONFIG["log_level"])))
     end
     zsock = ReplySocket(get(CONFIG, "port", 5555))
 

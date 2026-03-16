@@ -125,7 +125,7 @@ end
 
 function get_cloneurl_and_sha(rp::RequestParams{IssueTrigger}, auth)
     cloneurl = get_clone_url(rp.evt)
-    sha, err = get_sha_from_branch(rp.reponame, rp.trigger_src.branch; auth=auth)
+    sha, err = get_sha_from_branch(rp.reponame, rp.trigger_src.branch, auth)
 
     cloneurl, sha, err
 end
@@ -180,17 +180,11 @@ struct ProcessedParams
         err = nothing
         report_error = true
 
-        is_private = rp.evt.payload["repository"]["private"]
-        if is_private
-            auth = get_access_token(rp.evt)
-        else
-            auth = GitHub.AnonymousAuth()
-        end
-
+        auth = GitHub.authenticate(get_access_token(rp.evt))
         cloneurl, sha, err = get_cloneurl_and_sha(rp, auth)
 
         if err === nothing && sha !== nothing
-            project, tree_sha, projectfile_found, projectfile_valid, err = verify_projectfile_from_sha(rp.reponame, sha; auth = auth, subdir = rp.subdir)
+            project, tree_sha, projectfile_found, projectfile_valid, err = verify_projectfile_from_sha(rp.reponame, sha, auth; subdir = rp.subdir)
             if !projectfile_found
                 err = "File (Julia)Project.toml not found"
                 @debug(err)
