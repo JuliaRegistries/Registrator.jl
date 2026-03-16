@@ -96,7 +96,7 @@ function make_comment(evt::WebhookEvent, body::AbstractString)
     headers = Dict("private_token" => get_access_token(evt))
     params = Dict("body" => body)
     repo = evt.repository
-    auth = GitHub.authenticate(get_user_auth(repo))
+    auth = GitHub.authenticate(get_access_token(evt))
     if is_commit_comment(evt.payload)
         GitHub.create_comment(repo, get_comment_commit_id(evt),
                               :commit; headers=headers,
