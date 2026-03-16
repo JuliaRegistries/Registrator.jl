@@ -9,9 +9,9 @@ function register_rights_error(evt, user)
     end
 end
 
-TOKENS_CTX = Ref{GHAppCtx}(nothing)
+TOKENS_CTX = Ref{GHAppCtx}()
 function get_tokens_ctx()
-    if TOKENS_CTX[] === nothing
+    if !isassigned(TOKENS_CTX)
         TOKENS_CTX[] = GHAppCtx(CONFIG["github"]["app_id"], CONFIG["github"]["priv_pem"])
     end
     TOKENS_CTX[]
