@@ -26,7 +26,6 @@ function get_access_token(evt::WebhookEvent)
     get_access_token(evt.repository.owner.login, evt.repository.name)
 end
 function get_access_token(namespace::AbstractString, name::AbstractString)
-    @info "params = ", namespace, name
     get_token_for_repo(get_tokens_ctx(), namespace, name)
 end
 function get_access_token(repo::AbstractString)
@@ -35,6 +34,10 @@ function get_access_token(repo::AbstractString)
 end
 function get_access_token(repo::GitHub.Repo)
     get_access_token(repo.owner, repo.name)
+end
+
+function get_registry_token()
+    return CONFIG["github"]["token"]
 end
 
 function get_sha_from_branch(reponame, brn, auth)
@@ -69,7 +72,7 @@ function is_comment_by_org_owner_or_member(event)
     user = get_user_login(event.payload)
     user == "github-actions[bot]" && return true
     if get(CONFIG, "check_private_membership", false)
-        return GitHub.check_membership(org, user; auth=GitHub.authenticate(get_token_for_repo()))
+        return GitHub.check_membership(org, user; auth=GitHub.authenticate(get_access_token(event)))
     else
         return GitHub.check_membership(org, user; public_only=true)
     end
@@ -203,9 +206,8 @@ function create_or_find_pull_request(
 )
     pr = nothing
     msg = ""
-    auth = GitHub.authenticate(get_access_token(repo))
+    auth = GitHub.authenticate(get_registry_token())
     try
-        @info "params are ", repo, auth, params
         pr = create_pull_request(repo; auth=auth, params=params)
         msg = "created"
         @debug("Pull request created")
