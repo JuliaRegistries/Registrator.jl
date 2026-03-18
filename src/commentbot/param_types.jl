@@ -180,7 +180,7 @@ struct ProcessedParams
         err = nothing
         report_error = true
 
-        auth = GitHub.authenticate(get_access_token(rp.evt))
+        auth = get_app_auth(rp.evt)
         cloneurl, sha, err = get_cloneurl_and_sha(rp, auth)
 
         if err === nothing && sha !== nothing

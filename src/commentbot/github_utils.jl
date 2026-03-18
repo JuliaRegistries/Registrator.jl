@@ -22,23 +22,20 @@ function get_tokens_ctx()
     TOKENS_CTX[]
 end
 
-function get_access_token(evt::WebhookEvent)
-    get_access_token(evt.repository.owner.login, evt.repository.name)
-end
-function get_access_token(namespace::AbstractString, name::AbstractString)
-    get_token_for_repo(get_tokens_ctx(), namespace, name)
-end
-function get_access_token(repo::AbstractString)
-    namespace, name = split(reponame_from_url(repo), "/")
-    get_access_token(namespace, name)
-end
-function get_access_token(repo::GitHub.Repo)
-    get_access_token(repo.owner, repo.name)
-end
+"""
+Generates an access token for the GitHub app. The token only has access to the WebhookEvent's source repository.
+"""
+get_access_token(evt::WebhookEvent) = get_token_for_repo(get_tokens_ctx(), evt.repository.owner.login, evt.repository.name)
 
-function get_registry_token()
-    return CONFIG["github"]["token"]
-end
+"""
+Use this method to authenticate as GitHub App for package operations
+"""
+get_app_auth(evt::WebhookEvent) = GitHub.authenticate(get_access_token(evt))
+
+"""
+Use this method to authenticate as Bot account for registry operations
+"""
+get_registry_auth() = GitHub.authenticate(CONFIG["github"]["token"])
 
 function get_sha_from_branch(reponame, brn, auth)
     try
@@ -63,7 +60,7 @@ function is_comment_by_collaborator(event)
     @debug("Checking if comment is by collaborator")
     user = get_user_login(event.payload)
     user == "github-actions[bot]" && return true
-    return iscollaborator(event.repository, user; auth=GitHub.authenticate(get_access_token(event)))
+    return iscollaborator(event.repository, user; auth=get_app_auth(event))
 end
 
 function is_comment_by_org_owner_or_member(event)
@@ -72,7 +69,7 @@ function is_comment_by_org_owner_or_member(event)
     user = get_user_login(event.payload)
     user == "github-actions[bot]" && return true
     if get(CONFIG, "check_private_membership", false)
-        return GitHub.check_membership(org, user; auth=GitHub.authenticate(get_access_token(event)))
+        return GitHub.check_membership(org, user; auth=get_app_auth(event))
     else
         return GitHub.check_membership(org, user; public_only=true)
     end
@@ -102,7 +99,7 @@ function make_comment(evt::WebhookEvent, body::AbstractString)
     headers = Dict("private_token" => get_access_token(evt))
     params = Dict("body" => body)
     repo = evt.repository
-    auth = GitHub.authenticate(get_access_token(evt))
+    auth = get_app_auth(evt)
     if is_commit_comment(evt.payload)
         GitHub.create_comment(repo, get_comment_commit_id(evt),
                               :commit; headers=headers,
@@ -141,7 +138,7 @@ function set_status(rp, state, desc)
                        "context" => CONFIG["github"]["user"],
                        "description" => desc)
          GitHub.create_status(repo, commit;
-                              auth=GitHub.authenticate(get_access_token(rp.evt)),
+                              auth=get_app_auth(rp.evt),
                               params=params)
      end
 end
@@ -206,7 +203,7 @@ function create_or_find_pull_request(
 )
     pr = nothing
     msg = ""
-    auth = GitHub.authenticate(get_registry_token())
+    auth = get_registry_auth()
     try
         pr = create_pull_request(repo; auth=auth, params=params)
         msg = "created"
