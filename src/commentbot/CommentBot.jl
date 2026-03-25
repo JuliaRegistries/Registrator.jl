@@ -11,7 +11,7 @@ using JSON
 using MbedTLS
 
 import Pkg: TOML
-import ..Registrator: post_on_slack_channel, pull_request_contents, tag_name
+import ..Registrator: pull_request_contents, tag_name
 import RegistryTools: RegBranch, Project
 import Base: string
 using ..Messaging
@@ -212,8 +212,6 @@ function action(rp::RequestParams{T}, zsock::RequestSocket) where T <: RegisterT
         end
     catch ex
         @info "Unexpected error" exception = (ex, catch_backtrace())
-        bt = sprint(Base.showerror, ex, catch_backtrace())
-        raise_issue(rp.evt, rp.phrase, bt)
     end
     @info("Done processing register event", reponame=rp.reponame, target_registry_name)
     nothing
@@ -240,9 +238,7 @@ function comment_handler(event::WebhookEvent, phrase::RegexMatch)
             set_error_status(rp)
         end
     catch ex
-        bt = get_backtrace(ex)
-        @info("Unexpected error: $bt")
-        raise_issue(event, phrase, bt)
+        @info "Unexpected error" exception = (ex, catch_backtrace())
     end
 
     return HTTP.Messages.Response(200)
