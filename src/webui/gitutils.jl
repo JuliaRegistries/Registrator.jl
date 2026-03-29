@@ -4,10 +4,12 @@ using Mocking
 config(::GitHub.Repo) = CONFIG["github"]
 config(::GitLab.Project) = CONFIG["gitlab"]
 config(::Bitbucket.Repo) = CONFIG["bitbucket"]
+config(::Forgejo.Repo) = CONFIG["codeberg"]
 
 provider(::Union{GitHubAPI, GitHub.Repo}) = PROVIDERS["github"]
 provider(::Union{GitLabAPI, GitLab.Project}) = PROVIDERS["gitlab"]
 provider(::Union{BitbucketAPI, Bitbucket.Repo}) = PROVIDERS["bitbucket"]
+provider(::Union{ForgejoAPI, Forgejo.Repo}) = PROVIDERS["codeberg"]
 
 # # Run some GitForge function, warning on error but still returning the value.
 macro gf(ex::Expr)
@@ -157,6 +159,32 @@ function isauthorized(u::User{Bitbucket.User}, repo::Bitbucket.Repo, fetch = tru
     AuthFailure("User $(u.user.nickname) is not a member of the workspace $(repo.workspace.slug) or a collaborator on repo $(repo.slug)")
 end
 
+function isauthorized(u::User{Forgejo.User}, repo::Forgejo.Repo, fetch = true)
+    !get(CONFIG, "allow_private", false) && repo.private &&
+        return AuthFailure("Repo $(repo.name) is private")
+    fjforge = provider(repo).client
+    refreshed = false
+    if fetch
+        newrepo = @gf @mock get_repo(u.forge, repo.owner.login, repo.name)
+        if newrepo !== nothing
+            repo = newrepo
+            refreshed = true
+        end
+    end
+    # Only trust per-user permissions if they came from the user's authenticated connection.
+    refreshed && repo !== nothing && repo.permissions !== nothing && repo.permissions.push &&
+        return AuthSuccess()
+    ((@gf_bool @mock is_collaborator(u.forge, repo.owner.login, repo.name, u.user.login)) ||
+        (@gf_bool @mock is_collaborator(fjforge, repo.owner.login, repo.name, u.user.login))) &&
+        return AuthSuccess()
+    repo.owner.login == u.user.login &&
+        return AuthSuccess()
+    ((@gf_bool @mock is_member(u.forge, repo.owner.login, u.user.login)) ||
+        (@gf_bool @mock is_member(fjforge, repo.owner.login, u.user.login))) &&
+        return AuthSuccess()
+    AuthFailure("User $(u.user.login) is not a collaborator on repository $(repo.name) and does not appear to be a member of the owning account $(repo.owner.login)")
+end
+
 # Get the raw (Julia)Project.toml text from a repository.
 function gettoml(::GitHubAPI, repo::GitHub.Repo, ref::AbstractString, subdir::AbstractString)
     forge = provider(repo).client
@@ -205,6 +233,21 @@ function gettoml(::BitbucketAPI, repo::Bitbucket.Repo, ref::AbstractString, subd
     return nothing
 end
 
+function gettoml(::ForgejoAPI, repo::Forgejo.Repo, ref::AbstractString, subdir::AbstractString)
+    forge = provider(repo).client
+    lasterr = nothing
+    for file in Base.project_names
+        try
+            fc, _ = get_file_contents(forge, repo.owner.login, repo.name, joinpath(subdir, file); ref=ref)
+            return decodeb64(fc.content)
+        catch err
+            lasterr = (err, catch_backtrace())
+        end
+    end
+    @error "Failed to get project file" exception=lasterr
+    return nothing
+end
+
 function getcommithash(::GitHubAPI, repo::GitHub.Repo, ref::AbstractString)
     forge = provider(repo).client
     commit = @gf get_commit(forge, repo.owner.login, repo.name, ref)
@@ -221,6 +264,12 @@ function getcommithash(::BitbucketAPI, repo::Bitbucket.Repo, ref::AbstractString
     bbforge = provider(repo).client
     commit = @gf get_commit(bbforge, repo.workspace.slug, repo.slug, ref)
     return commit === nothing ? nothing : commit.hash
+end
+
+function getcommithash(::ForgejoAPI, repo::Forgejo.Repo, ref::AbstractString)
+    forge = provider(repo).client
+    commit = @gf get_commit(forge, repo.owner.login, repo.name, ref)
+    return commit === nothing ? nothing : commit.sha
 end
 
 # Get a repo's clone URL.
@@ -244,9 +293,15 @@ function cloneurl(r::Bitbucket.Repo, is_ssh::Bool=false)
     token = config(r)["token"]
     string(URI(URI(link[1]["href"]); userinfo=token))
 end
+function cloneurl(r::Forgejo.Repo, is_ssh::Bool=false)
+    url = is_ssh ? r.ssh_url : r.clone_url
+    host = URI(url).host
+    token = config(r)["token"]
+    replace(url, host => "oauth2:$token@$host")
+end
 
 function gettreesha(
-    r::Union{GitLab.Project, GitHub.Repo, Bitbucket.Repo},
+    r::Union{GitLab.Project, GitHub.Repo, Bitbucket.Repo, Forgejo.Repo},
     ref::AbstractString,
     subdir::AbstractString
 )
@@ -465,15 +520,18 @@ web_url(pr::Bitbucket.PullRequest) = pr.links.html["href"]
 web_url(u::GitHub.User) = u.html_url
 web_url(u::GitLab.User) = u.web_url
 web_url(u::Bitbucket.User) = u.links.html["href"]
+web_url(u::Forgejo.User) = u.html_url
 web_url(r::GitHub.Repo) = r.html_url
 web_url(r::GitLab.Project) = r.web_url
 web_url(r::Bitbucket.Repo) = r.links.html["href"]
+web_url(r::Forgejo.Repo) = r.html_url
 
 
 # Get a user's @ mention.
 mention(u::GitHub.User) = "$(mention(u.login))"
 mention(u::GitLab.User) = "$(mention(u.username))"
 mention(u::Bitbucket.User) = "$(mention(u.username))"
+mention(u::Forgejo.User) = "$(mention(u.username))"
 
 # Get a user's representation for a registry PR.
 # If the registry is from the same provider, mention the user, otherwise use the URL.
@@ -563,6 +621,34 @@ function istagwrong(
         end
     catch err
         @debug("Could not fetch tags")
+    end
+    false
+end
+
+function istagwrong(
+    ::ForgejoAPI,
+    repo::Forgejo.Repo,
+    tag::AbstractString,
+    commit::AbstractString,
+)
+    result = @gf get_tags(provider(repo).client, repo.owner.login, repo.name)
+
+    if result === nothing
+        @debug("Could not fetch tags")
+        return false
+    end
+
+    for t in result
+        v = t.name
+        if startswith(v, "v")
+            v = v[2:end]
+        end
+        if v == string(tag)
+            if t.commit !== nothing && t.commit.sha != commit
+                return true
+            end
+            break
+        end
     end
     false
 end

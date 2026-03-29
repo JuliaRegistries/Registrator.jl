@@ -208,4 +208,69 @@ end
             end
         end
     end
+
+    @testset "Forgejo" begin
+        user = Forgejo.User(login="user123", username="user123")
+        owner = Forgejo.User(login="owner123", username="owner123")
+        org = Forgejo.User(login="Codeberg", username="Codeberg")
+        private_repo = Forgejo.Repo(name="Example.jl", private=true, owner=user, permissions=Forgejo.Permissions(admin=true, push=false, pull=true))
+        owned_public_repo = Forgejo.Repo(name="OwnedExample.jl", private=false, owner=user, permissions=Forgejo.Permissions(admin=true, push=false, pull=true))
+        public_repo_of_user = Forgejo.Repo(name="Example.jl", private=false, owner=owner, permissions=Forgejo.Permissions(admin=true, push=false, pull=true))
+        public_repo_of_org = Forgejo.Repo(name="Example.jl", private=false, owner=org, permissions=Forgejo.Permissions(admin=true, push=false, pull=true))
+        u = User(user, Forgejo.ForgejoAPI())
+
+        @testset "private repo" begin
+            @test isauthorized(u, private_repo, false) == AuthFailure("Repo Example.jl is private")
+        end
+
+        @testset "public repo of user" begin
+            patch_gitforge(is_collaborator=true) do
+                @test isauthorized(u, public_repo_of_user, false) == AuthSuccess()
+            end
+            patch_gitforge(is_collaborator=false) do
+                @test isauthorized(u, public_repo_of_user, false) == AuthFailure("User user123 is not a collaborator on repository Example.jl and does not appear to be a member of the owning account owner123")
+            end
+        end
+
+        @testset "user-token repo refresh failure" begin
+            refresh_failure = @patch GitForge.get_repo(args...) = error("OAuth repo lookup failed")
+            service_forge = UI.provider(public_repo_of_user).client
+
+            apply([refresh_failure]) do
+                patch_gitforge(is_collaborator=false, is_member=false) do
+                    @test isauthorized(u, owned_public_repo, true) == AuthSuccess()
+                end
+            end
+
+            patches = [
+                refresh_failure
+                @patch GitForge.is_collaborator(args...) = args[1] === service_forge
+                @patch GitForge.is_member(args...) = false
+            ]
+            apply(patches) do
+                @test isauthorized(u, public_repo_of_user, true) == AuthSuccess()
+            end
+
+            apply([refresh_failure]) do
+                patch_gitforge(is_collaborator=false, is_member=false) do
+                    @test isauthorized(u, public_repo_of_user, true) == AuthFailure("User user123 is not a collaborator on repository Example.jl and does not appear to be a member of the owning account owner123")
+                end
+            end
+        end
+
+        @testset "public repo of org" begin
+            patch_gitforge(is_collaborator=true, is_member=true) do
+                @test isauthorized(u, public_repo_of_org, false) == AuthSuccess()
+            end
+            patch_gitforge(is_collaborator=true, is_member=false) do
+                @test isauthorized(u, public_repo_of_org, false) == AuthSuccess()
+            end
+            patch_gitforge(is_collaborator=false, is_member=true) do
+                @test isauthorized(u, public_repo_of_org, false) == AuthSuccess()
+            end
+            patch_gitforge(is_collaborator=false, is_member=false) do
+                @test isauthorized(u, public_repo_of_org, false) == AuthFailure("User user123 is not a collaborator on repository Example.jl and does not appear to be a member of the owning account Codeberg")
+            end
+        end
+    end
 end

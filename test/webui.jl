@@ -5,15 +5,15 @@ restoreconfig!()
 @testset "Web UI" begin
     @testset "Provider initialization" begin
         UI.init_providers()
-        @test length(UI.PROVIDERS) == 3
-        @test Set(collect(keys(UI.PROVIDERS))) == Set(["github", "gitlab", "bitbucket"])
+        @test length(UI.PROVIDERS) == 4
+        @test Set(collect(keys(UI.PROVIDERS))) == Set(["github", "gitlab", "bitbucket", "codeberg"])
         empty!(UI.PROVIDERS)
 
         delete!(UI.CONFIG, "github")
         delete!(UI.CONFIG, "bitbucket")
         UI.CONFIG["gitlab"]["disable_rate_limits"] = true
         UI.init_providers()
-        @test collect(keys(UI.PROVIDERS)) == ["gitlab"]
+        @test Set(collect(keys(UI.PROVIDERS))) == Set(["gitlab", "codeberg"])
         @test !GitForge.has_rate_limits(UI.PROVIDERS["gitlab"].client, identity)
         empty!(UI.PROVIDERS)
         restoreconfig!()
@@ -76,6 +76,7 @@ restoreconfig!()
         @test occursin(UI.CONFIG["registry_url"], s)
         @test occursin("GitHub", s)
         @test occursin("GitLab", s)
+        @test occursin("Codeberg", s)
 
         # When a provider is disabled, its authentication link should not appear.
         delete!(UI.PROVIDERS, "gitlab")
@@ -84,6 +85,7 @@ restoreconfig!()
         s = String(resp.body)
         @test occursin("GitHub", s)
         @test !occursin("GitLab", s)
+        @test occursin("Codeberg", s)
     end
 
     @testset "Route: /select" begin
