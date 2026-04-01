@@ -5,6 +5,7 @@ using JSON
 using Base64
 using Dates
 using Logging
+import Pkg: TOML
 
 export is_blocked, load_blocklist!
 
@@ -18,27 +19,34 @@ const LAST_FETCH = Ref{DateTime}(DateTime(0))
 
 Fetch the blocklist from the configured GitHub repo and update the in-memory cache.
 The blocklist file is expected to be TOML-formatted with a `[[blocked]]` array of tables,
-each having an `id` field (the user's immutable platform ID) and a `provider` field.
+each having an `id` field (the immutable platform ID) and a `provider` field.
+
+Entries can block individual users OR organizations/repo owners. GitHub users and orgs
+share the same ID namespace, so an org ID works the same way as a user ID. Registrator
+checks both the requesting user's ID and the repository owner's ID against the blocklist.
 
 Example blocklist.toml:
 
-    # To find a GitHub user's ID:    curl https://api.github.com/users/USERNAME
-    # To find a GitLab user's ID:    curl https://gitlab.com/api/v4/users?username=USERNAME
-    # To find a Bitbucket user's UUID: curl https://api.bitbucket.org/2.0/users/USERNAME
+    # To find a GitHub user or org ID:  curl https://api.github.com/users/NAME
+    # To find a GitLab user's ID:       curl https://gitlab.com/api/v4/users?username=NAME
+    # To find a GitLab group's ID:      curl https://gitlab.com/api/v4/groups/NAME
+    # To find a Bitbucket user's UUID:  curl https://api.bitbucket.org/2.0/users/NAME
     #
-    # Or use: scripts/lookup_user_id.sh USERNAME [github|gitlab|bitbucket]
+    # Or use: scripts/lookup_user_id.sh NAME [github|gitlab|bitbucket]
 
+    # Block a user
     [[blocked]]
     provider = "github"
     id = 12345678
     username = "spammer1"           # for human reference only
     reason = "AI-generated spam"
 
+    # Block an organization (prevents registration of any repo owned by this org)
     [[blocked]]
-    provider = "bitbucket"
-    id = "{some-uuid}"
-    username = "bb-spammer"
-    reason = "repeated spam"
+    provider = "github"
+    id = 87654321
+    username = "spam-org"
+    reason = "organization used for spam packages"
 
 Falls back silently (fail-open) if the repo is unreachable or the file is malformed.
 """
@@ -71,7 +79,7 @@ function load_blocklist!(config::Dict)
         end
         data = JSON.parse(String(resp.body))
         content = String(base64decode(replace(get(data, "content", ""), "\n" => "")))
-        toml = Base.TOML.parse(content)
+        toml = TOML.parse(content)
         new_blocked = Dict{String, Set{String}}()
         for entry in get(toml, "blocked", [])
             id = get(entry, "id", nothing)

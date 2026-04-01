@@ -1,17 +1,21 @@
 #!/usr/bin/env bash
 #
-# Look up a user's immutable platform ID for use in the Registrator blocklist.
+# Look up a user or organization's immutable platform ID for use in the
+# Registrator blocklist. Works for both users and organizations.
 #
 # Usage:
-#   ./lookup_user_id.sh <username>                  # defaults to github
-#   ./lookup_user_id.sh <username> github
-#   ./lookup_user_id.sh <username> gitlab
-#   ./lookup_user_id.sh <username> bitbucket
+#   ./lookup_user_id.sh <name>                  # defaults to github
+#   ./lookup_user_id.sh <name> github
+#   ./lookup_user_id.sh <name> gitlab
+#   ./lookup_user_id.sh <name> bitbucket
 #
 # Requires: curl, grep, sed
 #
 # For private GitHub repos or to avoid rate limits, set GITHUB_TOKEN:
-#   GITHUB_TOKEN=ghp_... ./lookup_user_id.sh <username>
+#   GITHUB_TOKEN=ghp_... ./lookup_user_id.sh <name>
+#
+# Note: On GitHub, the same endpoint works for both users and organizations,
+# since they share the same ID namespace.
 
 set -euo pipefail
 

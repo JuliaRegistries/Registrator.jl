@@ -166,6 +166,8 @@ function get_user_id(payload::Dict{<:AbstractString})
     end
 end
 
+get_repo_owner_id(payload::Dict{<:AbstractString}) = payload["repository"]["owner"]["id"]
+
 function get_body(payload::Dict{<:AbstractString})
     if haskey(payload, "comment")
         return payload["comment"]["body"]

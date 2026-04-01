@@ -38,6 +38,14 @@ function register(r::HTTP.Request)
     owner, name = splitrepo(package)
     repo = getrepo(u.forge, owner, name)
     repo === nothing && return json(400; error="Repository was not found")
+
+    # Check if the repo owner/org is blocked.
+    owner_id = get_repo_owner_id(repo)
+    repo_prov = get_repo_provider_name(repo)
+    if owner_id !== nothing && repo_prov !== nothing && is_blocked(repo_prov, owner_id, CONFIG)
+        return json(403; error="The owner of this repository is not allowed to use Registrator.")
+    end
+
     auth_result = isauthorized(u, repo)
     if !is_success(auth_result)
         return json(400; error="Unauthorized to release this package. Reason: $(auth_result.reason)")
