@@ -54,40 +54,47 @@ function load_blocklist!(config::Dict)
     end
     isempty(token) && return
 
-    lock(BLOCKLIST_LOCK) do
-        try
-            headers = [
-                "Authorization" => "Bearer $token",
-                "Accept" => "application/vnd.github.v3+json",
-                "User-Agent" => "Registrator.jl",
-            ]
-            url = "https://api.github.com/repos/$repo/contents/$file"
-            resp = HTTP.get(url; headers=headers, status_exception=false)
-            if resp.status != 200
-                @warn "Failed to fetch blocklist" status=resp.status repo=repo file=file
-                return
-            end
-            data = JSON.parse(String(resp.body))
-            content = String(base64decode(replace(get(data, "content", ""), "\n" => "")))
-            toml = Base.TOML.parse(content)
-            new_blocked = Dict{String, Set{String}}()
-            for entry in get(toml, "blocked", [])
-                id = get(entry, "id", nothing)
-                provider = get(entry, "provider", nothing)
-                (id === nothing || provider === nothing) && continue
-                provider_key = lowercase(string(provider))
-                ids = get!(Set{String}, new_blocked, provider_key)
-                push!(ids, string(id))
-            end
-            empty!(BLOCKED_IDS)
-            merge!(BLOCKED_IDS, new_blocked)
-            LAST_FETCH[] = now(UTC)
-            total = sum(length, values(BLOCKED_IDS); init=0)
-            @info "Blocklist loaded" count=total
-        catch ex
-            @warn "Failed to load blocklist, allowing all users" exception=(ex, catch_backtrace())
+    # Fetch outside the lock so that slow/stalled network requests don't block
+    # all is_blocked() callers. Only hold the lock for the in-memory swap.
+    new_blocked = nothing
+    try
+        headers = [
+            "Authorization" => "Bearer $token",
+            "Accept" => "application/vnd.github.v3+json",
+            "User-Agent" => "Registrator.jl",
+        ]
+        url = "https://api.github.com/repos/$repo/contents/$file"
+        resp = HTTP.get(url; headers=headers, status_exception=false)
+        if resp.status != 200
+            @warn "Failed to fetch blocklist" status=resp.status repo=repo file=file
+            return
         end
+        data = JSON.parse(String(resp.body))
+        content = String(base64decode(replace(get(data, "content", ""), "\n" => "")))
+        toml = Base.TOML.parse(content)
+        new_blocked = Dict{String, Set{String}}()
+        for entry in get(toml, "blocked", [])
+            id = get(entry, "id", nothing)
+            provider = get(entry, "provider", nothing)
+            (id === nothing || provider === nothing) && continue
+            provider_key = lowercase(string(provider))
+            ids = get!(Set{String}, new_blocked, provider_key)
+            push!(ids, string(id))
+        end
+    catch ex
+        # Log only the exception type and message, not the full exception object,
+        # because HTTP errors may include request headers containing the auth token.
+        @warn "Failed to load blocklist, allowing all users" error=sprint(showerror, ex)
+        return
     end
+
+    lock(BLOCKLIST_LOCK) do
+        empty!(BLOCKED_IDS)
+        merge!(BLOCKED_IDS, new_blocked)
+        LAST_FETCH[] = now(UTC)
+    end
+    total = sum(length, values(new_blocked); init=0)
+    @info "Blocklist loaded" count=total
 end
 
 function maybe_refresh!(config::Dict)
