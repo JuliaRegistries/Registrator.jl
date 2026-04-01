@@ -90,4 +90,54 @@ using Dates
             @test isempty(BLOCKED_IDS)
         end
     end
+
+    @testset "live fetch from JuliaRegistries/user-blocklist-test-for-mocking" begin
+        token = get(ENV, "GITHUB_TOKEN", "")
+        if isempty(token)
+            @warn "Skipping live blocklist test: GITHUB_TOKEN not set"
+            @test_skip false
+        else
+            # Clear any prior state
+            lock(BLOCKLIST_LOCK) do
+                empty!(BLOCKED_IDS)
+            end
+            LAST_FETCH[] = DateTime(0)
+
+            config = Dict{String,Any}(
+                "blocklist_repo" => "JuliaRegistries/user-blocklist-mock-for-testing",
+                "blocklist_file" => "banlist.toml",
+                "github" => Dict("token" => token),
+            )
+
+            # Wrap in try/catch so a malformed response never leaks raw content
+            # (IDs, usernames, or tokens) into test output.
+            try
+                load_blocklist!(config)
+            catch ex
+                @error "load_blocklist! threw unexpectedly" exception_type=typeof(ex)
+                @test false  # fail without printing exception details
+            end
+
+            # Verify the blocklist loaded at least one entry
+            count = lock(BLOCKLIST_LOCK) do
+                sum(length, values(BLOCKED_IDS); init=0)
+            end
+            @test count > 0
+
+            # DilumAluthgeBot (GitHub user ID 43731525) should be blocked.
+            @test is_blocked("github", 43731525, config)
+
+            # A user that is definitely not on the blocklist
+            @test !is_blocked("github", 1, config)
+
+            # Cross-provider: same ID on a different provider should not match
+            @test !is_blocked("gitlab", 43731525, config)
+        end
+
+        # Clean up global state so other tests aren't affected
+        lock(BLOCKLIST_LOCK) do
+            empty!(BLOCKED_IDS)
+        end
+        LAST_FETCH[] = DateTime(0)
+    end
 end
