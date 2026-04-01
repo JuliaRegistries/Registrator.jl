@@ -18,6 +18,8 @@ using URIs
 
 using ..Messaging
 import ..RegisterParams
+using ..Blocklist: is_blocked, load_blocklist!
+import ..Blocklist
 
 # currently used only in routes/bitbucket.jl
 struct Route{Forge, Service} end
@@ -266,6 +268,7 @@ function main(config::AbstractString=isempty(ARGS) ? "config.toml" : first(ARGS)
         end
     end
 
+    Blocklist.load_blocklist!(CONFIG)
     init_providers()
     init_registry()
 

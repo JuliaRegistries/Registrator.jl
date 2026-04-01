@@ -39,7 +39,11 @@ struct RequestParams{T<:RequestTrigger}
         subdir = get(action_kwargs, :subdir, "")
         target = get(action_kwargs, :target, nothing)
 
-        if evt.payload["repository"]["private"] && get(CONFIG, "disable_private_registrations", true)
+        if is_blocked("github", get_user_id(evt.payload), CONFIG)
+            err = "**Register Failed**\n$(mention(user)), you are not allowed to use Registrator."
+            @debug(err)
+            report_error = true
+        elseif evt.payload["repository"]["private"] && get(CONFIG, "disable_private_registrations", true)
             err = "Private package registration request received, ignoring"
             @debug(err)
         elseif action_name == "register"

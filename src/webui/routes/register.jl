@@ -27,6 +27,13 @@ function register(r::HTTP.Request)
     notes = get(form, "notes", "")
     subdir = get(form, "subdir", "")
 
+    # Check blocklist before proceeding.
+    uid = get_user_id(u)
+    prov = get_provider_name(u)
+    if uid !== nothing && prov !== nothing && is_blocked(prov, uid, CONFIG)
+        return json(403; error="You are not allowed to use Registrator.")
+    end
+
     # Get the repo, then check for authorization.
     owner, name = splitrepo(package)
     repo = getrepo(u.forge, owner, name)
