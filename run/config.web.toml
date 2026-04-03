@@ -29,7 +29,7 @@ stop_file = "stopwebui"
 # fetching the blocklist, so it must have read access to the blocklist repo.
 # Use scripts/lookup_user_id.sh to find a user's immutable platform ID.
 #
-# blocklist_repo = "JuliaRegistries/RegistratorBlocklist"   # owner/repo on GitHub
+# blocklist_repo = "JuliaRegistries/user-blocklist"         # owner/repo on GitHub
 # blocklist_file = "blocklist.toml"                         # path within the repo
 # blocklist_cache_ttl = 300                                 # seconds between refreshes
 # blocklist_token = ""              # optional: a GitHub PAT with read access to the
