@@ -42,6 +42,8 @@ jobs:
         with:
           app-id: ${{ vars.APP_ID_TEST_APP_USER_BLOCKLIST_MOCK }}
           private-key: ${{ secrets.APP_PRIVATE_KEY_TEST_APP_USER_BLOCKLIST_MOCK }}
+          owner: JuliaRegistries
+          repositories: user-blocklist-mock-for-testing
       - name: Run the package tests
         run: |
           import Pkg
