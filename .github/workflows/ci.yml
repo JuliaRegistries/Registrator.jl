@@ -30,10 +30,18 @@ jobs:
             os: 'ubuntu-latest'
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: julia-actions/setup-julia@v2
         with:
           version: ${{ matrix.version }}
       - uses: julia-actions/julia-buildpkg@latest
+      - name: Generate a token that has read access to https://github.com/JuliaRegistries/user-blocklist-mock-for-testing
+        id: generate-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.APP_ID_TEST_APP_USER_BLOCKLIST_MOCK }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY_TEST_APP_USER_BLOCKLIST_MOCK }}
       - name: Run the package tests
         run: |
           import Pkg
@@ -47,7 +55,7 @@ jobs:
             Pkg.test(; allow_reresolve, coverage)
           end
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
         shell: julia --color=yes --project {0}
       - uses: julia-actions/julia-processcoverage@v1
       - uses: codecov/codecov-action@v5
@@ -59,6 +67,8 @@ jobs:
       contents: write # needed to be able to push to the gh-pages branch
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: julia-actions/setup-julia@v2
         with:
           version: '1'
