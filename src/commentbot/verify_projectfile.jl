@@ -1,6 +1,32 @@
 using ..Registrator: decodeb64
 import RegistryTools
 
+function _unwrap_toml_parser_error(ex)
+    if isa(ex, TOML.ParserError)
+        return ex
+    end
+    if isa(ex, CompositeException)
+        for e in ex.exceptions
+            if isa(e, TOML.ParserError)
+                return e
+            end
+            if isa(e, Base.CapturedException) && isa(e.ex, TOML.ParserError)
+                return e.ex
+            end
+        end
+    end
+    return nothing
+end
+
+function _format_toml_parse_error(ex)
+    pex = _unwrap_toml_parser_error(ex)
+    if pex === nothing
+        return nothing
+    end
+    desc = sprint(showerror, pex)
+    return "Could not parse (Julia)Project.toml as TOML: " * desc
+end
+
 function is_pfile_parseable(c::AbstractString)
     @debug("Checking whether (Julia)Project.toml is non-empty and parseable")
     if length(c) != 0
@@ -8,13 +34,12 @@ function is_pfile_parseable(c::AbstractString)
             TOML.parse(c)
             return true, nothing
         catch ex
-            if isa(ex, CompositeException) && isa(ex.exceptions[1], TOML.ParserError)
-                err = "Error parsing project file"
-                @debug(err)
-                return false, err
-            else
-                rethrow(ex)
+            msg = _format_toml_parse_error(ex)
+            if msg !== nothing
+                @debug(msg)
+                return false, msg
             end
+            rethrow(ex)
         end
     else
         err = "Project file is empty"
@@ -86,10 +111,7 @@ function verify_projectfile_from_sha(reponame, commit_sha; auth=GitHub.Anonymous
                 try
                     project = RegistryTools.Project(TOML.parse(projectfile_contents))
                 catch ex
-                    err = "Failed to read project file"
-                    if isdefined(ex, :msg)
-                        err = err * ": $(e.msg)"
-                    end
+                    err = "Failed to read project file: " * sprint(showerror, ex)
                     @error(err)
                 end
                 if project !== nothing
