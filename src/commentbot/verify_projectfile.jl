@@ -1,6 +1,22 @@
 using ..Registrator: decodeb64
 import RegistryTools
 
+function _markdown_fenced_code(content::AbstractString)
+    max_run = 0
+    run = 0
+    for c in content
+        if c == '`'
+            run += 1
+            max_run = max(max_run, run)
+        else
+            run = 0
+        end
+    end
+    n = max(3, max_run + 1)
+    fence = repeat('`', n)
+    return fence * "\n" * content * "\n" * fence
+end
+
 function _unwrap_toml_parser_error(ex)
     if isa(ex, TOML.ParserError)
         return ex
@@ -24,7 +40,7 @@ function _format_toml_parse_error(ex)
         return nothing
     end
     desc = sprint(showerror, pex)
-    return "Could not parse (Julia)Project.toml as TOML: " * desc
+    return "Could not parse (Julia)Project.toml as TOML:\n\n" * _markdown_fenced_code(desc)
 end
 
 function is_pfile_parseable(c::AbstractString)
@@ -39,7 +55,7 @@ function is_pfile_parseable(c::AbstractString)
                 @debug(msg)
                 return false, msg
             end
-            rethrow(ex)
+            rethrow()
         end
     else
         err = "Project file is empty"
@@ -111,7 +127,8 @@ function verify_projectfile_from_sha(reponame, commit_sha; auth=GitHub.Anonymous
                 try
                     project = RegistryTools.Project(TOML.parse(projectfile_contents))
                 catch ex
-                    err = "Failed to read project file: " * sprint(showerror, ex)
+                    detail = sprint(showerror, ex)
+                    err = "Failed to read project file:\n\n" * _markdown_fenced_code(detail)
                     @error(err)
                 end
                 if project !== nothing
