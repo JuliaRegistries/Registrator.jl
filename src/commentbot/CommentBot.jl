@@ -171,17 +171,7 @@ function action(rp::RequestParams{T}, zsock::RequestSocket) where T <: RegisterT
         end
     end
 
-    local pp
-    try
-        pp = ProcessedParams(rp)
-    catch ex
-        @info "Unexpected error while preprocessing registration" exception = (ex, catch_backtrace())
-        msg = "Error while trying to register: preprocessing failed — $(sprint(showerror, ex))"
-        make_comment(rp.evt, msg)
-        set_error_status(rp)
-        @info("Done processing register event", reponame=rp.reponame, target_registry_name)
-        return nothing
-    end
+    pp = ProcessedParams(rp)
     @info("Processing register event", reponame=rp.reponame, target_registry_name)
     try
         if pp.cparams.isvalid
