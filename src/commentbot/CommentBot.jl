@@ -202,9 +202,9 @@ function action(rp::RequestParams{T}, zsock::RequestSocket) where T <: RegisterT
                 set_success_status(rp)
             end
         else
-            @info("Error while processing event: $(repr(pp.cparams.error))")
+            @info("Error while processing event: $(pp.cparams.error)")
             if pp.cparams.report_error
-                msg = "Error while trying to register: $(repr(pp.cparams.error))"
+                msg = "Error while trying to register: $(pp.cparams.error)"
                 @debug(msg)
                 make_comment(rp.evt, msg)
             end
