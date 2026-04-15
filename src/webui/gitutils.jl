@@ -73,6 +73,29 @@ end
 is_success(res::AuthSuccess) = true
 is_success(res::AuthFailure) = false
 
+# Extract the immutable user ID and provider name for blocklist checking.
+# GitHub and GitLab use numeric IDs; Bitbucket uses a UUID string.
+get_user_id(u::User{GitHub.User}) = u.user.id
+get_user_id(u::User{GitLab.User}) = u.user.id
+get_user_id(u::User{Bitbucket.User}) = u.user.uuid
+get_user_id(u::User) = nothing
+
+get_provider_name(::User{GitHub.User}) = "github"
+get_provider_name(::User{GitLab.User}) = "gitlab"
+get_provider_name(::User{Bitbucket.User}) = "bitbucket"
+get_provider_name(::User) = nothing
+
+# Extract the immutable owner/org ID from a repository for blocklist checking.
+get_repo_owner_id(repo::GitHub.Repo) = repo.owner.id
+get_repo_owner_id(repo::GitLab.Project) = repo.namespace.id
+get_repo_owner_id(repo::Bitbucket.Repo) = repo.workspace.uuid
+get_repo_owner_id(::Any) = nothing
+
+get_repo_provider_name(::GitHub.Repo) = "github"
+get_repo_provider_name(::GitLab.Project) = "gitlab"
+get_repo_provider_name(::Bitbucket.Repo) = "bitbucket"
+get_repo_provider_name(::Any) = nothing
+
 # Check for a user's authorization to release a package.
 # The criteria is simply whether the user is a collaborator for user-owned repos,
 # or whether they're an organization member or collaborator for organization-owned repos.
@@ -286,7 +309,7 @@ function withpasswd(func, url::URI)
     mktemp() do path, io
         # base64 encode now and decode while printing out in shell to avoid shell injection
         encoded_user = base64encode(user)
-        encoded_passwd = base64encode(passwd)    
+        encoded_passwd = base64encode(passwd)
         print(io, """
 #!/bin/sh
 case "\$1" in

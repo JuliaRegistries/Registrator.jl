@@ -16,6 +16,8 @@ import RegistryTools: RegBranch, Project
 import Base: string
 using ..Messaging
 import ..RegisterParams
+using ..Blocklist: is_blocked, load_blocklist!
+import ..Blocklist
 
 include("trigger_types.jl")
 include("parse_comment.jl")
@@ -274,6 +276,7 @@ function main(config::AbstractString=isempty(ARGS) ? "config.toml" : first(ARGS)
     end
     zsock = RequestSocket(get(CONFIG, "backend_port", 5555))
 
+    Blocklist.load_blocklist!(CONFIG)
     @info("Starting server...")
     t1 = @async request_processor(zsock)
     t2 = @async status_monitor(CONFIG["stop_file"], event_queue, httpsock)
