@@ -43,3 +43,8 @@ end
     @test ok == true
     @test err === nothing
 end
+
+@testset "reponame_from_url" begin
+    @test reponame_from_url("https://github.com/JuliaLang/julia") == "JuliaLang/julia"
+    @test reponame_from_url("git@github.com:JuliaLang/julia") == "JuliaLang/julia"
+end

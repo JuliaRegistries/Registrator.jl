@@ -12,7 +12,7 @@ using GitForge: GitForge, GitHub, GitLab, Bitbucket
 using GitForge.GitHub: GitHub, GitHubAPI, NoToken, Token
 
 using Registrator: Registrator
-using Registrator.CommentBot: make_trigger, parse_comment
+using Registrator.CommentBot: make_trigger, parse_comment, reponame_from_url
 using Registrator.WebUI: @gf
 using Registrator.WebUI: isauthorized, AuthFailure, AuthSuccess, User
 

@@ -89,7 +89,7 @@ function pfile_hasfields(p::RegistryTools.Project)
     return true, nothing
 end
 
-function verify_projectfile_from_sha(reponame, commit_sha; auth=GitHub.AnonymousAuth(), subdir = "")
+function verify_projectfile_from_sha(reponame, commit_sha, auth; subdir = "")
     project = nothing
     projectfile_found = false
     projectfile_valid = false
@@ -110,12 +110,7 @@ function verify_projectfile_from_sha(reponame, commit_sha; auth=GitHub.Anonymous
             @debug("(Julia)Project file found")
 
             @debug("Getting projectfile blob")
-            if isa(auth, GitHub.AnonymousAuth)
-                a = get_user_auth()
-            else
-                a = auth
-            end
-            b = blob(reponame, Blob(tr["sha"]); auth=a)
+            b = blob(reponame, Blob(tr["sha"]); auth=auth)
 
             @debug("Decoding base64 projectfile contents")
             projectfile_contents = decodeb64(b.content)

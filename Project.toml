@@ -1,7 +1,7 @@
 name = "Registrator"
 uuid = "4418983a-e44d-11e8-3aec-9789530b3b3e"
 authors = ["Stefan Karpinski <stefan@karpinski.org>"]
-version = "1.12.0"
+version = "1.13.0"
 
 [deps]
 AutoHashEquals = "15f4f7f2-30c1-5605-9d31-71845cf9641f"
@@ -27,6 +27,7 @@ TimeToLive = "37f0c46e-897f-50ef-b453-b26c3eed3d6c"
 URIs = "5c2747f8-b7ea-4ff2-ba2e-563bfd36b1d4"
 UUIDs = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 ZMQ = "c2297ded-f4af-51ae-bb23-16f91089e4e1"
+GitHubAppTokens = "065bf76e-ca52-408e-80ac-b2f947d0e344"
 
 [compat]
 AutoHashEquals = "0.2"
@@ -36,6 +37,7 @@ Distributed = "1"
 FileWatching = "1"
 GitForge = "0.4.3" # Must be >= 0.4.3, see https://github.com/JuliaRegistries/Registrator.jl/pull/453
 GitHub = "5.7.0"
+GitHubAppTokens = "0.0.3"
 HTTP = "1.10.17" # Must be >= 1.10.17, see https://github.com/JuliaRegistries/Registrator.jl/pull/453
 JSON = "0.20, 0.21"
 LibGit2 = "1"

@@ -46,8 +46,6 @@ get_trigger_id(rp::RequestParams{PullRequestTrigger}) = rp.trigger_src.prid
 get_trigger_id(rp::RequestParams{IssueTrigger}) = get_prid(rp.evt.payload)
 get_trigger_id(rp::RequestParams{CommitCommentTrigger}) = get_comment_commit_id(rp.evt)
 
-reponame_from_url(url::String) = join(split(url, "/")[end-1:end], "/")
-
 function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBranch, target_registry::Dict{String,Any})
     name = rbrn.name
     ver = rbrn.version
@@ -270,7 +268,7 @@ end
 function main(config::AbstractString=isempty(ARGS) ? "config.toml" : first(ARGS); kwargs...)
     merge!(CONFIG, Pkg.TOML.parsefile(config)["commentbot"])
     if get(CONFIG, "enable_logging", true)
-        global_logger(SimpleLogger(stdout, get_log_level(CONFIG["log_level"])))
+        global_logger(ConsoleLogger(stdout, get_log_level(CONFIG["log_level"])))
     end
     zsock = RequestSocket(get(CONFIG, "backend_port", 5555))
 
