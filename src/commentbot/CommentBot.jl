@@ -241,7 +241,7 @@ function comment_handler(event::WebhookEvent, phrase::RegexMatch)
         @info "Unexpected error" exception = (ex, catch_backtrace())
     end
 
-    return HTTP.Messages.Response(200)
+    return HTTP.Response(200)
 end
 
 make_trigger(cfg=CONFIG) = Regex(cfg["trigger"] * "(.*)", "i")

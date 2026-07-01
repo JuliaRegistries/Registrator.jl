@@ -8,7 +8,6 @@ using GitForge, GitForge.GitHub, GitForge.GitLab, GitForge.Bitbucket
 using Base64
 using HTTP
 using JSON
-using Mux
 using Pkg, Pkg.TOML
 using Sockets
 using TimeToLive
@@ -53,7 +52,7 @@ const DOCS = "https://juliaregistries.github.io/Registrator.jl/stable/webui/#Usa
 const CONFIG = Dict{String, Any}()
 
 include("../management.jl")
-const httpsock = Ref{Sockets.TCPServer}()
+const httpserver = Ref{HTTP.Server}()
 
 include("providers.jl")
 
@@ -161,21 +160,28 @@ function init_registry()
     )
 end
 
-for f in [:index, :auth, :callback, :select, :register]
-    @eval $f(func::Function, r::HTTP.Request) = func($f(r))
+function error_handler(handler)
+    return function(r::HTTP.Request)
+        try
+            handler(r)
+        catch e
+            @error "Handler error" route=r.target exception=(e, catch_backtrace())
+            html(500, "Server error, sorry!")
+        end
+    end
 end
 
-error_handler(f::Function, r::HTTP.Request) = try
-    f(r)
-catch e
-    @error "Handler error" route=r.target exception=(e, catch_backtrace())
-    html(500, "Server error, sorry!")
+# HTTP.jl v1 routes via URI(req.target).path, which parses "//foo" as an
+# authority-relative reference (host="foo", path=""), causing it to match the
+# "/" route instead of the 404 fallback. Normalize such targets up-front.
+function normalize_path(handler)
+    return function(r::HTTP.Request)
+        if startswith(r.target, "//")
+            r.target = "/" * lstrip(r.target, '/')
+        end
+        handler(r)
+    end
 end
-
-const SLASH_PAT = r"^/([^/]*)([/?].*|)$"
-
-pathmatch(p::AbstractString, f::Function) = branch(r -> first(split(r.target, "?")) == p, f)
-firstmatch(p::AbstractString, f::Function) = branch(r -> something(match(SLASH_PAT, r.target), [""])[1] == p[2:end], f)
 
 function action(regdata::RegistrationData, zsock::RequestSocket)
     regp = RegisterParams(
@@ -230,26 +236,27 @@ end
 function request_processor(zsock::RequestSocket)
     do_action() = action(take!(event_queue), zsock)
     handle_exception(ex) = ex isa InvalidStateException && ex.state === :closed ? :exit : :continue
-    keep_running() = isopen(httpsock[])
+    keep_running() = !isassigned(httpserver) || isopen(httpserver[])
     recover("request_processor", keep_running, do_action, handle_exception)
 end
 
 function start_server(ip::IPAddr, port::Int)
-    httpsock[] = Sockets.listen(ip, port)
-    @app server = (
-        error_handler,
-        pathmatch(ROUTES[:INDEX], index),
-        pathmatch(ROUTES[:AUTH], auth),
-        pathmatch(ROUTES[:CALLBACK], callback),
-        pathmatch(ROUTES[:SELECT], select),
-        pathmatch(ROUTES[:REGISTER], register),
-        pathmatch(ROUTES[:STATUS], status),
-        firstmatch(ROUTES[:BITBUCKET], bitbucket),
-        r -> html(404, "Page not found"),
-    )
-    do_action() = wait(serve(server, ip, port; server=httpsock[], readtimeout=0))
+    router = HTTP.Router(r -> html(404, "Page not found"))
+    HTTP.register!(router, ROUTES[:INDEX], index)
+    HTTP.register!(router, ROUTES[:AUTH], auth)
+    HTTP.register!(router, ROUTES[:CALLBACK], callback)
+    HTTP.register!(router, ROUTES[:SELECT], select)
+    HTTP.register!(router, ROUTES[:REGISTER], register)
+    HTTP.register!(router, ROUTES[:STATUS], status)
+    HTTP.register!(router, ROUTES[:BITBUCKET], bitbucket)
+    HTTP.register!(router, ROUTES[:BITBUCKET] * "/{*}", bitbucket)
+    function do_action()
+        s = HTTP.serve!(normalize_path(error_handler(router)), string(ip), port)
+        httpserver[] = s
+        wait(s)
+    end
     handle_exception(ex) = ex isa Base.IOError && ex.code == -103 ? :exit : :continue
-    keep_running() = isopen(httpsock[])
+    keep_running() = !isassigned(httpserver) || isopen(httpserver[])
     recover("webui", keep_running, do_action, handle_exception)
 end
 
@@ -273,7 +280,7 @@ function main(config::AbstractString=isempty(ARGS) ? "config.toml" : first(ARGS)
     port = CONFIG["port"]
 
     @info "Starting WebUI" ip port
-    monitor = @async status_monitor(CONFIG["stop_file"], event_queue, httpsock)
+    monitor = @async status_monitor(CONFIG["stop_file"], event_queue, httpserver)
     reqproc = @async request_processor(zsock)
     start_server(ip, port)
     wait(reqproc)
