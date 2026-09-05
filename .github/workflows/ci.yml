@@ -20,14 +20,14 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - '1.7'
+          # Julia maintains only two release lines: the current stable release
+          # and the current long-term support (LTS) release. Everything else is
+          # unmaintained.
+          - 'lts'
           - '1'
           - 'nightly'
         os:
           - ubuntu-latest
-        include:
-          - version: '1.7.2'
-            os: 'ubuntu-latest'
     steps:
       - uses: actions/checkout@v4
       - uses: julia-actions/setup-julia@v2
@@ -37,15 +37,10 @@ jobs:
       - name: Run the package tests
         run: |
           import Pkg
-          force_use_of_manifest = false
-          allow_reresolve = !force_use_of_manifest
+          allow_reresolve = true
           coverage = true
-          if allow_reresolve && VERSION >= v"1.9"
-            force_latest_compatible_version = true
-            Pkg.test(; allow_reresolve, coverage, force_latest_compatible_version)
-          else
-            Pkg.test(; allow_reresolve, coverage)
-          end
+          force_latest_compatible_version = true
+          Pkg.test(; allow_reresolve, coverage, force_latest_compatible_version)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: julia --color=yes --project {0}
