@@ -9,9 +9,7 @@ function start_server(
             UI.start_server(Sockets.localhost, port)
         end
     end
-    if Base.VERSION >= v"1.7-"
-        errormonitor(server_task)
-    end
+    errormonitor(server_task)
     @info "Starting the server..."
     sleep(10)
     return server_task
