@@ -101,50 +101,6 @@ function get_html_url(payload::Dict{<:AbstractString})
     end
 end
 
-"""
-    raise_issue(event::WebhookEvent, phrase::RegexMatch, bt::String)
-Open an issue in the configured Registrator repository. The issue
-body will contain the trigger comment `phrase` and the backtrace
-in `bt`. A link to the opened issue will be posted on the source
-issue, PR or commit from which the `event` comes from.
-
-This will also post the backtrace on the slack channel if
-configured.
-"""
-function raise_issue(event::WebhookEvent, phrase::RegexMatch, bt::String)
-    repo = event.repository.full_name
-    lab = is_commit_comment(event.payload) ? get_comment_commit_id(event) : get_prid(event.payload)
-    title = "Error registering $repo#$lab"
-    input_phrase = "`[" * phrase.match[2:end-1] * "]`"
-    body = """
-        Repository: $repo
-        Issue/PR: [$lab]($(get_html_url(event.payload)))
-        Command: $(input_phrase)
-        Stacktrace:
-        ```
-        $bt
-        ```
-        """
-
-    slack_config = get(CONFIG, "slack", nothing)
-    if (slack_config !== nothing) && get(slack_config, "alert", false)
-        post_on_slack_channel(body, slack_config["token"], slack_config["channel"])
-    end
-
-    if CONFIG["report_issue"]
-        params = Dict("title"=>title, "body"=>body)
-        regrepo = CONFIG["issue_repo"]
-        iss = create_issue(regrepo; params=params, auth=get_user_auth())
-        msg = "Unexpected error occurred during registration, see issue: [$(regrepo)#$(iss.number)]($(iss.html_url))"
-        @debug(msg)
-        make_comment(event, msg)
-    else
-        msg = "An unexpected error occurred during registration."
-        @debug(msg)
-        make_comment(event, msg)
-    end
-end
-
 function set_status(rp, state, desc)
      CONFIG["set_status"] || return
      repo = rp.reponame

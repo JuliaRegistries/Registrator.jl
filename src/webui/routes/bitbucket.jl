@@ -22,7 +22,7 @@ function route(::Type{Route{BitbucketAPI, :auth}}, r::HTTP.Request)
     provider = PROVIDERS["bitbucket"]
     state = String(rand('a':'z', 32))
     return HTTP.Response(307, [
-        "Set-Cookie" => String(HTTP.Cookie("state", state; path="/"), false),
+        "Set-Cookie" => HTTP.stringify(HTTP.Cookie("state", state; path="/"), false),
         "Location" => provider.auth_url * "?" * HTTP.escapeuri(Dict(
             :response_type => "code",
             :client_id => provider.client_id,
@@ -44,8 +44,8 @@ function route(::Type{Route{BitbucketAPI, :callback}}, r::HTTP.Request)
     url = URI(URI(provider.token_url); userinfo="$(provider.client_id):$(provider.client_secret)")
     resp = HTTP.post(
         string(url),
-        headers=["Accept" => "application/json", "User-Agent" => "Registrator.jl"],
-        HTTP.Form(query)
+        ["Accept" => "application/json", "User-Agent" => "Registrator.jl"],
+        HTTP.Form(query),
     )
     token = JSON.parse(String(resp.body))["access_token"]
     client = typeof(provider.client)(;

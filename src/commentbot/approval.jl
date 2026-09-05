@@ -141,8 +141,6 @@ function action(rp::RequestParams{ApprovalTrigger}, zsock)
         end
     catch ex
         @info "Unexpected error" exception = (ex, catch_backtrace())
-        bt = sprint(Base.showerror, ex, catch_backtrace())
-        raise_issue(rp.evt, rp.phrase, bt)
     end
     @info("Done processing approval event", reponame=rp.reponame, rp.trigger_src.prid)
 end

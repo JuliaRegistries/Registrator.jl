@@ -25,3 +25,21 @@ end
 
     @test parse_comment("register branch=foo branch=bar") == (nothing, nothing)
 end
+
+@testset "is_pfile_parseable" begin
+    ok, err = Registrator.CommentBot.is_pfile_parseable("")
+    @test ok == false
+    @test err == "Project file is empty"
+
+    ok, err = Registrator.CommentBot.is_pfile_parseable("a = [")
+    @test ok == false
+    @test occursin("Could not parse (Julia)Project.toml as TOML:", err)
+
+    ok, err = Registrator.CommentBot.is_pfile_parseable("""
+    name = "Foo"
+    uuid = "54e30f9d-21f3-4213-8955-9a4b7cb3eed7"
+    version = "0.1.0"
+    """)
+    @test ok == true
+    @test err === nothing
+end
