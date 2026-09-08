@@ -50,7 +50,7 @@ TimeToLive = "0.2, 0.3"
 URIs = "1.6" # Must be >= 1.6, see https://github.com/JuliaRegistries/Registrator.jl/pull/453
 UUIDs = "1"
 ZMQ = "1"
-julia = "1.1"
+julia = "1.10"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
