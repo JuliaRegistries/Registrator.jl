@@ -70,7 +70,9 @@ end
     @test isauthorized("username", "reponame") == AuthFailure("Unkown user type or repo type")
     mock_provider!()
 
-    Registrator.WebUI.withpasswd("https://foo:bar\">&baz@github.com/owner/repo") do newurl,envs
+    # `"` and `>` are not legal literals in userinfo, so they arrive
+    # percent-encoded; the password below decodes to `bar">&baz`.
+    Registrator.WebUI.withpasswd("https://foo:bar%22%3E%26baz@github.com/owner/repo") do newurl,envs
         askpass=envs[1]
         script=split(askpass, '=')[2]
     

@@ -281,7 +281,12 @@ function withpasswd(func, url::URI)
     local info = url.userinfo
     isempty(info) &&
         return func(url, [])
-    local user, passwd = split(info, ":")
+    # RFC 3986 3.2.1 allows only unreserved characters, sub-delims and ":" to
+    # appear literally in userinfo; anything else (e.g. `"` or `>`) must be
+    # percent-encoded, and URIs.jl v1.7 rejects URLs where it is not. Split
+    # before unescaping so that a percent-encoded ":" stays part of the
+    # password, and limit the split so that a literal ":" does too.
+    local user, passwd = unescapeuri.(split(info, ":"; limit=2))
     local newurl = URI(replace(string(url), "$info@" => ""))
     mktemp() do path, io
         # base64 encode now and decode while printing out in shell to avoid shell injection
