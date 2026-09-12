@@ -15,7 +15,9 @@ function auth(r::HTTP.Request)
     state = getcookie(r, "state")
     if !isempty(state) && haskey(USERS, state)
         F = typeof(USERS[state].forge)
-        if pkey == "github" && F === GitHubAPI || pkey == "gitlab" && F === GitLabAPI
+        if pkey == "github" && F === GitHubAPI ||
+           pkey == "gitlab" && F === GitLabAPI ||
+           pkey == "codeberg" && F === ForgejoAPI
             # TODO: This does not support custom providers.
             return HTTP.Response(307, ["Location" => ROUTES[:SELECT]])
         end

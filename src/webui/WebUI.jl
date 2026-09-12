@@ -4,7 +4,7 @@ using ..Registrator: pull_request_contents, tag_name
 import RegistryTools
 
 using Dates
-using GitForge, GitForge.GitHub, GitForge.GitLab, GitForge.Bitbucket
+using GitForge, GitForge.GitHub, GitForge.GitLab, GitForge.Bitbucket, GitForge.Forgejo
 using Base64
 using HTTP
 using JSON
@@ -77,8 +77,8 @@ end
 struct RegistrationData
     project::RegistryTools.Project
     tree::String
-    repo::Union{GitHub.Repo, GitLab.Project, Bitbucket.Repo}
-    user::Union{GitHub.User, GitLab.User, Bitbucket.User}
+    repo::Union{GitHub.Repo, GitLab.Project, Bitbucket.Repo, Forgejo.Repo}
+    user::Union{GitHub.User, GitLab.User, Bitbucket.User, Forgejo.User}
     ref::String
     commit::String
     notes::String
@@ -120,6 +120,7 @@ include("routes/bitbucket.jl")
 auth_href(::Provider{GitLabAPI}) = "$(ROUTES[:AUTH])?provider=gitlab"
 auth_href(::Provider{GitHubAPI}) = "$(ROUTES[:AUTH])?provider=github"
 auth_href(::Provider{BitbucketAPI}) = "$(ROUTES[:BITBUCKET])/auth"
+auth_href(::Provider{ForgejoAPI}) = "$(ROUTES[:AUTH])?provider=codeberg"
 
 ##############
 # Entrypoint #
@@ -130,6 +131,8 @@ function init_registry()
     k = get(CONFIG, "registry_provider") do
         if occursin("github", url)
             "github"
+        elseif occursin("codeberg", url)
+            "codeberg"
         elseif occursin("bitbucket", url)
             "bitbucket"
         else

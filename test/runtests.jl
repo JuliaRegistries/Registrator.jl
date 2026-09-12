@@ -8,7 +8,7 @@ using HTTP: HTTP
 using Sockets: Sockets
 
 using GitForge: GitForge, get_user
-using GitForge: GitForge, GitHub, GitLab, Bitbucket
+using GitForge: GitForge, GitHub, GitLab, Bitbucket, Forgejo
 using GitForge.GitHub: GitHub, GitHubAPI, NoToken, Token
 
 using Registrator: Registrator
@@ -42,6 +42,11 @@ function populate_config!()
         "bitbucket" => Dict{String, Any}(
             "token" => get(ENV, "BITBUCKET_API_TOKEN", ""),
             "workspace" => "wrburdick",
+            "client_id" => "",
+            "client_secret" => "",
+        ),
+        "codeberg" => Dict{String, Any}(
+            "token" => get(ENV, "CODEBERG_TOKEN", ""),
             "client_id" => "",
             "client_secret" => "",
         ),

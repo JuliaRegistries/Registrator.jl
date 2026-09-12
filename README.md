@@ -22,9 +22,9 @@ There are two ways to use Registrator: a web interface and a GitHub app.
 
 ### Via the Web Interface
 
-This workflow supports repositories hosted on either GitHub or GitLab.
+This workflow supports repositories hosted on GitHub, GitLab, or Codeberg.
 
-Go to https://juliahub.com and log in using your GitHub or GitLab account. Then click on "Register packages" on the left menu.
+Go to https://juliahub.com and log in using your GitHub, GitLab, or Codeberg account. Then click on "Register packages" on the left menu.
 There are also more detailed instructions [here](https://juliaregistries.github.io/Registrator.jl/stable/webui/#Usage-(For-Package-Maintainers)-1).
 
 ### Via the GitHub App

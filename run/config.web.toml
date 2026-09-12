@@ -40,6 +40,16 @@ client_secret = ""
 # token_url = ""
 # disable_rate_limits = false
 
+[web.codeberg]
+token = ""
+client_id = ""
+client_secret = ""
+# api_url = ""
+# auth_url = ""
+# token_url = ""
+# scope = "read:user"
+# disable_rate_limits = false
+
 [web.bitbucket]
 # FORMAT: "USER:KEY" -- USER is the Bitbucket account, KEY is a Bitbucket "app password"
 token = ""

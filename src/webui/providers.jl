@@ -14,6 +14,7 @@ end
 provider(::Type{GitHubAPI}) = PROVIDERS["github"]
 provider(::Type{GitLabAPI}) = PROVIDERS["gitlab"]
 provider(::Type{BitbucketAPI}) = PROVIDERS["bitbucket"]
+provider(::Type{ForgejoAPI}) = PROVIDERS["codeberg"]
 
 function init_providers()
     if haskey(CONFIG, "github")
@@ -68,6 +69,23 @@ function init_providers()
             token_url=get(bitbucket, "token_url", "https://bitbucket.org/oauth2/access_token"),
             token_type=Bitbucket.JWT,
             scope="repository account",
+        )
+    end
+
+    if haskey(CONFIG, "codeberg")
+        codeberg = CONFIG["codeberg"]
+        PROVIDERS["codeberg"] = Provider(;
+            name="Codeberg",
+            client=ForgejoAPI(;
+                url=get(codeberg, "api_url", Forgejo.DEFAULT_URL),
+                token=Forgejo.Token(codeberg["token"]),
+                has_rate_limits=!get(codeberg, "disable_rate_limits", false),
+            ),
+            client_id=codeberg["client_id"],
+            client_secret=codeberg["client_secret"],
+            auth_url=get(codeberg, "auth_url", "https://codeberg.org/login/oauth/authorize"),
+            token_url=get(codeberg, "token_url", "https://codeberg.org/login/oauth/access_token"),
+            scope=get(codeberg, "scope", "read:user"),
         )
     end
 

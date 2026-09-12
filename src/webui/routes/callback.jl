@@ -18,8 +18,12 @@ function callback(r::HTTP.Request)
 
     resp = HTTP.post(
         provider.token_url;
-        headers=["Accept" => "application/json", "User-Agent" => "Registrator.jl"],
-        query=query,
+        headers=[
+            "Accept" => "application/json",
+            "Content-Type" => "application/x-www-form-urlencoded",
+            "User-Agent" => "Registrator.jl",
+        ],
+        body=HTTP.escapeuri(query),
     )
     token = JSON.parse(String(resp.body))["access_token"]
 
