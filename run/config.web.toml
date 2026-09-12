@@ -22,6 +22,21 @@ stop_file = "stopwebui"
 # allow_private = false
 # enable_logging = true
 
+# -- Blocklist configuration (optional) --
+# Block specific users from using Registrator. The blocklist is fetched from a
+# GitHub repo (can be private) containing a TOML file with blocked user entries.
+# The github token below (web.github.token) is used to authenticate when
+# fetching the blocklist, so it must have read access to the blocklist repo.
+# Use scripts/lookup_user_id.sh to find a user's immutable platform ID.
+#
+# blocklist_repo = "JuliaRegistries/user-blocklist"         # owner/repo on GitHub
+# blocklist_file = "blocklist.toml"                         # path within the repo
+# blocklist_cache_ttl = 300                                 # seconds between refreshes
+# blocklist_token = ""              # optional: a GitHub PAT with read access to the
+                                    # blocklist repo. If not set, web.github.token is
+                                    # used instead (it must then have read access to
+                                    # the blocklist repo).
+
 [web.github]
 token = ""
 client_id = ""
