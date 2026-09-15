@@ -1,7 +1,7 @@
 name = "Registrator"
 uuid = "4418983a-e44d-11e8-3aec-9789530b3b3e"
 authors = ["Stefan Karpinski <stefan@karpinski.org>"]
-version = "1.13.0"
+version = "1.13.1"
 
 [deps]
 AutoHashEquals = "15f4f7f2-30c1-5605-9d31-71845cf9641f"
@@ -36,7 +36,7 @@ FileWatching = "1"
 GitForge = "0.4.5"
 GitHub = "5.13"
 HTTP = "1, 2"
-JSON = "0.20, 0.21"
+JSON = "0.20, 0.21, 1"
 LibGit2 = "1"
 Logging = "1"
 MbedTLS = "0.6.8, 0.7, 1"
