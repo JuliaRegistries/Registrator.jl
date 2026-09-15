@@ -69,6 +69,10 @@ function mock_provider!()
 end
 
 @testset "Registrator" begin
+    @testset "blocklist" begin
+        include("blocklist.jl")
+    end
+
     @testset "server" begin
         include("server.jl")
     end

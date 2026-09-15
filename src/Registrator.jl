@@ -43,6 +43,7 @@ RegistryTools.register(regp::RegisterParams) = RegistryTools.register(regp.packa
 
 include("pull_request.jl")
 include("Messaging.jl")
+include("blocklist.jl")
 include("RegService.jl")
 include("commentbot/CommentBot.jl")
 include("webui/WebUI.jl")

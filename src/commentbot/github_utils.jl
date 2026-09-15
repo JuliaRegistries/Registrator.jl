@@ -154,6 +154,20 @@ function get_user_login(payload::Dict{<:AbstractString})
     end
 end
 
+function get_user_id(payload::Dict{<:AbstractString})
+    if haskey(payload, "comment")
+        return payload["comment"]["user"]["id"]
+    elseif haskey(payload, "issue")
+        return payload["issue"]["user"]["id"]
+    elseif haskey(payload, "pull_request")
+        return payload["pull_request"]["user"]["id"]
+    else
+        error("Don't know how to get user id")
+    end
+end
+
+get_repo_owner_id(payload::Dict{<:AbstractString}) = payload["repository"]["owner"]["id"]
+
 function get_body(payload::Dict{<:AbstractString})
     if haskey(payload, "comment")
         return payload["comment"]["body"]
