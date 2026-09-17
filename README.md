@@ -61,12 +61,6 @@ If TagBot has been installed as above, and the initial package registration is c
 
 If that operation is successful, a new version will be tagged and merged automatically in the general registry within approximately 15 minutes.
 
-### Transitioning from REQUIRE to Project.toml
-
-Download [gen_project.jl](https://github.com/JuliaLang/Pkg.jl/blob/934f8b71eb436da6d2bdb30ccfc80e5e11891c5b/bin/gen_project.jl), enter in your package directory and run `julia gen_project.jl`, resulting in a `Project.toml` file. You may need to do minor modifications (license, current version, description, etc.) and then remove the REQUIRE file, since it is only used for packages supporting Julia 0.6 and is otherwise irrelevant now.
-
-Check that your package conforms to the required `Project.toml` structure found in the [general package guidelines](https://julialang.github.io/Pkg.jl/v1/creating-packages/).
-
 ### Details for triggering JuliaRegistrator (for step 2 above)
 
 Either:
