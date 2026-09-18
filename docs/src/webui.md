@@ -25,8 +25,8 @@ It should contain at least three keys:
 Once you've prepared your repository, using Registrator is simple.
 
 1. The first thing to do is to identify yourself as someone who can register your package.
-   At the homepage of the site, you'll be greeted by links to log in to either GitHub or GitLab.
-   If you're registering a GitHub package, then log into GitHub, and likewise for GitLab.
+   At the homepage of the site, you'll be greeted by links to log in with GitHub, GitLab, or Codeberg.
+   Log in with the provider that hosts your package repository.
 
 2. Once authenticated, you'll see a text box to input the URL to your package repository.
    Do so, then press "Submit".
@@ -45,7 +45,7 @@ This section is for people who want to host an instance of Registrator for their
 ### Provider Setup
 
 Here, the term `$PROVIDER` indicates the provider of your registry repository.
-In most cases, that will be GitHub, or perhaps GitLab.
+In most cases, that will be GitHub, GitLab, or Codeberg.
 
 You will need:
 
@@ -53,13 +53,13 @@ You will need:
 - A `$PROVIDER` user: This user must have permissions to push to the registry and create pull requests.
 - A `$PROVIDER` API key: This should be created in the user's account.
 
-The OAuth providers currently supported are GitHub and GitLab.
-You can choose to support one or both (or none, but that wouldn't be very useful).
+The OAuth providers currently supported are GitHub, GitLab, and Codeberg.
+You can choose to support any subset of them (or none, but that wouldn't be very useful).
 
 For each provider that you support, you will need:
 
 - An OAuth2 application: For letting users authenticate.
-  When setting the callback URL, use `$SERVER_URL/callback?provider=(github|gitlab)`.
+  When setting the callback URL, use `$SERVER_URL/callback?provider=(github|gitlab|codeberg)`.
   The value for `$SERVER_URL` is covered below.
   GitLab will ask you what scopes you want at application creation time, you want `read_user`.
 - A user and API key: This can be the same as you created above for `$PROVIDER`.
@@ -97,8 +97,8 @@ It's important to note that optional values **must** be omitted or commented out
 - `extra_providers`: Path to a Julia file that adds extra providers.
   This should only be used for certain cases when your provider is self-hosted (see next section).
 - `registry_provider`: The registry provider, which is usually inferred from the registry URL.
-  You should only set this if provider is one you added yourself or has a URL that does not contain `github` or `gitlab`.
-  For GitHub, the value should be `github`, and for GitLab, it should be `gitlab`.
+  You should only set this if provider is one you added yourself or has a URL that does not contain `github`, `gitlab`, or `codeberg`.
+  For GitHub, the value should be `github`, for GitLab it should be `gitlab`, and for Codeberg it should be `codeberg`.
   For any other provider, it should be whatever key you used in your extra providers file.
 - `registry_deps`: A list of URLs representing any registries that your target registry depends on.
 - `disable_release_notes`: Set to `true` to disable the release notes text box.
@@ -109,10 +109,10 @@ It's important to note that optional values **must** be omitted or commented out
 - `allow_private`: Set this to `true` if you want to register private packages. Default is `false`.
 - `enable_logging`: Set this to `false` if you want to use a custom logger in your Julia code. By default a `SimpleLogger` is used that writes to `stdout`.
 
-#### `[web.git{hub,lab}]` Section
+#### `[web.{github,gitlab,codeberg,bitbucket}]` Sections
 
 If you want to disable a provider, simply omit its section.
-For example, to support GitHub packages but not GitLab packages, only provide a `[web.github]` section.
+For example, to support GitHub packages but not GitLab or Codeberg packages, only provide a `[web.github]` section.
 
 ##### Required
 
@@ -126,16 +126,18 @@ For example, to support GitHub packages but not GitLab packages, only provide a 
   You should only set this variable if your provider is self-hosted (i.e. with a non-default URL).
 - `auth_url`: OAuth2 authentication URL.
   Only set this for self-hosted providers.
-- `token_url`: OAuth2 token exchange URL.p
+- `token_url`: OAuth2 token exchange URL.
   Only set this for self-hosted providers.
 - `disable_rate_limits`: Set to `true` to disable rate limit processing.
   Only set this for self-hosted instances that don't use rate limiting.
+- `scope`: OAuth scope override.
+  In most cases you should leave this alone and use the provider default.
+  For Codeberg, the default is `read:user`.
 
 ### Adding Extra Providers
 
 In almost all cases, you shouldn't need to do this.
-The only real use case is when your registry is on a self-hosted GitHub or GitLab instance, and you also want to allow registering of packages from the public instance of that provider.
-The only two providers supported are GitHub and GitLab.
+The only real use case is when your registry is on a self-hosted GitHub, GitLab, or Forgejo instance, and you also want to allow registering packages from the public instance of that provider.
 If you do want to do this, then you should set `web.extra_providers` as mentioned above.
 The file should look like this:
 
@@ -171,9 +173,9 @@ PROVIDERS["mygitlab"] = Provider(;
 
 - `name`: The text displayed on the authentication link.
 - `client`: A [GitForge](https://cdg.dev/GitForge.jl/stable) `Forge` with access to your provider.
-- `scope`: Use `public_repo` for GitHub and `read_user` for GitLab.
-- `include_state`: Leave out for GitHub and set `false` for GitLab.
-- `token_type`: Leave out for GitHub and set `OAuth2Token` for GitLab.
+- `scope`: Use `public_repo` for GitHub, `read_user` for GitLab, and `read:user` for Codeberg.
+- `include_state`: Leave out for GitHub and Codeberg, and set `false` for GitLab.
+- `token_type`: Leave out for GitHub and Codeberg, and set `OAuth2Token` for GitLab.
 
 The OAuth2 application info and URLs are covered above.
 When setting your OAuth2 application's callback URL, make sure that it ends with `?provider=$PROVIDER`, where `$PROVIDER` is `mygithub` for the GitHub example above.
@@ -194,7 +196,7 @@ It's not important to keep it intact, as it is synchronized before registering a
 
 ### Basic Recipe: Public Registry
 
-Here's a general case of hosting a registry on GitHub and allowing package registrations from both GitHub and GitLab.
+Here's a general case of hosting a registry on GitHub and allowing package registrations from GitHub, GitLab, and Codeberg.
 The registry will be owned by `RegistryOwner` and the name will be `MyRegistry`.
 The web server will be hosted at `https://myregistrator.com`, and run on port 4000.
 
@@ -211,7 +213,7 @@ server_url = "https://myregistrator.com"
 registry_url = "https://github.com/RegistryOwner/MyRegistry"
 ```
 
-Next, we create the GitHub and GitLab users and API keys, and save those API keys:
+Next, we create the GitHub, GitLab, and Codeberg users and API keys, and save those API keys:
 
 ```toml
 [web.github]
@@ -219,10 +221,13 @@ token = "abc..."
 
 [web.gitlab]
 token = "abc..."
+
+[web.codeberg]
+token = "abc..."
 ```
 
-Next, create OAuth2 applications for both of them.
-The callback URLs will be `https://myregistrator.com/callback?provider=github` and `https://myregistrator.com/callback?provider=gitlab`.
+Next, create OAuth2 applications for all of them.
+The callback URLs will be `https://myregistrator.com/callback?provider=github`, `https://myregistrator.com/callback?provider=gitlab`, and `https://myregistrator.com/callback?provider=codeberg`.
 Add the client IDs and secrets to our file:
 
 ```toml
@@ -231,6 +236,10 @@ client_id = "abc..."
 client_secret = "abc..."
 
 [web.gitlab]
+client_id = "abc..."
+client_secret = "abc..."
+
+[web.codeberg]
 client_id = "abc..."
 client_secret = "abc..."
 ```
@@ -270,6 +279,11 @@ client_id = "abc..."
 client_secret = "abc..."
 
 [web.gitlab]
+token = "abc..."
+client_id = "abc..."
+client_secret = "abc..."
+
+[web.codeberg]
 token = "abc..."
 client_id = "abc..."
 client_secret = "abc..."
