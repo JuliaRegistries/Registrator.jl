@@ -28,8 +28,9 @@ using Registrator.CommentBot: encrypt_metadata, decrypt_metadata, OpenSSLError
 
     @test_throws ArgumentError encrypt_metadata("short", "x")
     @test_throws ArgumentError decrypt_metadata("0123456789abcdef0", hex2bytes(last(vectors[1])))
-    # Wrong key or truncated data fails the padding check rather than
-    # returning garbage, and leaves no error state behind for the next call.
+    # For these inputs a wrong key or truncated data fails the padding check
+    # (a wrong key does so in ~255/256 cases, not always), and leaves no error
+    # state behind for the next call.
     @test_throws OpenSSLError decrypt_metadata("fedcba9876543210", hex2bytes(last(vectors[2])))
     @test_throws OpenSSLError decrypt_metadata(key, hex2bytes(last(vectors[3]))[1:end-1])
     @test String(decrypt_metadata(key, hex2bytes(last(vectors[2])))) == "a"
