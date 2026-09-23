@@ -37,8 +37,9 @@ function _throw_openssl_error(context::AbstractString)
     throw(OpenSSLError(String(context), msg))
 end
 
-# Inputs are only read, never mutated, so a `Vector{UInt8}` is passed through as is.
-_bytes(x::AbstractString) = Vector{UInt8}(codeunits(x))
+# Inputs are only read, never mutated, so a `Vector{UInt8}` is passed through as
+# is and a string is viewed through `codeunits` (zero-copy, ccall-convertible).
+_bytes(x::AbstractString) = codeunits(x)
 _bytes(x::Vector{UInt8}) = x
 _bytes(x::AbstractVector{UInt8}) = Vector{UInt8}(x)
 
@@ -48,6 +49,9 @@ function _aes_128_cbc(encrypt::Bool, key, iv, data)
         throw(ArgumentError("AES-128 key must be $AES_128_KEY_LEN bytes, got $(length(key_b))"))
     length(iv_b) == AES_BLOCK_LEN ||
         throw(ArgumentError("AES IV must be $AES_BLOCK_LEN bytes, got $(length(iv_b))"))
+    # `EVP_CipherUpdate` takes the input length as a C `int`.
+    length(data_b) <= typemax(Cint) ||
+        throw(ArgumentError("input too large: $(length(data_b)) bytes"))
 
     enc = Cint(encrypt)
     _clear_openssl_errors()

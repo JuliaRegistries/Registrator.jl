@@ -25,6 +25,9 @@ using Registrator.CommentBot: encrypt_metadata, decrypt_metadata, OpenSSLError
     # Round trip through the JSON shape the comment bot actually embeds.
     meta = """{"pkg_repo_name":"Foo/Bar.jl","version":"0.1.0","subdir":"","tree_sha":"abc"}"""
     @test String(decrypt_metadata(key, encrypt_metadata(key, meta))) == meta
+    # Non-`String` key and data types go through the same zero-copy path.
+    @test encrypt_metadata(SubString(key * "!", 1, 16), meta) == encrypt_metadata(key, meta)
+    @test decrypt_metadata(key, view(encrypt_metadata(key, meta), :)) == codeunits(meta)
 
     @test_throws ArgumentError encrypt_metadata("short", "x")
     @test_throws ArgumentError decrypt_metadata("0123456789abcdef0", hex2bytes(last(vectors[1])))

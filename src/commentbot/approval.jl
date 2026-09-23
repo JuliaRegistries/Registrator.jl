@@ -16,11 +16,12 @@ function get_metadata_from_pr_body(rp::RequestParams, auth)
 
     pr = pull_request(reg_name, reg_prid; auth=auth)
 
-    mstart = match(r"<!--", pr.body)
-    mend = match(r"-->", pr.body)
-
     key = CONFIG["enc_key"]
     try
+        # `pr.body` may be `nothing` and the HTML comment may have been edited
+        # out, in which case `match` returns `nothing`; both are caught below.
+        mstart = match(r"<!--", pr.body)
+        mend = match(r"-->", pr.body)
         enc_meta = strip(pr.body[mstart.offset+4:mend.offset-1])
         meta = String(decrypt_metadata(key, hex2bytes(enc_meta)))
         return JSON.parse(meta)

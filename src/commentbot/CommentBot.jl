@@ -276,6 +276,11 @@ function main(config::AbstractString=isempty(ARGS) ? "config.toml" : first(ARGS)
     end
     zsock = RequestSocket(get(CONFIG, "backend_port", 5555))
 
+    # Fail at startup rather than on the first registration request.
+    enc_key = get(CONFIG, "enc_key", nothing)
+    (enc_key isa AbstractString && sizeof(enc_key) == AES_128_KEY_LEN) ||
+        error("commentbot.enc_key must be a $AES_128_KEY_LEN-byte string")
+
     Blocklist.load_blocklist!(CONFIG)
     @info("Starting server...")
     t1 = @async request_processor(zsock)
