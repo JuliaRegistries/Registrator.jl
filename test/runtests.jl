@@ -73,6 +73,10 @@ end
         include("blocklist.jl")
     end
 
+    @testset "commentbot/aes" begin
+        include("commentbot/aes.jl")
+    end
+
     @testset "server" begin
         include("server.jl")
     end
