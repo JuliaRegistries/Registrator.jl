@@ -1,11 +1,13 @@
-using Registrator.CommentBot: encrypt_metadata, decrypt_metadata
+using Registrator.CommentBot: encrypt_metadata, decrypt_metadata, OpenSSLError
 
 @testset "PR metadata encryption" begin
     key = "0123456789abcdef"
 
-    # Ciphertexts produced by the previous MbedTLS-based implementation,
-    # `encrypt(MbedTLS.CIPHER_AES_128_CBC, key, msg, key)`. Metadata in
-    # already-open registry PRs must keep decrypting.
+    # Ciphertexts produced independently by the previous MbedTLS-based
+    # implementation, `encrypt(MbedTLS.CIPHER_AES_128_CBC, key, msg, key)`, and by
+    #   printf %s "$msg" | openssl enc -aes-128-cbc -K $hexkey -iv $hexkey
+    # which agree byte for byte. Metadata in already-open registry PRs must keep
+    # decrypting.
     vectors = [
         "" => "ed47fee0545c3fa7dd070d44b86e98d9",
         "a" => "4694c9b4c3f491d04428ebd697e40581",
@@ -16,10 +18,19 @@ using Registrator.CommentBot: encrypt_metadata, decrypt_metadata
     for (msg, hex) in vectors
         @test bytes2hex(encrypt_metadata(key, msg)) == hex
         @test String(decrypt_metadata(key, hex2bytes(hex))) == msg
+        # Byte-vector input works the same as a String.
+        @test bytes2hex(encrypt_metadata(key, Vector{UInt8}(codeunits(msg)))) == hex
     end
+
+    # Round trip through the JSON shape the comment bot actually embeds.
+    meta = """{"pkg_repo_name":"Foo/Bar.jl","version":"0.1.0","subdir":"","tree_sha":"abc"}"""
+    @test String(decrypt_metadata(key, encrypt_metadata(key, meta))) == meta
 
     @test_throws ArgumentError encrypt_metadata("short", "x")
     @test_throws ArgumentError decrypt_metadata("0123456789abcdef0", hex2bytes(last(vectors[1])))
-    # Wrong key fails the padding check rather than returning garbage.
-    @test_throws ErrorException decrypt_metadata("fedcba9876543210", hex2bytes(last(vectors[2])))
+    # Wrong key or truncated data fails the padding check rather than
+    # returning garbage, and leaves no error state behind for the next call.
+    @test_throws OpenSSLError decrypt_metadata("fedcba9876543210", hex2bytes(last(vectors[2])))
+    @test_throws OpenSSLError decrypt_metadata(key, hex2bytes(last(vectors[3]))[1:end-1])
+    @test String(decrypt_metadata(key, hex2bytes(last(vectors[2])))) == "a"
 end
