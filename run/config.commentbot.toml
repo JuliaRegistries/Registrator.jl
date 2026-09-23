@@ -19,6 +19,9 @@ set_status = true               # If set to true Registrator will post pending a
 
 enc_key = "1234567890123456"    # The encryption key to use to encrypt PR metadata. This is
                                 # decrypted and used by Registrator for the approved() call.
+                                # Must be exactly 16 bytes (AES-128); the bot refuses to
+                                # start otherwise. Changing it makes already-open PRs
+                                # unapprovable.
 
 disable_pull_request_trigger = true    # If set to false this will enable register()ing from
                                 # Pull requests. This is not recommended as Pull requests

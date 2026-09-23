@@ -10,26 +10,28 @@ function tag_package(rname, ver::VersionNumber, mcs, auth; tag_name = "v$ver")
                            "tagger" => tagger))
 end
 
-function get_metadata_from_pr_body(rp::RequestParams, auth)
-    reg_name = rp.reponame
-    reg_prid = rp.trigger_src.prid
-
-    pr = pull_request(reg_name, reg_prid; auth=auth)
-
-    key = CONFIG["enc_key"]
-    try
-        # `pr.body` may be `nothing` and the HTML comment may have been edited
-        # out, in which case `match` returns `nothing`; both are caught below.
-        mstart = match(r"<!--", pr.body)
-        mend = match(r"-->", pr.body)
-        enc_meta = strip(pr.body[mstart.offset+4:mend.offset-1])
-        meta = String(decrypt_metadata(key, hex2bytes(enc_meta)))
-        return JSON.parse(meta)
-    catch ex
-        @debug "Exception occured while parsing PR body" exception = (ex, catch_backtrace())
+# Registration metadata is embedded in the registry PR body as an HTML comment
+# holding the hex-encoded ciphertext, `<!-- 0123abcd... -->`. The body can hold
+# other HTML comments as well (the `<!-- BEGIN RELEASE NOTES -->` markers come
+# *before* it, and users may edit the body), so only hex-only comments are
+# candidates, and each one is tried until one decrypts and parses. Returns
+# `nothing` when the body is missing or holds no valid metadata.
+function metadata_from_pr_body(body::Union{AbstractString,Nothing}, key)
+    body === nothing && return nothing
+    for m in eachmatch(r"<!--\s*([0-9a-fA-F]+)\s*-->", body)
+        try
+            meta = String(decrypt_metadata(key, hex2bytes(m.captures[1])))
+            return JSON.parse(meta)
+        catch ex
+            @debug "Exception occured while parsing PR body" exception = (ex, catch_backtrace())
+        end
     end
-
     nothing
+end
+
+function get_metadata_from_pr_body(rp::RequestParams, auth)
+    pr = pull_request(rp.reponame, rp.trigger_src.prid; auth=auth)
+    metadata_from_pr_body(pr.body, CONFIG["enc_key"])
 end
 
 function handle_approval(rp::RequestParams{ApprovalTrigger})

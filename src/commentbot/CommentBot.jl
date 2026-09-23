@@ -274,12 +274,10 @@ function main(config::AbstractString=isempty(ARGS) ? "config.toml" : first(ARGS)
     if get(CONFIG, "enable_logging", true)
         global_logger(SimpleLogger(stdout, get_log_level(CONFIG["log_level"])))
     end
+    # Fail at startup, before any sockets are opened, rather than on the first
+    # registration request.
+    check_metadata_key(get(CONFIG, "enc_key", nothing))
     zsock = RequestSocket(get(CONFIG, "backend_port", 5555))
-
-    # Fail at startup rather than on the first registration request.
-    enc_key = get(CONFIG, "enc_key", nothing)
-    (enc_key isa AbstractString && sizeof(enc_key) == AES_128_KEY_LEN) ||
-        error("commentbot.enc_key must be a $AES_128_KEY_LEN-byte string")
 
     Blocklist.load_blocklist!(CONFIG)
     @info("Starting server...")

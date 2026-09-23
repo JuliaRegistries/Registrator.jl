@@ -43,10 +43,25 @@ _bytes(x::AbstractString) = codeunits(x)
 _bytes(x::Vector{UInt8}) = x
 _bytes(x::AbstractVector{UInt8}) = Vector{UInt8}(x)
 
+"""
+    check_metadata_key(key)
+
+Throw an `ArgumentError` unless `key` is a string or byte vector of exactly
+`AES_128_KEY_LEN` bytes. Used both when the key is configured and on every
+encrypt/decrypt call.
+"""
+function check_metadata_key(key)
+    key isa Union{AbstractString,AbstractVector{UInt8}} ||
+        throw(ArgumentError("commentbot.enc_key must be a $AES_128_KEY_LEN-byte string, got $(typeof(key))"))
+    n = length(_bytes(key))
+    n == AES_128_KEY_LEN ||
+        throw(ArgumentError("commentbot.enc_key must be $AES_128_KEY_LEN bytes, got $n"))
+    key
+end
+
 function _aes_128_cbc(encrypt::Bool, key, iv, data)
+    check_metadata_key(key)
     key_b, iv_b, data_b = _bytes(key), _bytes(iv), _bytes(data)
-    length(key_b) == AES_128_KEY_LEN ||
-        throw(ArgumentError("AES-128 key must be $AES_128_KEY_LEN bytes, got $(length(key_b))"))
     length(iv_b) == AES_BLOCK_LEN ||
         throw(ArgumentError("AES IV must be $AES_BLOCK_LEN bytes, got $(length(iv_b))"))
     # `EVP_CipherUpdate` takes the input length as a C `int`.
