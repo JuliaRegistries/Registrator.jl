@@ -38,6 +38,10 @@ jobs:
       - uses: julia-actions/julia-buildpkg@latest
       - name: Generate a token that has read access to https://github.com/JuliaRegistries/user-blocklist-mock-for-testing
         id: generate-token
+        # Repository variables and secrets are not available to pull requests
+        # from forks, so skip this step there. The live blocklist tests are
+        # skipped when `GITHUB_TOKEN` is empty.
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/create-github-app-token@v2
         with:
           app-id: ${{ vars.APP_ID_TEST_APP_USER_BLOCKLIST_MOCK }}

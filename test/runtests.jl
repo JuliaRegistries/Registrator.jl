@@ -82,7 +82,7 @@ end
     end
 
     @testset "webui" begin
-        if !haskey(ENV, "GITHUB_TOKEN")
+        if isempty(get(ENV, "GITHUB_TOKEN", ""))
             msg = string(
                 "Note: we highly recommend that you run these tests with a ",
                 "`GITHUB_TOKEN` that has read-only access.",
