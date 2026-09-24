@@ -65,11 +65,11 @@ function check_metadata_key(key)
     key
 end
 
-function _aes_128_cbc(encrypt::Bool, key, iv, data)
-    check_metadata_key(key)
-    key_b, iv_b, data_b = _bytes(key), _bytes(iv), _bytes(data)
-    length(iv_b) == AES_BLOCK_LEN ||
-        throw(ArgumentError("AES IV must be $AES_BLOCK_LEN bytes, got $(length(iv_b))"))
+# The 16-byte `key` doubles as the CBC IV (see the header comment); a valid
+# AES-128 key is by construction a valid IV, so no separate IV check is needed.
+function _aes_128_cbc(encrypt::Bool, key, data)
+    key_b = _bytes(check_metadata_key(key))
+    data_b = _bytes(data)
     # `EVP_CipherUpdate` takes the input length as a C `int`.
     length(data_b) <= typemax(Cint) ||
         throw(ArgumentError("input too large: $(length(data_b)) bytes"))
@@ -85,7 +85,7 @@ function _aes_128_cbc(encrypt::Bool, key, iv, data)
 
         rc = @ccall libcrypto.EVP_CipherInit_ex(
             ctx::Ptr{Cvoid}, cipher::Ptr{Cvoid}, C_NULL::Ptr{Cvoid},
-            key_b::Ptr{UInt8}, iv_b::Ptr{UInt8}, enc::Cint)::Cint
+            key_b::Ptr{UInt8}, key_b::Ptr{UInt8}, enc::Cint)::Cint
         rc == 1 || _throw_openssl_error("EVP_CipherInit_ex")
 
         # CBC output is at most one block longer than the input.
@@ -115,7 +115,7 @@ end
 Encrypt `msg` (a `String` or byte vector) with AES-128-CBC and PKCS#7 padding,
 using the 16-byte `key` as both key and IV.
 """
-encrypt_metadata(key, msg) = _aes_128_cbc(true, key, key, msg)
+encrypt_metadata(key, msg) = _aes_128_cbc(true, key, msg)
 
 """
     decrypt_metadata(key, data) -> Vector{UInt8}
@@ -126,4 +126,4 @@ check fails, which is the usual outcome for data that was not encrypted with
 in 256) yield garbage bytes instead of an error; callers must validate the
 result.
 """
-decrypt_metadata(key, data) = _aes_128_cbc(false, key, key, data)
+decrypt_metadata(key, data) = _aes_128_cbc(false, key, data)
