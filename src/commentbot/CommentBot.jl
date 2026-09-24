@@ -8,7 +8,6 @@ using Pkg
 using Logging
 using Dates
 using JSON
-using MbedTLS
 
 import Pkg: TOML
 import ..Registrator: pull_request_contents, tag_name
@@ -19,6 +18,7 @@ import ..RegisterParams
 using ..Blocklist: is_blocked, load_blocklist!
 import ..Blocklist
 
+include("aes.jl")
 include("trigger_types.jl")
 include("parse_comment.jl")
 include("github_utils.jl")
@@ -72,7 +72,7 @@ function make_pull_request(pp::ProcessedParams, rp::RequestParams, rbrn::RegBran
                           "version"=> string(ver),
                           "subdir"=> subdir))
     key = CONFIG["enc_key"]
-    enc_meta = "<!-- " * bytes2hex(encrypt(MbedTLS.CIPHER_AES_128_CBC, key, meta, key)) * " -->"
+    enc_meta = "<!-- " * bytes2hex(encrypt_metadata(key, meta)) * " -->"
     repo = reponame_from_url(target_registry["repo"])
     fork_repo = !haskey(target_registry, "fork_repo") ? repo : reponame_from_url(target_registry["fork_repo"])
     head_branch = string(first(split(fork_repo, "/")), ":", brn)
@@ -274,6 +274,9 @@ function main(config::AbstractString=isempty(ARGS) ? "config.toml" : first(ARGS)
     if get(CONFIG, "enable_logging", true)
         global_logger(SimpleLogger(stdout, get_log_level(CONFIG["log_level"])))
     end
+    # Fail at startup, before any sockets are opened, rather than on the first
+    # registration request.
+    check_metadata_key(get(CONFIG, "enc_key", nothing))
     zsock = RequestSocket(get(CONFIG, "backend_port", 5555))
 
     Blocklist.load_blocklist!(CONFIG)

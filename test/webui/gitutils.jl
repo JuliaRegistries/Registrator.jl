@@ -91,6 +91,8 @@ end
         private_repo = GitHub.Repo(name="Example.jl", private=true, owner=user, permissions = GitHub.Permissions(admin = true, push = false, pull = true))
         public_repo_of_user = GitHub.Repo(name="Example.jl", private=false, owner=user, organization=nothing, permissions = GitHub.Permissions(admin = true, push = false, pull = true))
         public_repo_of_org = GitHub.Repo(name="Example.jl", private=false, owner=org, organization=org, permissions = GitHub.Permissions(admin = true, push = false, pull = true))
+        # `permissions` is absent from the API response for unauthenticated requests.
+        public_repo_no_perms = GitHub.Repo(name="Example.jl", private=false, owner=user, organization=nothing, permissions = nothing)
         u = User(user, GitHub.GitHubAPI())
 
         @testset "private repo" begin
@@ -105,6 +107,13 @@ end
             end
             patch_gitforge(is_collaborator=false) do
                 @test isauthorized(u, public_repo_of_user, false) == AuthFailure("User user123 is not a collaborator on repo Example.jl")
+            end
+            # missing `permissions` must not error; it counts as no push access
+            patch_gitforge(is_collaborator=true) do
+                @test isauthorized(u, public_repo_no_perms, false) == AuthSuccess()
+            end
+            patch_gitforge(is_collaborator=false) do
+                @test isauthorized(u, public_repo_no_perms, false) == AuthFailure("User user123 is not a collaborator on repo Example.jl")
             end
         end
 

@@ -10,25 +10,43 @@ function tag_package(rname, ver::VersionNumber, mcs, auth; tag_name = "v$ver")
                            "tagger" => tagger))
 end
 
-function get_metadata_from_pr_body(rp::RequestParams, auth)
-    reg_name = rp.reponame
-    reg_prid = rp.trigger_src.prid
+# Keys `handle_approval` reads from the decrypted metadata.
+const METADATA_KEYS = ("request_type", "pkg_repo_name", "trigger_id", "tree_sha", "version", "subdir")
 
-    pr = pull_request(reg_name, reg_prid; auth=auth)
-
-    mstart = match(r"<!--", pr.body)
-    mend = match(r"-->", pr.body)
-
-    key = CONFIG["enc_key"]
-    try
-        enc_meta = strip(pr.body[mstart.offset+4:mend.offset-1])
-        meta = String(decrypt(MbedTLS.CIPHER_AES_128_CBC, key, hex2bytes(enc_meta), key))
-        return JSON.parse(meta)
-    catch ex
-        @debug "Exception occured while parsing PR body" exception = (ex, catch_backtrace())
+# Registration metadata is embedded in the registry PR body as an HTML comment
+# holding the hex-encoded ciphertext, `<!-- 0123abcd... -->`. The body can hold
+# other HTML comments as well (the `<!-- BEGIN RELEASE NOTES -->` markers come
+# *before* it, and users may edit the body), so only hex-only comments are
+# candidates, and each one is tried until one decrypts and parses.
+#
+# Candidates are tried last-to-first: `pull_request_contents` appends the
+# metadata after everything else, while the release notes above it are
+# user-supplied. The ciphertext is deterministic and the same key is used for
+# every PR, so a hex comment copied from another public registry PR into the
+# release notes decrypts fine; scanning from the end keeps it from shadowing the
+# bot's own metadata. Returns `nothing` when the body is missing or holds no
+# valid metadata.
+function metadata_from_pr_body(body::Union{AbstractString,Nothing}, key)
+    body === nothing && return nothing
+    for m in reverse(collect(eachmatch(r"<!--\s*([0-9a-fA-F]+)\s*-->", body)))
+        meta = try
+            JSON.parse(String(decrypt_metadata(key, hex2bytes(m.captures[1]))))
+        catch ex
+            @debug "Exception occured while parsing PR body" exception = (ex, catch_backtrace())
+            continue
+        end
+        # There is no authentication, so a wrong key or unrelated hex can
+        # decrypt to bytes that happen to parse as JSON (e.g. a bare number).
+        # Only accept the shape `handle_approval` indexes into.
+        meta isa AbstractDict && all(k -> haskey(meta, k), METADATA_KEYS) && return meta
+        @debug "Decrypted PR metadata has unexpected shape" meta
     end
-
     nothing
+end
+
+function get_metadata_from_pr_body(rp::RequestParams, auth)
+    pr = pull_request(rp.reponame, rp.trigger_src.prid; auth=auth)
+    metadata_from_pr_body(pr.body, CONFIG["enc_key"])
 end
 
 function handle_approval(rp::RequestParams{ApprovalTrigger})
