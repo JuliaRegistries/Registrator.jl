@@ -113,8 +113,11 @@ function isauthorized(u::User{GitHub.User}, repo::GitHub.Repo, fetch = true)
             return AuthFailure("Repo $(repo.name) is not accessible to the user")
         end
     end
-    # Users with push access can always release their package
-    repo !== nothing && repo.permissions.push && return AuthSuccess()
+    # Users with push access can always release their package. The API omits
+    # `permissions` for unauthenticated requests, so treat a missing field as
+    # no push access and fall through to the collaborator/member checks.
+    perms = repo.permissions
+    perms !== nothing && perms.push === true && return AuthSuccess()
     # Collaborators can always release their package
     # checking collaborators requires push access for both the connection and the acct
     # check with each connection in case user's connection does not have push permission
