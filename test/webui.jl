@@ -43,18 +43,35 @@ restoreconfig!()
 
     mock_provider!()
 
-    @testset "Registry initialization" begin
-        UI.init_registry()
-        reg = UI.REGISTRY[]
-        @test reg.url == reg.clone == UI.CONFIG["registry_url"]
-        @test reg.repo isa GitHub.Repo
+    # Some tests below look up real repositories on GitHub. Unauthenticated
+    # requests share a 60/hour per-IP rate limit, which CI exceeds on pull
+    # requests from forks (no token is generated there, see ci.yml), so those
+    # tests are skipped when `GITHUB_TOKEN` is empty, like the live blocklist
+    # tests. The server-only tests still run against a stub registry.
+    live_github = !isempty(get(ENV, "GITHUB_TOKEN", ""))
+    live_github || @warn "Skipping live GitHub Web UI tests: GITHUB_TOKEN not set"
 
-        UI.CONFIG["registry_clone_url"] = "git@github.com:JuliaRegistries/General.git"
-        UI.init_registry()
-        reg = UI.REGISTRY[]
-        @test reg.url == UI.CONFIG["registry_url"]
-        @test reg.clone == UI.CONFIG["registry_clone_url"]
-        restoreconfig!()
+    @testset "Registry initialization" begin
+        if live_github
+            UI.init_registry()
+            reg = UI.REGISTRY[]
+            @test reg.url == reg.clone == UI.CONFIG["registry_url"]
+            @test reg.repo isa GitHub.Repo
+
+            UI.CONFIG["registry_clone_url"] = "git@github.com:JuliaRegistries/General.git"
+            UI.init_registry()
+            reg = UI.REGISTRY[]
+            @test reg.url == UI.CONFIG["registry_url"]
+            @test reg.clone == UI.CONFIG["registry_clone_url"]
+            restoreconfig!()
+        else
+            @test_skip false
+            url = UI.CONFIG["registry_url"]
+            repo = GitHub.Repo(; name="General", owner=GitHub.User(; login="JuliaRegistries"))
+            UI.REGISTRY[] = UI.Registry(
+                UI.PROVIDERS["github"].client, repo, repo, url, url, url, String[], true,
+            )
+        end
     end
 
     start_server(4000)
@@ -127,17 +144,22 @@ restoreconfig!()
 
         example_github_repo = get(ENV, "GITHUB_REPOSITORY", "JuliaRegistries/Registrator.jl")
 
-        body = "package=http://github.com/$(example_github_repo)&ref=master"
-        resp = HTTP.post(url; body=body, cookies=cookies, status_exception=false)
-        @test resp.status == 400
-        @test occursin("Unauthorized to release this package", String(resp.body))
+        # The remaining checks look the repository up on GitHub.
+        if live_github
+            body = "package=http://github.com/$(example_github_repo)&ref=master"
+            resp = HTTP.post(url; body=body, cookies=cookies, status_exception=false)
+            @test resp.status == 400
+            @test occursin("Unauthorized to release this package", String(resp.body))
 
-        body = "package=git@github.com:$(example_github_repo).git&ref=master"
-        resp = HTTP.post(url; body=body, cookies=cookies, status_exception=false)
-        @test resp.status == 400
-        @test occursin("Unauthorized to release this package", String(resp.body))
+            body = "package=git@github.com:$(example_github_repo).git&ref=master"
+            resp = HTTP.post(url; body=body, cookies=cookies, status_exception=false)
+            @test resp.status == 400
+            @test occursin("Unauthorized to release this package", String(resp.body))
+        else
+            @test_skip false
+        end
 
-        @testset "Repo that does not exist" begin
+        live_github && @testset "Repo that does not exist" begin
             registrator_test_verbose_str = get(ENV, "JULIA_REGISTRATOR_TEST_VERBOSE", "false")
             registrator_test_verbose = parse(Bool, registrator_test_verbose_str)
             if registrator_test_verbose
