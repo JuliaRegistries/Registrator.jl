@@ -38,8 +38,12 @@ function _throw_openssl_error(context::AbstractString)
 end
 
 # Inputs are only read, never mutated, so a `Vector{UInt8}` is passed through as
-# is and a string is viewed through `codeunits` (zero-copy, ccall-convertible).
-_bytes(x::AbstractString) = codeunits(x)
+# is and a `String`/`SubString{String}` is viewed through `codeunits` (zero-copy,
+# ccall-convertible). Other string and byte-container types are copied into a
+# `Vector{UInt8}`, since `codeunits` of an arbitrary `AbstractString` has no
+# `pointer` and would fail inside the ccall.
+_bytes(x::Union{String,SubString{String}}) = codeunits(x)
+_bytes(x::AbstractString) = Vector{UInt8}(codeunits(x))
 _bytes(x::Vector{UInt8}) = x
 _bytes(x::AbstractVector{UInt8}) = Vector{UInt8}(x)
 
@@ -51,6 +55,8 @@ Throw an `ArgumentError` unless `key` is a string or byte vector of exactly
 encrypt/decrypt call.
 """
 function check_metadata_key(key)
+    key === nothing &&
+        throw(ArgumentError("commentbot.enc_key is not set; it must be a $AES_128_KEY_LEN-byte string"))
     key isa Union{AbstractString,AbstractVector{UInt8}} ||
         throw(ArgumentError("commentbot.enc_key must be a $AES_128_KEY_LEN-byte string, got $(typeof(key))"))
     n = length(_bytes(key))

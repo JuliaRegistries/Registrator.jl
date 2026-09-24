@@ -29,6 +29,7 @@ using Registrator.CommentBot: encrypt_metadata, decrypt_metadata, check_metadata
     # Non-`String` key and data types are accepted (strings via `codeunits`,
     # non-`Vector` byte containers by copying into a `Vector{UInt8}`).
     @test encrypt_metadata(SubString(key * "!", 1, 16), meta) == encrypt_metadata(key, meta)
+    @test encrypt_metadata(key, Test.GenericString(meta)) == encrypt_metadata(key, meta)
     @test decrypt_metadata(key, view(encrypt_metadata(key, meta), :)) == codeunits(meta)
 
     @test_throws ArgumentError encrypt_metadata("short", "x")
@@ -62,6 +63,23 @@ end
         meta=enc_meta)
     @test occursin("<!-- BEGIN RELEASE NOTES -->", body)
     @test metadata_from_pr_body(body, key) == meta
+
+    # A valid ciphertext copied from another PR into the (user-supplied) release
+    # notes must not shadow the bot's own metadata, which always comes last.
+    other = merge(meta, Dict("pkg_repo_name" => "Evil/Other.jl", "version" => "9.9.9"))
+    other_enc = "<!-- " * bytes2hex(encrypt_metadata(key, JSON.json(other))) * " -->"
+    _, body = Registrator.pull_request_contents(;
+        registration_type="New package", package="Bar", repo="https://github.com/Foo/Bar.jl",
+        user="@u", version=v"0.1.0", commit="abc", release_notes="notes\n" * other_enc,
+        meta=enc_meta)
+    @test metadata_from_pr_body(body, key) == meta
+
+    # Decrypts and parses as JSON, but not to the shape `handle_approval` needs.
+    scalar_enc = "<!-- " * bytes2hex(encrypt_metadata(key, "42")) * " -->"
+    partial_enc = "<!-- " * bytes2hex(encrypt_metadata(key, """{"version":"1.0.0"}""")) * " -->"
+    @test metadata_from_pr_body(scalar_enc, key) === nothing
+    @test metadata_from_pr_body(partial_enc, key) === nothing
+    @test metadata_from_pr_body(scalar_enc * "\n" * enc_meta, key) == meta
 
     # Missing body, missing comment, non-hex comment, wrong key.
     @test metadata_from_pr_body(nothing, key) === nothing
